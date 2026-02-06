@@ -274,8 +274,11 @@ async def assert_eventually(assertion, timeout: float = 5.0, interval: float = 0
             result = assertion()
             if asyncio.iscoroutine(result):
                 await result
-            return
         except AssertionError as e:
             last_error = e
             await asyncio.sleep(interval)
+        else:
+            return
+    if last_error is None:
+        raise AssertionError("assertion did not run before timeout")
     raise last_error

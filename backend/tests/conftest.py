@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 import fakeredis.aioredis
 
 from app.kernel import WorkstationKernel
@@ -14,8 +15,8 @@ from app.kernel import WorkstationKernel
 # Event loop
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session")
-def event_loop():
+@pytest_asyncio.fixture(loop_scope="session")
+async def event_loop():
     """Create a session-scoped event loop for pytest-asyncio."""
     loop = asyncio.new_event_loop()
     yield loop

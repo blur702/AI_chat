@@ -20,6 +20,7 @@ echo "========================================"
 echo "  Running Kernel Test Suite"
 echo "========================================"
 
+set +e
 python -m pytest tests/ \
     $MARKER \
     --cov=app \
@@ -28,8 +29,8 @@ python -m pytest tests/ \
     --cov-report=html:htmlcov \
     -v \
     --tb=short
-
 EXIT_CODE=$?
+set -e
 
 echo ""
 echo "========================================"

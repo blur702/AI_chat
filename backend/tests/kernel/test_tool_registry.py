@@ -159,7 +159,7 @@ class TestPermissionChecking:
     @pytest.mark.unit
     async def test_permission_error_lists_missing(self, registry):
         """Error message lists the missing permissions."""
-        with pytest.raises(ValueError, match="admin.access"):
+        with pytest.raises(ValueError, match=r"admin\.access"):
             await registry.execute_tool(
                 "perm_tool",
                 {"input": "test"},
