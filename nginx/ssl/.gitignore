@@ -1,0 +1,7 @@
+# Ignore generated SSL certificates and keys
+# These should be generated locally and never committed to version control
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
