@@ -258,7 +258,10 @@ async def wait_for_condition(condition, timeout: float = 5.0, interval: float = 
     import time
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if condition():
+        result = condition()
+        if asyncio.iscoroutine(result):
+            result = await result
+        if result:
             return True
         await asyncio.sleep(interval)
     return False

@@ -127,7 +127,6 @@ class TestEventPublishing:
         await bus.startup()
 
         # Subscribe to capture the published message
-        captured = []
         pubsub = mock_redis.pubsub()
         await pubsub.psubscribe(CHANNEL_ALL)
 
@@ -146,14 +145,14 @@ class TestEventPublishing:
 
         # Read from pub/sub
         msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-        if msg:
-            payload = json.loads(msg["data"])
-            assert payload["event_type"] == "test_event"
-            assert payload["severity"] == "warning"
-            assert payload["source"] == "test_source"
-            assert payload["user_id"] == str(user_id)
-            assert payload["chat_id"] == str(chat_id)
-            assert payload["resource_id"] == "res-1"
+        assert msg is not None, "Expected a pub/sub message but got None"
+        payload = json.loads(msg["data"])
+        assert payload["event_type"] == "test_event"
+        assert payload["severity"] == "warning"
+        assert payload["source"] == "test_source"
+        assert payload["user_id"] == str(user_id)
+        assert payload["chat_id"] == str(chat_id)
+        assert payload["resource_id"] == "res-1"
 
         await pubsub.close()
         await bus.shutdown()
@@ -173,8 +172,8 @@ class TestEventPublishing:
         )
 
         msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-        if msg:
-            assert msg["channel"] == f"{CHANNEL_PREFIX}model_loaded"
+        assert msg is not None, "Expected a pub/sub message but got None"
+        assert msg["channel"] == f"{CHANNEL_PREFIX}model_loaded"
 
         await pubsub.close()
         await bus.shutdown()
@@ -205,6 +204,7 @@ class TestEventPublishing:
             event_data={"critical": True},
             persist=True,
         )
+        assert event_id == mock_event.id
         # Should have attempted to persist
         mock_db_session.add.assert_called_once()
         mock_db_session.commit.assert_awaited_once()
@@ -251,6 +251,7 @@ class TestEventPersistence:
             severity="info",
             source="test",
         )
+        assert event_id == mock_event.id
 
         mock_db_session.add.assert_called_once()
         mock_db_session.commit.assert_awaited_once()

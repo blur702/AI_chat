@@ -449,7 +449,7 @@ class TestServiceInteraction:
 
         received = []
 
-        async def handler(event_type, event_data, metadata):
+        async def handler(event_type, event_data, _metadata):
             received.append((event_type, event_data))
 
         await bus.subscribe("test_event", handler)

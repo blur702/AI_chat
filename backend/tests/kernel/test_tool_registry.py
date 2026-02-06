@@ -243,7 +243,7 @@ class TestResultCaching:
         assert key_a != key_b
 
     @pytest.mark.unit
-    async def test_clear_tool_cache_specific(self, registry, mock_redis):
+    async def test_clear_tool_cache_specific(self, registry):
         """clear_tool_cache with tool_name clears only that tool's cache."""
         # Populate cache
         await registry.execute_tool(
@@ -256,7 +256,7 @@ class TestResultCaching:
         assert deleted >= 1
 
     @pytest.mark.unit
-    async def test_clear_tool_cache_all(self, registry, mock_redis):
+    async def test_clear_tool_cache_all(self, registry):
         """clear_tool_cache without tool_name clears all tool caches."""
         await registry.execute_tool(
             "cached_tool",
