@@ -12,7 +12,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (token: string) => void;
+  login: (token: string) => boolean;
   logout: () => void;
 }
 
@@ -62,19 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = useCallback((token: string) => {
+  const login = useCallback((token: string): boolean => {
     const payload = parseJwt(token);
-    if (payload?.exp && (payload.exp as number) * 1000 <= Date.now()) {
-      localStorage.removeItem(TOKEN_KEY);
-      return;
+    if (!payload) {
+      return false;
+    }
+    if (payload.exp && (payload.exp as number) * 1000 <= Date.now()) {
+      return false;
     }
     localStorage.setItem(TOKEN_KEY, token);
     getClient().setToken(token);
     setState({
       token,
-      userId: payload ? (payload.user_id as string) || null : null,
+      userId: (payload.user_id as string) || null,
       isAuthenticated: true,
     });
+    return true;
   }, []);
 
   const logout = useCallback(() => {

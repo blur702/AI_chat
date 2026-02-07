@@ -5,7 +5,7 @@
   "scripts": {
     "dev:chat": "pnpm --filter @workstation/chat dev",
     "dev:sandbox": "pnpm --filter @workstation/sandbox dev",
-    "dev": "pnpm --parallel run dev:chat dev:sandbox",
+    "dev": "pnpm -r --parallel --filter @workstation/chat --filter @workstation/sandbox run dev",
     "build": "pnpm --filter @workstation/chat build && pnpm --filter @workstation/sandbox build",
     "build:chat": "pnpm --filter @workstation/chat build",
     "build:sandbox": "pnpm --filter @workstation/sandbox build",

@@ -18,5 +18,5 @@ USER app
 # Expose port
 EXPOSE 3000
 
-# Default command for development
-CMD ["npm", "run", "dev"]
+# Production: use "npm start"; for development override with: CMD ["npm", "run", "dev"]
+CMD ["npm", "start"]

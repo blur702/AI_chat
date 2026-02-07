@@ -15,7 +15,8 @@ export default function ProjectsPage() {
     <div className="mx-auto max-w-4xl p-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Projects</h1>
-        <Button>
+        {/* TODO: Wire to project creation API when backend supports POST /api/context/projects */}
+        <Button disabled>
           <Plus className="mr-2 h-4 w-4" />
           New Project
         </Button>

@@ -45,6 +45,7 @@ export function EditorTabs({
               onClose(file.path);
             }}
             className="ml-1 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+            aria-label={`Close ${file.name}`}
           >
             <X className="h-3 w-3" />
           </button>

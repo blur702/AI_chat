@@ -4,9 +4,24 @@ import { useState } from "react";
 import { Button, Input } from "@workstation/ui";
 import { RefreshCw, ExternalLink, Globe } from "lucide-react";
 
+function isSafeUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function PreviewPane() {
   const [url, setUrl] = useState("http://localhost:3000");
   const [key, setKey] = useState(0);
+
+  const handleOpenExternal = () => {
+    if (isSafeUrl(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -31,7 +46,7 @@ export function PreviewPane() {
           variant="ghost"
           size="icon"
           className="h-6 w-6 shrink-0"
-          onClick={() => window.open(url, "_blank")}
+          onClick={handleOpenExternal}
         >
           <ExternalLink className="h-3 w-3" />
         </Button>

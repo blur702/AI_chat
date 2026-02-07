@@ -62,8 +62,8 @@ export function EditorPane() {
   const handleClose = (path: string) => {
     setFiles((prev) => {
       const remaining = prev.filter((f) => f.path !== path);
-      if (activeFile === path && remaining.length > 0) {
-        setActiveFile(remaining[0].path);
+      if (activeFile === path) {
+        setActiveFile(remaining.length > 0 ? remaining[0].path : "");
       }
       return remaining;
     });

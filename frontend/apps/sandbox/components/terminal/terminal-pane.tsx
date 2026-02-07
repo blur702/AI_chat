@@ -7,53 +7,68 @@ import { Plus, X, Terminal as TerminalIcon } from "lucide-react";
 interface TerminalTab {
   id: string;
   name: string;
+  lines: string[];
+  input: string;
+}
+
+function createTab(id: string, name: string): TerminalTab {
+  return {
+    id,
+    name,
+    lines: [
+      "$ Welcome to AI Workstation Terminal",
+      "$ Type commands here (WebSocket integration pending)",
+      "$ ",
+    ],
+    input: "",
+  };
 }
 
 export function TerminalPane() {
   const [tabs, setTabs] = useState<TerminalTab[]>([
-    { id: "term-1", name: "Terminal 1" },
+    createTab("term-1", "Terminal 1"),
   ]);
   const [activeTab, setActiveTab] = useState("term-1");
-  const [lines, setLines] = useState<string[]>([
-    "$ Welcome to AI Workstation Terminal",
-    "$ Type commands here (WebSocket integration pending)",
-    "$ ",
-  ]);
-  const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const currentTab = tabs.find((t) => t.id === activeTab);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lines]);
+  }, [currentTab?.lines.length]);
+
+  const updateActiveTab = (updater: (tab: TerminalTab) => TerminalTab) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === activeTab ? updater(t) : t))
+    );
+  };
 
   const handleCommand = (cmd: string) => {
-    const newLines = [...lines];
-    // Replace the last "$ " prompt with the command
-    newLines[newLines.length - 1] = `$ ${cmd}`;
+    updateActiveTab((tab) => {
+      const newLines = [...tab.lines];
+      newLines[newLines.length - 1] = `$ ${cmd}`;
 
-    // Mock command responses
-    if (cmd === "help") {
-      newLines.push("Available commands: help, clear, echo, date");
-    } else if (cmd === "clear") {
-      setLines(["$ "]);
-      setInput("");
-      return;
-    } else if (cmd.startsWith("echo ")) {
-      newLines.push(cmd.slice(5));
-    } else if (cmd === "date") {
-      newLines.push(new Date().toString());
-    } else if (cmd.trim()) {
-      newLines.push(`command not found: ${cmd}`);
-    }
+      if (cmd === "help") {
+        newLines.push("Available commands: help, clear, echo, date");
+      } else if (cmd === "clear") {
+        return { ...tab, lines: ["$ "], input: "" };
+      } else if (cmd.startsWith("echo ")) {
+        newLines.push(cmd.slice(5));
+      } else if (cmd === "date") {
+        newLines.push(new Date().toString());
+      } else if (cmd.trim()) {
+        newLines.push(`command not found: ${cmd}`);
+      }
 
-    newLines.push("$ ");
-    setLines(newLines);
-    setInput("");
+      newLines.push("$ ");
+      return { ...tab, lines: newLines, input: "" };
+    });
   };
 
   const addTab = () => {
     const id = `term-${Date.now()}`;
-    setTabs((prev) => [...prev, { id, name: `Terminal ${prev.length + 1}` }]);
+    const name = `Terminal ${tabs.length + 1}`;
+    setTabs((prev) => [...prev, createTab(id, name)]);
     setActiveTab(id);
   };
 
@@ -92,6 +107,7 @@ export function TerminalPane() {
                   closeTab(tab.id);
                 }}
                 className="opacity-0 group-hover:opacity-100"
+                aria-label={`Close ${tab.name}`}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -109,31 +125,35 @@ export function TerminalPane() {
       </div>
 
       {/* Terminal output */}
-      <div className="flex-1 overflow-auto p-2 font-mono text-xs text-green-400">
-        {lines.map((line, i) => (
-          <div key={i} className="whitespace-pre-wrap">
-            {i === lines.length - 1 ? (
-              <span>
-                {line}
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleCommand(input);
+      {currentTab && (
+        <div className="flex-1 overflow-auto p-2 font-mono text-xs text-green-400">
+          {currentTab.lines.map((line, i) => (
+            <div key={i} className="whitespace-pre-wrap">
+              {i === currentTab.lines.length - 1 ? (
+                <span>
+                  {line}
+                  <input
+                    value={currentTab.input}
+                    onChange={(e) =>
+                      updateActiveTab((t) => ({ ...t, input: e.target.value }))
                     }
-                  }}
-                  className="bg-transparent outline-none text-green-400 caret-green-400"
-                  autoFocus
-                />
-              </span>
-            ) : (
-              line
-            )}
-          </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleCommand(currentTab.input);
+                      }
+                    }}
+                    className="bg-transparent outline-none text-green-400 caret-green-400"
+                    autoFocus
+                  />
+                </span>
+              ) : (
+                line
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      )}
     </div>
   );
 }

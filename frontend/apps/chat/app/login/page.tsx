@@ -5,22 +5,28 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@workstation/api";
 import { Button, Input } from "@workstation/ui";
 
+const isDev = process.env.NODE_ENV === "development";
+
+function base64UrlEncode(obj: Record<string, unknown>): string {
+  const json = JSON.stringify(obj);
+  const base64 = btoa(json);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export default function LoginPage() {
   const [token, setToken] = useState("");
+  const [error, setError] = useState("");
   const { login } = useAuth();
   const router = useRouter();
 
   const handleDevLogin = () => {
-    // Generate a mock JWT for development
-    // In production, this would call a real auth endpoint
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = btoa(
-      JSON.stringify({
-        user_id: "550e8400-e29b-41d4-a716-446655440000",
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-      })
-    );
+    if (!isDev) return;
+    const header = base64UrlEncode({ alg: "HS256", typ: "JWT" });
+    const payload = base64UrlEncode({
+      user_id: "550e8400-e29b-41d4-a716-446655440000",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      iat: Math.floor(Date.now() / 1000),
+    });
     const devToken = `${header}.${payload}.dev-signature`;
     login(devToken);
     router.push("/chat");
@@ -28,8 +34,12 @@ export default function LoginPage() {
 
   const handleTokenLogin = () => {
     if (token.trim()) {
-      login(token.trim());
-      router.push("/chat");
+      const success = login(token.trim());
+      if (success) {
+        router.push("/chat");
+      } else {
+        setError("Invalid or expired token.");
+      }
     }
   };
 
@@ -45,28 +55,38 @@ export default function LoginPage() {
           <Input
             placeholder="Paste your JWT token..."
             value={token}
-            onChange={(e) => setToken(e.target.value)}
+            onChange={(e) => {
+              setToken(e.target.value);
+              setError("");
+            }}
             onKeyDown={(e) => e.key === "Enter" && handleTokenLogin()}
           />
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
           <Button onClick={handleTokenLogin} className="w-full" disabled={!token.trim()}>
             Sign In with Token
           </Button>
         </div>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or
-            </span>
-          </div>
-        </div>
+        {isDev && (
+          <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
 
-        <Button onClick={handleDevLogin} variant="outline" className="w-full">
-          Dev Login (Mock User)
-        </Button>
+            <Button onClick={handleDevLogin} variant="outline" className="w-full">
+              Dev Login (Mock User)
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

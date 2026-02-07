@@ -68,11 +68,12 @@ export function ChatSidebar() {
       </ScrollArea>
 
       <div className="border-t p-2">
-        <Link href="/settings">
-          <Button variant="ghost" className="w-full justify-start gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="text-sm">Settings</span>
-          </Button>
+        <Link
+          href="/settings"
+          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          <Settings className="h-4 w-4" />
+          <span className="text-sm">Settings</span>
         </Link>
       </div>
     </div>

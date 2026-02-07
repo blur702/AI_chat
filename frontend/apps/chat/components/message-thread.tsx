@@ -5,7 +5,9 @@ import { ScrollArea, Skeleton } from "@workstation/ui";
 import { MessageBubble } from "./message-bubble";
 import type { MessageSummary } from "@workstation/api";
 
-// Mock messages for development
+const isDev = process.env.NODE_ENV === "development";
+
+// Mock messages for development only
 const MOCK_MESSAGES: MessageSummary[] = [
   {
     id: "1",
@@ -66,12 +68,16 @@ interface MessageThreadProps {
 export function MessageThread({ messages, loading }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Use mock data when no real messages available
-  const displayMessages = messages.length > 0 ? messages : MOCK_MESSAGES;
+  const displayMessages =
+    messages.length > 0
+      ? messages
+      : isDev
+        ? MOCK_MESSAGES
+        : [];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [displayMessages]);
+  }, [messages.length]);
 
   if (loading) {
     return (
@@ -85,6 +91,14 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (displayMessages.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+        No messages yet. Start a conversation!
       </div>
     );
   }

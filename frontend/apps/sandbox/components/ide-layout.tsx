@@ -12,7 +12,11 @@ import { PreviewPane } from "./preview/preview-pane";
 import { ChatPanel } from "./chat-panel/chat-panel";
 import { useState } from "react";
 
-export function IDELayout() {
+interface IDELayoutProps {
+  projectId: string;
+}
+
+export function IDELayout({ projectId }: IDELayoutProps) {
   const [showChat, setShowChat] = useState(false);
 
   return (
