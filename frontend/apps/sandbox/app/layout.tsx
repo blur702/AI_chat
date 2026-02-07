@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "@workstation/ui";
+import { ThemeProvider, SkipNav } from "@workstation/ui";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -16,8 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
+        <SkipNav href="#main-content" />
         <ThemeProvider>
-          <Providers>{children}</Providers>
+          <Providers>
+            <main id="main-content" role="main">
+              {children}
+            </main>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>

@@ -5,6 +5,11 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix Tooltip provides keyboard accessibility (focus/Escape) and aria-describedby linking.
+ * Tooltips appear on hover and keyboard focus automatically.
+ * Do not place critical information only in tooltips — they are supplementary.
+ */
 const TooltipProvider = TooltipPrimitive.Provider;
 const Tooltip = TooltipPrimitive.Root;
 const TooltipTrigger = TooltipPrimitive.Trigger;

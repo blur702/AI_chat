@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-button border px-2.5 py-0.5 text-xs font-semibold transition-all duration-short ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
@@ -27,9 +27,18 @@ export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+/**
+ * Badges render with role="status" by default for screen reader announcements.
+ * Override with role prop if the badge is purely decorative.
+ * For dynamic badges, add aria-live="polite" on the parent container.
+ */
+function Badge({ className, variant, role = "status", ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div
+      role={role}
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    />
   );
 }
 

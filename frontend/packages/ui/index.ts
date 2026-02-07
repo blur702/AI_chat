@@ -62,8 +62,21 @@ export {
   ContextMenuRadioGroup,
 } from "./components/ui/context-menu";
 
+export { SkipNav } from "./components/ui/skip-nav";
+
 // Theme
 export { ThemeProvider } from "./components/theme-provider";
+export { ThemeToggle } from "./components/ui/theme-toggle";
 
 // Utils
 export { cn } from "./lib/utils";
+
+// Accessibility utilities
+export { announceToScreenReader } from "./lib/a11y-utils";
+
+// Responsive hooks
+export { useMediaQuery } from "./lib/use-media-query";
+export { useBreakpoint } from "./lib/use-breakpoint";
+export type { Breakpoint, BreakpointState } from "./lib/use-breakpoint";
+export { useSwipe } from "./lib/use-swipe";
+export type { SwipeDirection, SwipeCallbacks } from "./lib/use-swipe";

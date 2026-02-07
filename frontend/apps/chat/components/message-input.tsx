@@ -43,6 +43,9 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
+          aria-disabled={disabled || undefined}
+          aria-label="Message input"
+          aria-describedby="message-input-hint"
           rows={1}
           className={cn(
             "flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm",
@@ -63,12 +66,13 @@ export function MessageInput({
           onClick={handleSubmit}
           size="icon"
           disabled={disabled || !value.trim()}
+          aria-label="Send message"
           className="h-11 w-11 shrink-0"
         >
           <Send className="h-4 w-4" />
         </Button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p id="message-input-hint" className="mt-2 text-xs text-muted-foreground">
         Press Enter to send, Shift+Enter for new line
       </p>
     </div>

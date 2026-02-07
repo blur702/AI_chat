@@ -36,20 +36,20 @@ export function FileTreeItem({
         <button
           onClick={() => setExpanded(!expanded)}
           className={cn(
-            "flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-sm hover:bg-sidebar-accent",
+            "flex w-full items-center gap-1.5 rounded-sm px-2 py-2 text-sm hover:bg-sidebar-accent min-h-[44px]",
             isSelected && "bg-sidebar-accent"
           )}
-          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
           {expanded ? (
-            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+            <FolderOpen className="h-4 w-4 shrink-0 text-yellow-500" />
           ) : (
-            <Folder className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+            <Folder className="h-4 w-4 shrink-0 text-yellow-500" />
           )}
           <span className="truncate text-sidebar-foreground">{node.name}</span>
         </button>
@@ -75,12 +75,12 @@ export function FileTreeItem({
     <button
       onClick={() => onSelect(fullPath)}
       className={cn(
-        "flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-sm hover:bg-sidebar-accent",
+        "flex w-full items-center gap-1.5 rounded-sm px-2 py-2 text-sm hover:bg-sidebar-accent min-h-[44px]",
         isSelected && "bg-sidebar-accent text-sidebar-accent-foreground"
       )}
-      style={{ paddingLeft: `${depth * 12 + 20}px` }}
+      style={{ paddingLeft: `${depth * 12 + 24}px` }}
     >
-      <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <File className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="truncate text-sidebar-foreground">{node.name}</span>
     </button>
   );

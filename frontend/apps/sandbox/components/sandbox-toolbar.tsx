@@ -1,36 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@workstation/ui";
+import { Button, useBreakpoint, ThemeToggle } from "@workstation/ui";
 import { Code2, FolderOpen, Play, Settings, MessageSquare } from "lucide-react";
 
 export function SandboxToolbar() {
+  const { isMobile } = useBreakpoint();
+
   return (
-    <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-1.5">
-      <Link href="/projects" className="flex items-center gap-2 mr-4">
+    <div className="flex items-center gap-1 md:gap-2 border-b bg-muted/30 px-2 md:px-3 py-1.5 overflow-x-auto">
+      <Link href="/projects" className="flex items-center gap-2 mr-2 md:mr-4 shrink-0">
         <Code2 className="h-5 w-5 text-primary" />
-        <span className="text-sm font-semibold">AI Sandbox</span>
+        {!isMobile && (
+          <span className="text-sm font-semibold">AI Sandbox</span>
+        )}
       </Link>
 
-      <Button variant="ghost" size="sm" className="gap-1.5">
-        <FolderOpen className="h-3.5 w-3.5" />
-        Files
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0">
+        <FolderOpen className="h-4 w-4" />
+        {!isMobile && "Files"}
       </Button>
 
-      <Button variant="ghost" size="sm" className="gap-1.5">
-        <Play className="h-3.5 w-3.5" />
-        Run
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0">
+        <Play className="h-4 w-4" />
+        {!isMobile && "Run"}
       </Button>
 
       <div className="flex-1" />
 
-      <Button variant="ghost" size="sm" className="gap-1.5">
-        <MessageSquare className="h-3.5 w-3.5" />
-        AI Chat
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0">
+        <MessageSquare className="h-4 w-4" />
+        {!isMobile && "AI Chat"}
       </Button>
 
-      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Settings">
-        <Settings className="h-3.5 w-3.5" />
+      <ThemeToggle />
+
+      <Button variant="ghost" size="icon" aria-label="Settings">
+        <Settings className="h-4 w-4" />
       </Button>
     </div>
   );

@@ -7,7 +7,15 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const ContextMenu = ContextMenuPrimitive.Root;
-const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
+
+const ContextMenuTrigger = React.forwardRef<
+  React.ElementRef<typeof ContextMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Trigger>
+>(({ ...props }, ref) => (
+  <ContextMenuPrimitive.Trigger ref={ref} {...props} />
+));
+ContextMenuTrigger.displayName = ContextMenuPrimitive.Trigger.displayName;
+
 const ContextMenuGroup = ContextMenuPrimitive.Group;
 const ContextMenuPortal = ContextMenuPrimitive.Portal;
 const ContextMenuSub = ContextMenuPrimitive.Sub;
@@ -70,10 +78,12 @@ const ContextMenuItem = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Item> & {
     inset?: boolean;
+    shortcut?: string;
   }
->(({ className, inset, ...props }, ref) => (
+>(({ className, inset, shortcut, ...props }, ref) => (
   <ContextMenuPrimitive.Item
     ref={ref}
+    aria-keyshortcuts={shortcut}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
@@ -166,6 +176,7 @@ const ContextMenuShortcut = ({
   return (
     <span
       className={cn("ml-auto text-xs tracking-widest text-muted-foreground", className)}
+      aria-hidden="true"
       {...props}
     />
   );

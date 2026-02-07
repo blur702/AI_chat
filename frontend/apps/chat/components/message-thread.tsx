@@ -76,12 +76,13 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
         : [];
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    bottomRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
   }, [messages.length]);
 
   if (loading) {
     return (
-      <div className="flex-1 space-y-4 p-4">
+      <div className="flex-1 space-y-4 p-4" aria-busy="true" aria-label="Loading messages">
         {[...Array(3)].map((_, i) => (
           <div key={i} className="flex gap-3">
             <Skeleton className="h-8 w-8 rounded-full" />
@@ -97,7 +98,7 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
 
   if (displayMessages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+      <div className="flex flex-1 items-center justify-center text-muted-foreground" role="status">
         No messages yet. Start a conversation!
       </div>
     );
@@ -105,7 +106,14 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
 
   return (
     <ScrollArea className="flex-1">
-      <div className="space-y-1 py-4">
+      <div
+        className="space-y-1 py-4"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-relevant="additions"
+        role="log"
+        aria-label="Message thread"
+      >
         {displayMessages.map((msg) => (
           <MessageBubble
             key={msg.id}
