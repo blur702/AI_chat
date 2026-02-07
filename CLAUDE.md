@@ -60,7 +60,8 @@ Coverage threshold is 80% on `app/` (configured in `.coveragerc`). Test config i
 ```bash
 curl http://localhost/health                   # Nginx HTTP
 curl -k https://localhost/health               # Nginx HTTPS (self-signed)
-curl https://ssdd.kevinalthaus.com/health      # Nginx HTTPS (Let's Encrypt)
+# Set EXTERNAL_DOMAIN to your public hostname (e.g. from .env or DNS config)
+curl https://${EXTERNAL_DOMAIN}/health         # Nginx HTTPS (Let's Encrypt)
 curl http://localhost:8001/health              # Backend direct (DB + Redis + Kernel)
 curl http://localhost:8001/api/kernel/health   # Kernel services only
 curl http://localhost:8001/api/kernel/status   # Detailed kernel status

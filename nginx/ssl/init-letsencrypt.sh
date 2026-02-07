@@ -102,8 +102,8 @@ fi
 docker-compose run --rm --entrypoint "\
   certbot certonly --webroot -w /var/www/certbot \
     ${STAGING_ARG} \
-    --email ${EMAIL} \
-    -d ${DOMAIN} \
+    --email '${EMAIL}' \
+    -d '${DOMAIN}' \
     --rsa-key-size 4096 \
     --agree-tos \
     --no-eff-email \
