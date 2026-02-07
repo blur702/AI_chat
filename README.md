@@ -57,12 +57,34 @@ The system follows a microkernel pattern with multiple services:
    ```
    This creates self-signed certificates for local development. See [nginx/README.md](nginx/README.md) for details.
 
-4. **Start all services**
+4. **Install startup dependencies**
    ```bash
-   docker-compose up -d
+   pip install -r scripts/requirements.txt
    ```
 
-5. **Access the application**
+5. **Start all services**
+   ```bash
+   # Recommended: uses port conflict detection and cleanup
+   python scripts/startup.py
+
+   # Or use the wrapper scripts
+   # Windows
+   start.bat
+   # Linux/macOS
+   ./start.sh
+   ```
+
+   **Startup options:**
+   | Flag | Description |
+   |------|-------------|
+   | `--interactive` | Prompt before terminating each conflicting process |
+   | `--skip-cleanup` | Detect and report conflicts without terminating anything |
+   | `--env-file PATH` | Path to .env file (default: `.env` in project root) |
+   | `--verbose` | Enable debug-level logging |
+
+   > **Note:** You can still run `docker-compose up -d` directly, but it may fail if ports are already in use. The startup script detects and optionally resolves these conflicts automatically.
+
+6. **Access the application**
    - Frontend: http://localhost:3001
    - Backend API: http://localhost:8001
    - Nginx Proxy (HTTP): http://localhost:9080
