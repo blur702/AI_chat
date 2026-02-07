@@ -21,6 +21,7 @@ The system follows a microkernel pattern with multiple services:
 
 - **Docker**: Version 20.10 or higher
 - **Docker Compose**: Version 2.0 or higher (included with Docker Desktop)
+- **Python**: Version 3.8 or higher (with pip, used in Step 4 to install startup dependencies)
 - **System Requirements**: Minimum 8GB RAM, 20GB disk space
 - **External Services** (must be running on host):
   - [Ollama](https://ollama.ai/) on port 11434
@@ -75,6 +76,7 @@ The system follows a microkernel pattern with multiple services:
    ```
 
    **Startup options:**
+
    | Flag | Description |
    |------|-------------|
    | `--interactive` | Prompt before terminating each conflicting process |
