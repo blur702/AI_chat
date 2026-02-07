@@ -47,11 +47,7 @@ export class WorkstationClient {
   private token: string | null = null;
 
   constructor(baseUrl?: string) {
-    this.baseUrl =
-      baseUrl ||
-      (typeof window !== "undefined"
-        ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001"
-        : "http://localhost:8001");
+    this.baseUrl = baseUrl ?? process.env.NEXT_PUBLIC_API_URL ?? "";
   }
 
   setToken(token: string | null) {

@@ -41,12 +41,16 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getWsUrl = useCallback(() => {
-    const base =
-      baseUrl ||
-      (typeof window !== "undefined"
-        ? process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8001"
-        : "ws://localhost:8001");
-    return `${base}/api/ws/events?token=${token}`;
+    if (baseUrl) {
+      return `${baseUrl}/api/ws/events?token=${token}`;
+    }
+    const envUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (envUrl) {
+      return `${envUrl}/api/ws/events?token=${token}`;
+    }
+    // Derive WebSocket URL from current page origin
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/api/ws/events?token=${token}`;
   }, [baseUrl, token]);
 
   const connect = useCallback(() => {

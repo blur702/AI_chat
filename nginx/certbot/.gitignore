@@ -1,0 +1,4 @@
+# Ignore all certbot data (certs, keys, ACME challenges)
+# Run generate-certs.sh then init-letsencrypt.sh to populate
+conf/
+www/

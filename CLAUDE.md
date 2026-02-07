@@ -58,10 +58,12 @@ Coverage threshold is 80% on `app/` (configured in `.coveragerc`). Test config i
 
 ### Health Verification
 ```bash
-curl http://localhost:8001/health              # Backend (DB + Redis + Kernel)
+curl http://localhost/health                   # Nginx HTTP
+curl -k https://localhost/health               # Nginx HTTPS (self-signed)
+curl https://ssdd.kevinalthaus.com/health      # Nginx HTTPS (Let's Encrypt)
+curl http://localhost:8001/health              # Backend direct (DB + Redis + Kernel)
 curl http://localhost:8001/api/kernel/health   # Kernel services only
 curl http://localhost:8001/api/kernel/status   # Detailed kernel status
-curl -k https://localhost:8443/health          # Nginx HTTPS
 docker exec workstation-postgres pg_isready -U workstation_user
 docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping
 ```
@@ -77,7 +79,7 @@ docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping
 | Backend | 8000 | 8001 | FastAPI + SQLAlchemy async |
 | Worker | - | - | ARQ (Redis-backed, max 10 jobs, 300s timeout) |
 | Frontend | 3000 | 3001 | Next.js 14 |
-| Nginx | 80/443 | 9080/8443 | Reverse proxy + SSL |
+| Nginx | 80/443 | 80/443 | Reverse proxy + SSL + Let's Encrypt |
 
 External services on host: Ollama (11434), ComfyUI (8188) via `host.docker.internal`.
 
