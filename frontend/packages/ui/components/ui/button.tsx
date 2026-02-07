@@ -48,11 +48,23 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          asChild && disabled && "pointer-events-none"
+        )}
         ref={ref}
         disabled={disabled}
         aria-disabled={disabled || undefined}
         {...props}
+        {...(asChild && disabled
+          ? {
+              tabIndex: -1,
+              onClick: (e: React.MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+              },
+            }
+          : {})}
       />
     );
   }
