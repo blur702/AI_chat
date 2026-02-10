@@ -9,7 +9,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost",
+    baseURL: process.env.BASE_URL ?? "http://localhost",
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",

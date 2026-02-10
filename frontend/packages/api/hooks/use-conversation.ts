@@ -103,6 +103,9 @@ export function useConversation(chatId: string | null): UseConversationReturn {
       // Cancel any in-flight stream
       abortRef.current?.();
 
+      // Clear any prior error
+      setError(null);
+
       // Optimistically add user message
       const tempMessage: MessageSummary = {
         id: `temp-${Date.now()}`,

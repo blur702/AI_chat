@@ -461,11 +461,11 @@ async def stream_message(
             logger.exception("SSE: Ollama error: %s", exc)
             try:
                 async with AsyncSessionLocal() as cleanup_db:
-                    orphan = await cleanup_db.get(Message, user_msg_id)
+                    orphan = await cleanup_db.get(Message, UUID(user_msg_id))
                     if orphan:
                         await cleanup_db.delete(orphan)
                         await cleanup_db.commit()
-            except Exception:
+            except (Exception, ValueError):
                 logger.warning("SSE: failed to clean up user message %s", user_msg_id)
             err_event = json.dumps({
                 "type": "error",
@@ -477,11 +477,11 @@ async def stream_message(
             logger.exception("SSE: Ollama HTTP error: %s", exc)
             try:
                 async with AsyncSessionLocal() as cleanup_db:
-                    orphan = await cleanup_db.get(Message, user_msg_id)
+                    orphan = await cleanup_db.get(Message, UUID(user_msg_id))
                     if orphan:
                         await cleanup_db.delete(orphan)
                         await cleanup_db.commit()
-            except Exception:
+            except (Exception, ValueError):
                 logger.warning("SSE: failed to clean up user message %s", user_msg_id)
             err_event = json.dumps({
                 "type": "error",

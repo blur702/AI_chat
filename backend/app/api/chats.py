@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import (
@@ -162,8 +163,26 @@ async def get_or_create_default_chat(
     if chat is None:
         chat = Chat(project_id=project_id, title="Sandbox Chat")
         db.add(chat)
-        await db.commit()
-        await db.refresh(chat)
+        try:
+            await db.commit()
+            await db.refresh(chat)
+        except IntegrityError:
+            await db.rollback()
+            result = await db.execute(
+                select(Chat)
+                .where(
+                    Chat.project_id == project_id,
+                    Chat.title == "Sandbox Chat",
+                    Chat.is_deleted == False,  # noqa: E712
+                )
+                .limit(1)
+            )
+            chat = result.scalar_one_or_none()
+            if chat is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create or find default chat",
+                ) from None
 
     state = await cm.get_conversation_state(chat.id)
 

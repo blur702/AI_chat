@@ -145,14 +145,33 @@ Endpoints:
 ```
 
 **The critical endpoint is `POST /{chat_id}/messages`**:
+
+The caller supplies an optional `message_id` (UUID); the server uses upsert
+semantics on that ID so retries are idempotent.
+
 1. Validate chat access (user owns the project that owns the chat)
-2. Save user message to DB
+2. Create/upsert a `Message` record with the provided (or generated)
+   `message_id` and `status: "streaming"` so ContextManager can track
+   partial token usage.
 3. Build prompt: system prompt + conversation history from ContextManager
 4. Call `OllamaService.chat_completion()` with streaming
 5. Return SSE (Server-Sent Events) stream: `text/event-stream`
-6. On stream complete, save full assistant message to DB
-7. Update token usage in ContextManager
-8. Publish event via EventBus
+6. As tokens arrive, append them to the DB record in batches (flush every
+   ~50 tokens or 2 s, whichever comes first) so partial content survives
+   crashes.
+7. **On normal completion**: mark the record `status: "completed"`, persist
+   final token counts, update ContextManager token totals, and publish
+   `message.created` via EventBus.
+8. **On Ollama connection drop or client disconnect**: leave the record with
+   `status: "streaming"`, persist the last known token usage and final
+   chunk, allowing a future retry/resume path using the same `message_id`.
+9. **On DB save failure**: log the error and retry asynchronously (e.g.,
+   enqueue a short-lived ARQ task) but continue the SSE stream to avoid
+   interrupting the client.
+10. **Hard generation timeout** (default 120 s): emit an SSE `timeout` event,
+    finalize the DB record with `status: "timeout"` and the token usage
+    accumulated so far.  The upsert-by-`message_id` semantics ensure the
+    same request is not double-counted.
 
 SSE format:
 ```
@@ -164,6 +183,9 @@ data: {"content": " world"}
 
 event: done
 data: {"message_id": "uuid", "total_tokens": 150}
+
+event: timeout
+data: {"message_id": "uuid", "total_tokens": 83, "detail": "Generation timed out after 120s"}
 
 event: error
 data: {"detail": "Model not available"}
@@ -311,6 +333,47 @@ Endpoints:
 - GET /{project_id}/sources/{id}/status Get ingestion status
 ```
 
+#### Upload Security Controls (POST /{project_id}/sources)
+
+The upload handler **must** enforce the following:
+
+1. **Size quotas**: 50 MB per file, 1 GB per project, per-user aggregate quota.
+   Reject with HTTP 413 when exceeded.
+2. **MIME validation**: check file headers (magic bytes) against an explicit
+   whitelist (PDF, MD, TXT, common code files) — do not rely solely on
+   extensions.
+3. **Filename sanitization**: strip path-traversal sequences (`../`), NUL
+   bytes, and limit length to 255 chars.  Use `{source_id}_{sanitized_name}`
+   for on-disk storage.
+4. **Staged storage**: write uploads to a temporary staging directory; move to
+   permanent storage only after validation passes.
+5. **Content validation**: run structural checks (e.g., PDF header, UTF-8
+   for text) and optional malware scanning before processing.
+6. **Upload rate limiting**: apply per-user throttling (e.g., 10/hour per
+   project) to prevent DoS.  Return HTTP 429 with `Retry-After`.
+7. **Audit logging**: log every upload attempt (success or violation) with
+   user, project, filename, and reason for rejection.
+
+#### SSRF Prevention (URL sources)
+
+When `POST /{project_id}/sources` accepts a URL instead of a file upload,
+implement a `validate_and_fetch_source_url(url)` helper:
+
+1. **Scheme whitelist**: only `http` and `https`.  Reject `file:`, `ftp:`,
+   `gopher:`, etc.
+2. **DNS resolution + IP blocking**: resolve the hostname, then reject if
+   the resolved IP falls in private (10/8, 172.16/12, 192.168/16),
+   loopback (127/8), link-local (169.254/16), or cloud-metadata ranges
+   (169.254.169.254).
+3. **DNS rebinding protection**: issue the HTTP request **by IP** with the
+   original hostname in the `Host` header.
+4. **Redirect limit**: follow at most 3 redirects, re-validating each
+   target IP.
+5. **Timeout**: 10 s request timeout.
+6. **Content-Type check**: accept only expected document MIME types before
+   persisting the source.
+7. Return a clear HTTP 4xx error when any validation fails.
+
 ### 3.3 Worker Tasks for Ingestion
 
 **Modify** `backend/app/worker.py`:
@@ -365,7 +428,49 @@ class SandboxService(BaseKernelService):
 
     Uses Docker socket (mounted in docker-compose.yml) via aiodocker
     Containers attach to workstation-preview-network (isolated)
-    Auto-cleanup after inactivity timeout (configurable, default 30min)
+
+    Security Constraints (mandatory):
+    1. Per-container resource limits: CPU (cpu_quota 50000 = 50% core),
+       memory (512 MB default), disk quota via tmpfs size limit.
+    2. Security options: --security-opt no-new-privileges,
+       read-only root filesystem (mount /tmp and /workspace as writable),
+       user namespace remapping where supported.
+    3. Seccomp profile: apply the default Docker seccomp profile at minimum;
+       consider a custom restrictive profile blocking mount, reboot,
+       kexec_load, etc.
+    4. Volume mount policy: only bind-mount the per-project named volume
+       to /workspace; deny all host-path mounts.  Maintain a base-image
+       whitelist (python:3.12-slim, node:20-slim, etc.) — reject
+       unlisted images.
+    5. Capability dropping: cap_drop ALL, cap_add only CHOWN, SETUID,
+       SETGID, DAC_OVERRIDE, FOWNER (minimum needed for package managers).
+    6. Audit logging: log every container create/exec/destroy event with
+       user_id, project_id, container_id, timestamp, and command (for exec).
+
+    Auto-cleanup lifecycle:
+    - "Inactivity" is defined as the later of: last WebSocket activity
+      timestamp and last exec_command timestamp.
+    - Grace / warning policy: emit a WebSocket warning event at 25 min
+      idle ("Container will be cleaned up in 5 minutes"); perform cleanup
+      at 30 min idle.
+    - Long-running process handling: before cleanup, check for active
+      processes (e.g., running servers, training jobs).  If detected,
+      extend by one grace period and emit a user-facing prompt requiring
+      opt-in to keep alive or graceful shutdown.
+    - Data persistence: on cleanup, optionally auto-save /workspace to
+      the project's persistent volume (opt-in, with clear commit
+      semantics — snapshot only, no incremental sync).
+    - Resource caps:
+      - Max concurrent containers per user: 3
+      - Max concurrent containers per project: 1
+      - Absolute max lifetime per container: 8 hours (hard kill regardless
+        of activity)
+      - Memory / CPU limits as above
+    - Cleanup scope: destroy the container; preserve the named volume
+      (sandbox-{project_id}) and the preview network.  Only remove
+      volumes on explicit project deletion.
+    - Recommended defaults: warn at 25 min, cleanup at 30 min idle,
+      8 h hard limit, track websocket + exec activity, opt-in auto-save.
 ```
 
 ### 4.2 Sandbox API Endpoints
@@ -497,6 +602,27 @@ Follow existing test patterns from `tests/kernel/`:
 - Add global exception handler in `main.py` for unhandled errors
 - Structured error responses: `{"detail": "message", "code": "ERROR_CODE"}`
 - Rate limiting on auth endpoints (prevent brute force)
+
+### 7.4 Expanded Rate Limiting
+
+Current rate limiting covers auth endpoints only.  Extend with
+Redis-backed sliding-window counters for the following endpoints:
+
+| Endpoint | Default Limit | Key |
+|----------|--------------|-----|
+| `POST /context/conversations/{chat_id}/messages` | 20/min | per user |
+| `POST /kb/sources` | 10/hour | per project |
+| `POST /kb/search` | 60/min | per project |
+| `POST /sandbox/containers` | 5/hour | per project |
+| `POST /api/pull` | 3/hour | per user |
+
+Implementation requirements:
+- Reuse the existing `rate_limit()` decorator from `middleware/rate_limit.py`.
+- Return HTTP 429 with `Retry-After` header when limits are exceeded.
+- Support tier-based limits: read user/project tier from JWT claims or DB
+  and multiply the default limits accordingly (e.g., `pro` tier gets 2x).
+- Emit structured logs for every rate-limit violation (user/project ID,
+  endpoint, limit, window) for monitoring and abuse detection.
 
 ---
 

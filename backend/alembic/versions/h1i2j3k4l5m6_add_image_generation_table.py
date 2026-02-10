@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('comfyui_job_id', sa.String(255), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),

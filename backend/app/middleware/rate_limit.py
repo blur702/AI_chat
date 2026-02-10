@@ -125,13 +125,24 @@ def _is_trusted_proxy(ip: str) -> bool:
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For only from trusted proxies."""
+    """Extract client IP, respecting X-Forwarded-For only from trusted proxies.
+
+    Parses the X-Forwarded-For header right-to-left, skipping trusted proxy
+    entries, and returns the first (rightmost) untrusted IP.  This prevents
+    spoofing via a forged leftmost entry.
+    """
     if not request.client:
         return "unknown"
     client_ip = request.client.host
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded and _is_trusted_proxy(client_ip):
-        return forwarded.split(",")[0].strip()
+        candidates = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        # Walk from the right, skip trusted proxies
+        for ip in reversed(candidates):
+            if not _is_trusted_proxy(ip):
+                return ip
+        # All entries are trusted proxies — fall back to the leftmost
+        return candidates[0] if candidates else client_ip
     return client_ip
 
 

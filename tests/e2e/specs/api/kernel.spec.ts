@@ -1,6 +1,6 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 
-const BASE = "http://localhost";
+const BASE = process.env.API_BASE_URL ?? "http://localhost";
 const ADMIN_ID = "admin";
 const ADMIN_PW = "Admin123!";
 

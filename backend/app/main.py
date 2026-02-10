@@ -191,15 +191,16 @@ async def _seed_master_user() -> None:
     Reads MASTER_PASSWORD from environment variables.
     """
     from app.models.user import User, MASTER_USERNAMES
-    from app.models.utils import hash_password
+    from app.models.utils import hash_password, validate_password_strength
 
     master_password = os.getenv("MASTER_PASSWORD")
     if not master_password:
         logger.warning("MASTER_PASSWORD not set, skipping master user seed")
         return
 
-    if len(master_password) < 8:
-        logger.warning("MASTER_PASSWORD does not meet minimum strength (8+ chars), skipping master user seed")
+    is_valid, error_msg = validate_password_strength(master_password)
+    if not is_valid:
+        logger.warning("MASTER_PASSWORD does not meet strength requirements: %s — skipping master user seed", error_msg)
         return
 
     async with AsyncSessionLocal() as session:

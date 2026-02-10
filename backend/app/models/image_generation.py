@@ -88,6 +88,7 @@ class ImageGeneration(UUIDMixin, TimestampMixin, Base):
     user: Mapped["User"] = relationship(
         "User",
         back_populates="image_generations",
+        passive_deletes=True,
     )
 
     __table_args__ = (

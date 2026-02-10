@@ -122,7 +122,7 @@ async def upload_source(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save uploaded file",
+            detail=f"Failed to save uploaded file: {e}",
         ) from e
 
     # Commit DB record only after file is safely written

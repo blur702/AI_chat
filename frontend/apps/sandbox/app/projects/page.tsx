@@ -344,7 +344,12 @@ export default function ProjectsPage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteOpen} onOpenChange={(open) => {
+        setDeleteOpen(open);
+        if (!open) {
+          setDeleteError(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Project</DialogTitle>

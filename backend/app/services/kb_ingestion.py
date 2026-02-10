@@ -71,14 +71,22 @@ class KBIngestionService(BaseKernelService):
     def extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text from all pages of a PDF file using pypdf."""
         from pypdf import PdfReader
+        from pypdf.errors import PdfReadError
 
-        reader = PdfReader(file_path)
-        pages = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages.append(text)
-        return "\n\n".join(pages)
+        try:
+            reader = PdfReader(file_path)
+            pages = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text)
+            return "\n\n".join(pages)
+        except PdfReadError as exc:
+            logger.error("Corrupt or unreadable PDF %s: %s", file_path, exc)
+            return ""
+        except Exception as exc:
+            logger.error("Unexpected error reading PDF %s: %s", file_path, exc)
+            return ""
 
     def extract_text_from_txt(self, file_path: str) -> str:
         """Read plain text files with UTF-8 encoding."""

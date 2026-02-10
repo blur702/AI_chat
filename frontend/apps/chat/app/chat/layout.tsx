@@ -12,12 +12,21 @@ function useProjectId(): string | null {
   const [projectId, setProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedId = localStorage.getItem(PROJECT_ID_KEY);
+    let storedId: string | null = null;
+    try {
+      storedId = localStorage.getItem(PROJECT_ID_KEY);
+    } catch {
+      // localStorage may be unavailable (private browsing, etc.)
+    }
     const envId = process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID;
     const id = storedId || envId || null;
     if (id) {
       setProjectId(id);
-      localStorage.setItem(PROJECT_ID_KEY, id);
+      try {
+        localStorage.setItem(PROJECT_ID_KEY, id);
+      } catch {
+        // Ignore write failures
+      }
     }
   }, []);
 

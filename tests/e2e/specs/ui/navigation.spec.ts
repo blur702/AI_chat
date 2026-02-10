@@ -48,8 +48,8 @@ test.describe("Home page", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Chat page", () => {
-  test.beforeAll(() => {
-    resetLockout("admin");
+  test.beforeAll(async () => {
+    await resetLockout("admin");
   });
 
   test("chat index shows select conversation prompt", async ({ page }) => {

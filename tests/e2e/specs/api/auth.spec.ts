@@ -36,8 +36,8 @@ async function getAdminToken(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 test.describe("POST /api/auth/login", () => {
-  test.beforeAll(() => {
-    resetLockout("admin");
+  test.beforeAll(async () => {
+    await resetLockout("admin");
   });
 
   test("returns token for valid credentials", async () => {
@@ -92,12 +92,12 @@ test.describe("POST /api/auth/login", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Account lockout", () => {
-  test.beforeAll(() => {
-    resetLockout("admin");
+  test.beforeAll(async () => {
+    await resetLockout("admin");
   });
 
-  test.afterAll(() => {
-    resetLockout("admin");
+  test.afterAll(async () => {
+    await resetLockout("admin");
   });
 
   test("locks account after 5 failed attempts", async () => {
@@ -117,7 +117,7 @@ test.describe("Account lockout", () => {
   });
 
   test("login succeeds after lockout is cleared", async () => {
-    resetLockout("admin");
+    await resetLockout("admin");
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
   });
@@ -189,12 +189,12 @@ test.describe("GET /api/auth/me", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("POST /api/auth/users", () => {
-  test.beforeAll(() => {
-    deleteTestUsers();
+  test.beforeAll(async () => {
+    await deleteTestUsers();
   });
 
-  test.afterAll(() => {
-    deleteTestUsers();
+  test.afterAll(async () => {
+    await deleteTestUsers();
   });
 
   test("admin can create a user", async () => {

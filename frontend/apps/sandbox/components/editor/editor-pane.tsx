@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { EditorTabs } from "./editor-tabs";
 import { MonacoWrapper } from "./monaco-editor";
 import { getClient } from "@workstation/api/client";
@@ -27,6 +27,8 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
   const [activeFile, setActiveFile] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
   const currentFile = files.find((f) => f.path === activeFile);
 
@@ -34,15 +36,8 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
   useEffect(() => {
     if (!selectedFile || !projectId) return;
 
-    // Check if already open using functional form to avoid stale closure on files
-    let alreadyOpen = false;
-    setFiles((prev) => {
-      if (prev.find((f) => f.path === selectedFile)) {
-        alreadyOpen = true;
-      }
-      return prev; // no mutation
-    });
-    if (alreadyOpen) {
+    // Check if already open using ref to avoid stale closure
+    if (filesRef.current.find((f) => f.path === selectedFile)) {
       setActiveFile(selectedFile);
       return;
     }

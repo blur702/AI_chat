@@ -34,26 +34,44 @@ export function useProjects() {
 
   const createProject = useCallback(
     async (data: ProjectCreateRequest): Promise<ProjectCreateResponse> => {
-      const result = await getClient().createProject(data);
-      await refresh();
-      return result;
+      try {
+        setError(null);
+        const result = await getClient().createProject(data);
+        await refresh();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create project");
+        throw err;
+      }
     },
     [refresh]
   );
 
   const updateProject = useCallback(
     async (id: string, data: ProjectUpdateRequest): Promise<ProjectUpdateResponse> => {
-      const result = await getClient().updateProject(id, data);
-      await refresh();
-      return result;
+      try {
+        setError(null);
+        const result = await getClient().updateProject(id, data);
+        await refresh();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update project");
+        throw err;
+      }
     },
     [refresh]
   );
 
   const deleteProject = useCallback(
     async (id: string): Promise<void> => {
-      await getClient().deleteProject(id);
-      await refresh();
+      try {
+        setError(null);
+        await getClient().deleteProject(id);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete project");
+        throw err;
+      }
     },
     [refresh]
   );

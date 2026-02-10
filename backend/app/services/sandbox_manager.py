@@ -173,20 +173,38 @@ class SandboxManager(BaseKernelService):
         """Generator that yields (stream_type, chunk) from an exec instance.
 
         stream_type is 'stdout' or 'stderr'.
-        Runs the blocking Docker socket read in a thread.
+        Blocking Docker socket iteration runs in a background thread and
+        pushes decoded chunks into an asyncio.Queue so this async generator
+        never blocks the event loop.
         """
-        output = await asyncio.to_thread(
-            self._client.api.exec_start,
-            exec_id,
-            stream=True,
-            demux=True,
-        )
+        queue: asyncio.Queue = asyncio.Queue()
+        _SENTINEL = None
+        loop = asyncio.get_running_loop()
 
-        for stdout_chunk, stderr_chunk in output:
-            if stdout_chunk:
-                yield "stdout", stdout_chunk.decode("utf-8", errors="replace")
-            if stderr_chunk:
-                yield "stderr", stderr_chunk.decode("utf-8", errors="replace")
+        def _reader():
+            try:
+                output = self._client.api.exec_start(
+                    exec_id,
+                    stream=True,
+                    demux=True,
+                )
+                for stdout_chunk, stderr_chunk in output:
+                    if stdout_chunk:
+                        loop.call_soon_threadsafe(queue.put_nowait, ("stdout", stdout_chunk.decode("utf-8", errors="replace")))
+                    if stderr_chunk:
+                        loop.call_soon_threadsafe(queue.put_nowait, ("stderr", stderr_chunk.decode("utf-8", errors="replace")))
+            except Exception:
+                logger.exception("stream_exec_output reader error")
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, _SENTINEL)
+
+        loop.run_in_executor(None, _reader)
+
+        while True:
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+            yield item
 
     async def get_exec_exit_code(self, exec_id: str) -> int:
         """Get the exit code of a completed exec instance."""

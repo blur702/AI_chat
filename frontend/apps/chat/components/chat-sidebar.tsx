@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -47,8 +47,9 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
+  const internalClose = useCallback(() => setInternalOpen(false), []);
   const mobileOpen = mobileOpenProp ?? internalOpen;
-  const onMobileClose = onMobileCloseProp ?? (() => setInternalOpen(false));
+  const onMobileClose = onMobileCloseProp ?? internalClose;
 
   const swipeHandlers = useSwipe(sidebarRef, {
     onSwipeLeft: () => onMobileClose(),

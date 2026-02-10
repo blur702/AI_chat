@@ -8,6 +8,7 @@ import hashlib
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import or_, select
@@ -46,6 +47,12 @@ from app.schemas.auth import (
 
 logger = logging.getLogger(__name__)
 
+
+def _hash_identifier(value: str) -> str:
+    """Return a non-reversible SHA-256 hash of a PII identifier for logging."""
+    return hashlib.sha256(value.encode()).hexdigest()[:16]
+
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
 
@@ -83,7 +90,7 @@ async def login(
         await log_security_event(
             db, action="login_failed", event_status="failure",
             ip_address=meta["ip_address"], user_agent=meta["user_agent"],
-            details={"identifier": body.identifier, "reason": "user_not_found"},
+            details={"identifier_hash": _hash_identifier(body.identifier), "reason": "user_not_found"},
         )
         await db.commit()
         raise invalid_credentials
@@ -499,7 +506,7 @@ async def request_password_reset(
         await log_security_event(
             db, action="password_reset_requested", event_status="failure",
             ip_address=meta["ip_address"], user_agent=meta["user_agent"],
-            details={"email": body.email, "reason": "email_not_found"},
+            details={"email_hash": _hash_identifier(body.email), "reason": "email_not_found"},
         )
         await db.commit()
         # Return same response to avoid email enumeration
@@ -532,7 +539,7 @@ async def request_password_reset(
         db, action="password_reset_requested", event_status="success",
         user_id=user.id,
         ip_address=meta["ip_address"], user_agent=meta["user_agent"],
-        details={"email": body.email},
+        details={"email_hash": _hash_identifier(body.email)},
     )
     await db.commit()
 
