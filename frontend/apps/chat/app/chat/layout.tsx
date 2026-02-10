@@ -1,10 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, useBreakpoint } from "@workstation/ui";
 import { Menu } from "lucide-react";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { SystemStatusBar } from "@/components/system-status-bar";
+
+const PROJECT_ID_KEY = "workstation_chat_project_id";
+
+function useProjectId(): string | null {
+  const [projectId, setProjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedId = localStorage.getItem(PROJECT_ID_KEY);
+    const envId = process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID;
+    const id = storedId || envId || null;
+    if (id) {
+      setProjectId(id);
+      localStorage.setItem(PROJECT_ID_KEY, id);
+    }
+  }, []);
+
+  return projectId;
+}
 
 export default function ChatLayout({
   children,
@@ -13,6 +31,7 @@ export default function ChatLayout({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isMobile } = useBreakpoint();
+  const projectId = useProjectId();
 
   return (
     <div className="flex h-screen flex-col">
@@ -33,6 +52,7 @@ export default function ChatLayout({
 
       <div className="flex flex-1 overflow-hidden">
         <ChatSidebar
+          projectId={projectId}
           mobileOpen={mobileOpen}
           onMobileClose={() => setMobileOpen(false)}
         />

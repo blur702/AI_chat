@@ -1,247 +1,44 @@
 """
-Context management API endpoints.
+Context management API — preferences, models, and token tracking.
 
-Provides REST endpoints for:
-- Conversation state retrieval and updates
-- Project-level context access
-- User preferences caching
-- Token usage tracking with compaction triggering
+Conversation/message endpoints live in messages.py, chat CRUD in chats.py,
+and project CRUD in projects.py.  All share dependencies from context_deps.py.
 """
 
 import logging
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import verify_token
-from app.database import get_db_session
+from app.api.context_deps import (
+    get_context_manager,
+    get_current_user_payload,
+    get_db_session,
+    get_ollama_client,
+    validate_chat_access,
+)
 from app.kernel.context_manager import ContextManager
-from app.models.chat import Chat
-from app.models.project import Project
 from app.schemas.context import (
-    ChatListResponse,
-    ChatSummary,
-    ConversationStateResponse,
-    ConversationStateUpdateRequest,
-    ProjectContextResponse,
+    ModelInfo,
+    ModelListResponse,
     TokenUsageRequest,
     TokenUsageResponse,
     UserPreferencesResponse,
+    UserPreferencesUpdateRequest,
 )
+from app.services.ollama_client import OllamaClient
+
+# Re-export sub-module routers so main.py can import from here unchanged
+from app.api.messages import router as messages_router  # noqa: F401
+from app.api.chats import router as chats_router  # noqa: F401
+from app.api.projects import router as projects_router  # noqa: F401
+from app.api.projects import context_projects_router  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/context", tags=["context"])
-
-
-# -------------------------------------------------------------------------
-# Dependencies
-# -------------------------------------------------------------------------
-
-
-def get_context_manager(request: Request) -> ContextManager:
-    """Dependency to get ContextManager from kernel."""
-    kernel = getattr(request.app.state, "kernel", None)
-    if kernel is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kernel not initialized",
-        )
-
-    cm = kernel.get_service("context_manager")
-    if cm is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ContextManager service not available",
-        )
-
-    return cm
-
-
-def get_current_user_payload(
-    authorization: Optional[str] = Header(None),
-) -> dict:
-    """Dependency to extract and verify JWT from the Authorization header."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization[len("Bearer "):]
-    payload = verify_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return payload
-
-
-async def _validate_chat_access(
-    chat_id: UUID,
-    user_id: str,
-    db: AsyncSession,
-) -> None:
-    """Validate that a chat exists and the user has access to it."""
-    result = await db.execute(
-        select(Chat, Project.user_id)
-        .join(Project, Chat.project_id == Project.id)
-        .where(Chat.id == chat_id, Chat.is_deleted == False)  # noqa: E712
-    )
-    row = result.one_or_none()
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat '{chat_id}' not found",
-        )
-
-    _, owner_id = row
-    if str(owner_id) != str(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this chat",
-        )
-
-
-async def _validate_project_access(
-    project_id: UUID,
-    user_id: str,
-    db: AsyncSession,
-) -> None:
-    """Validate that a project exists and the user owns it."""
-    result = await db.execute(
-        select(Project.user_id)
-        .where(Project.id == project_id, Project.is_deleted == False)  # noqa: E712
-    )
-    row = result.one_or_none()
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found",
-        )
-
-    (owner_id,) = row
-    if str(owner_id) != str(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this project",
-        )
-
-
-# -------------------------------------------------------------------------
-# Conversation Endpoints
-# -------------------------------------------------------------------------
-
-
-@router.get("/conversation/{chat_id}", response_model=ConversationStateResponse)
-async def get_conversation_state(
-    chat_id: UUID,
-    cm: ContextManager = Depends(get_context_manager),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> ConversationStateResponse:
-    """Retrieve the full conversation state for a chat."""
-    user_id = payload.get("sub", "")
-    await _validate_chat_access(chat_id, user_id, db)
-
-    state = await cm.get_conversation_state(chat_id)
-    if state is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat '{chat_id}' not found",
-        )
-
-    return ConversationStateResponse(**state)
-
-
-@router.put("/conversation/{chat_id}", response_model=ConversationStateResponse)
-async def update_conversation_state(
-    chat_id: UUID,
-    body: ConversationStateUpdateRequest,
-    cm: ContextManager = Depends(get_context_manager),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> ConversationStateResponse:
-    """Update the cached conversation state with the provided updates."""
-    user_id = payload.get("sub", "")
-    await _validate_chat_access(chat_id, user_id, db)
-
-    state = await cm.update_conversation_state(chat_id, body.updates)
-    if state is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat '{chat_id}' not found",
-        )
-
-    return ConversationStateResponse(**state)
-
-
-@router.delete(
-    "/conversation/{chat_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def invalidate_conversation_cache(
-    chat_id: UUID,
-    cm: ContextManager = Depends(get_context_manager),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> None:
-    """Invalidate the cached conversation state for a chat."""
-    user_id = payload.get("sub", "")
-    await _validate_chat_access(chat_id, user_id, db)
-
-    await cm.invalidate_conversation_cache(chat_id)
-
-
-# -------------------------------------------------------------------------
-# Project Endpoints
-# -------------------------------------------------------------------------
-
-
-@router.get("/project/{project_id}", response_model=ProjectContextResponse)
-async def get_project_context(
-    project_id: UUID,
-    cm: ContextManager = Depends(get_context_manager),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> ProjectContextResponse:
-    """Retrieve project-level context including metadata and chat list."""
-    user_id = payload.get("sub", "")
-    await _validate_project_access(project_id, user_id, db)
-
-    context = await cm.get_project_context(project_id)
-    if context is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{project_id}' not found",
-        )
-
-    return ProjectContextResponse(**context)
-
-
-@router.get("/project/{project_id}/chats", response_model=ChatListResponse)
-async def get_project_chats(
-    project_id: UUID,
-    cm: ContextManager = Depends(get_context_manager),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> ChatListResponse:
-    """List all non-deleted chats belonging to a project."""
-    user_id = payload.get("sub", "")
-    await _validate_project_access(project_id, user_id, db)
-
-    chats = await cm.get_all_chats_in_project(project_id)
-    return ChatListResponse(
-        chats=[ChatSummary(**c) for c in chats],
-        count=len(chats),
-    )
 
 
 # -------------------------------------------------------------------------
@@ -256,7 +53,7 @@ async def get_user_preferences(
     payload: dict = Depends(get_current_user_payload),
 ) -> UserPreferencesResponse:
     """Retrieve cached user preferences."""
-    requesting_user = payload.get("sub", "")
+    requesting_user = payload.get("user_id", "")
     if str(user_id) != str(requesting_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -265,6 +62,75 @@ async def get_user_preferences(
 
     prefs = await cm.get_user_preferences(user_id)
     return UserPreferencesResponse(**prefs)
+
+
+@router.put("/user/{user_id}/preferences", response_model=UserPreferencesResponse)
+async def update_user_preferences(
+    user_id: UUID,
+    body: UserPreferencesUpdateRequest,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserPreferencesResponse:
+    """Update user preferences for AI behaviour customization."""
+    requesting_user = payload.get("user_id", "")
+    if str(user_id) != str(requesting_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own preferences",
+        )
+
+    from app.models.user_preference import UserPreference
+
+    result = await db.execute(
+        select(UserPreference).where(UserPreference.user_id == user_id)
+    )
+    pref = result.scalar_one_or_none()
+
+    if pref is None:
+        pref = UserPreference(user_id=user_id)
+        db.add(pref)
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(pref, field, value)
+
+    await db.commit()
+    await db.refresh(pref)
+
+    await cm.invalidate_user_preferences_cache(user_id)
+
+    return UserPreferencesResponse(
+        custom_system_prompt=pref.custom_system_prompt,
+        coding_principles=pref.coding_principles,
+        response_style=pref.response_style,
+        default_model=pref.default_model,
+        default_temperature=pref.default_temperature,
+        email_notifications=pref.email_notifications,
+        in_app_notifications=pref.in_app_notifications,
+    )
+
+
+@router.get("/models", response_model=ModelListResponse)
+async def list_models(
+    ollama: OllamaClient = Depends(get_ollama_client),
+    _payload: dict = Depends(get_current_user_payload),
+) -> ModelListResponse:
+    """List available Ollama LLM models."""
+    try:
+        raw_models = await ollama.list_models()
+        models = [
+            ModelInfo(
+                name=m.get("name", ""),
+                size=m.get("size"),
+                modified_at=m.get("modified_at"),
+            )
+            for m in raw_models
+        ]
+        return ModelListResponse(models=models)
+    except Exception as exc:
+        logger.warning("Failed to list Ollama models: %s", exc)
+        return ModelListResponse(models=[])
 
 
 # -------------------------------------------------------------------------
@@ -281,8 +147,8 @@ async def track_token_usage(
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenUsageResponse:
     """Track token usage and trigger compaction if threshold is exceeded."""
-    user_id = payload.get("sub", "")
-    await _validate_chat_access(chat_id, user_id, db)
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
 
     needs_compaction = await cm.track_token_usage(
         chat_id, body.token_count, body.max_tokens
@@ -310,8 +176,8 @@ async def get_token_usage(
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenUsageResponse:
     """Retrieve current token usage statistics for a conversation."""
-    user_id = payload.get("sub", "")
-    await _validate_chat_access(chat_id, user_id, db)
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
 
     usage = await cm.get_token_usage(chat_id)
     return TokenUsageResponse(

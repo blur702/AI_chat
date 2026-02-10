@@ -7,10 +7,12 @@ All models are imported here to ensure Alembic autogenerate detects them.
 
 from app.database import Base
 from app.models.archive import Archive
+from app.models.audit_log import AuditLog
 from app.models.automation_action import AutomationAction
 from app.models.base import TimestampMixin, UUIDMixin
 from app.models.chat import Chat
 from app.models.event import Event
+from app.models.image_generation import ImageGeneration
 from app.models.context_compaction import ContextCompaction
 from app.models.kb_chunk import KBChunk
 from app.models.kb_source import KBSource
@@ -24,11 +26,13 @@ from app.models.yolo_edit import YoloEdit
 
 __all__ = [
     "Archive",
+    "AuditLog",
     "AutomationAction",
     "Base",
     "Chat",
     "ContextCompaction",
     "Event",
+    "ImageGeneration",
     "KBChunk",
     "KBSource",
     "Message",

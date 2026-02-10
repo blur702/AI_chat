@@ -8,11 +8,15 @@ import React from "react";
 interface AuthState {
   token: string | null;
   userId: string | null;
+  role: string | null;
+  username: string | null;
+  screenName: string | null;
   isAuthenticated: boolean;
 }
 
 interface AuthContextValue extends AuthState {
   login: (token: string) => boolean;
+  loginWithCredentials: (identifier: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -38,23 +42,35 @@ function parseJwt(token: string): Record<string, unknown> | null {
   }
 }
 
+function stateFromPayload(token: string, payload: Record<string, unknown>): AuthState {
+  return {
+    token,
+    userId: (payload.user_id as string) || null,
+    role: (payload.role as string) || null,
+    username: (payload.username as string) || null,
+    screenName: (payload.screen_name as string) || null,
+    isAuthenticated: true,
+  };
+}
+
+const emptyState: AuthState = {
+  token: null,
+  userId: null,
+  role: null,
+  username: null,
+  screenName: null,
+  isAuthenticated: false,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    token: null,
-    userId: null,
-    isAuthenticated: false,
-  });
+  const [state, setState] = useState<AuthState>(emptyState);
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
     if (stored) {
       const payload = parseJwt(stored);
       if (payload && payload.exp && (payload.exp as number) * 1000 > Date.now()) {
-        setState({
-          token: stored,
-          userId: (payload.user_id as string) || null,
-          isAuthenticated: true,
-        });
+        setState(stateFromPayload(stored, payload));
         getClient().setToken(stored);
       } else {
         localStorage.removeItem(TOKEN_KEY);
@@ -64,31 +80,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((token: string): boolean => {
     const payload = parseJwt(token);
-    if (!payload) {
-      return false;
-    }
-    if (payload.exp && (payload.exp as number) * 1000 <= Date.now()) {
-      return false;
-    }
+    if (!payload) return false;
+    if (payload.exp && (payload.exp as number) * 1000 <= Date.now()) return false;
     localStorage.setItem(TOKEN_KEY, token);
     getClient().setToken(token);
-    setState({
-      token,
-      userId: (payload.user_id as string) || null,
-      isAuthenticated: true,
-    });
+    setState(stateFromPayload(token, payload));
     return true;
   }, []);
+
+  const loginWithCredentials = useCallback(
+    async (identifier: string, password: string): Promise<boolean> => {
+      try {
+        const response = await getClient().login(identifier, password);
+        const token = response.access_token;
+        localStorage.setItem(TOKEN_KEY, token);
+        getClient().setToken(token);
+        const payload = parseJwt(token);
+        if (payload) {
+          setState(stateFromPayload(token, payload));
+        } else {
+          setState({
+            token,
+            userId: response.user_id,
+            role: response.role,
+            username: response.username,
+            screenName: response.screen_name,
+            isAuthenticated: true,
+          });
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     getClient().setToken(null);
-    setState({ token: null, userId: null, isAuthenticated: false });
+    setState(emptyState);
   }, []);
 
   return React.createElement(
     AuthContext.Provider,
-    { value: { ...state, login, logout } },
+    { value: { ...state, login, loginWithCredentials, logout } },
     children
   );
 }

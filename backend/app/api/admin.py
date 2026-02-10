@@ -9,59 +9,28 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.auth import verify_token
+from app.auth import extract_request_metadata, log_security_event, require_admin
+from app.database import get_db_session
 from app.kernel import WorkstationKernel
+from app.models.audit_log import AuditLog
+from app.models.user import User
 from app.schemas.admin import (
+    AuditLogListResponse,
+    AuditLogResponse,
     KernelDebugResponse,
     KernelMetricsResponse,
     ServiceDebugResponse,
+    UserUnlockResponse,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def require_admin(
-    authorization: Optional[str] = Header(None),
-) -> dict:
-    """
-    Dependency that validates JWT and enforces admin role.
-
-    Extracts the Bearer token from the Authorization header, verifies it,
-    and checks that the payload contains role="admin".
-
-    Returns:
-        Decoded JWT payload if valid and admin.
-
-    Raises:
-        HTTPException 401: If token is missing or invalid.
-        HTTPException 403: If authenticated user is not an admin.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization[len("Bearer "):]
-    payload = verify_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if payload.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-
-    return payload
 
 
 router = APIRouter(
@@ -375,3 +344,134 @@ async def _collect_redis_info(kernel: WorkstationKernel) -> Dict[str, Any]:
         info["error"] = str(e)
 
     return info
+
+
+# -------------------------------------------------------------------------
+# User Management
+# -------------------------------------------------------------------------
+
+user_router = APIRouter(
+    prefix="/admin/users",
+    tags=["admin"],
+    dependencies=[Depends(require_admin)],
+)
+
+
+@user_router.post("/{user_id}/unlock", response_model=UserUnlockResponse)
+async def unlock_user_account(
+    user_id: UUID,
+    request: Request,
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserUnlockResponse:
+    """Unlock a locked user account (admin only)."""
+    meta = extract_request_metadata(request)
+    admin_id = _payload.get("user_id")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.reset_failed_login()
+
+    await log_security_event(
+        db, action="account_unlocked", event_status="success",
+        user_id=user.id,
+        ip_address=meta["ip_address"], user_agent=meta["user_agent"],
+        details={"admin_id": admin_id, "username": user.username},
+    )
+    await db.commit()
+
+    return UserUnlockResponse(
+        user_id=user.id,
+        username=user.username,
+        message="Account unlocked successfully",
+        unlocked_at=datetime.now(timezone.utc),
+    )
+
+
+def _build_audit_filters(
+    user_id: Optional[UUID],
+    action: Optional[str],
+    audit_status: Optional[str],
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+) -> list:
+    """Build a list of SQLAlchemy filter clauses for audit log queries."""
+    filters = []
+    if user_id is not None:
+        filters.append(AuditLog.user_id == user_id)
+    if action is not None:
+        filters.append(AuditLog.action == action)
+    if audit_status is not None:
+        filters.append(AuditLog.status == audit_status)
+    if start_date is not None:
+        filters.append(AuditLog.created_at >= start_date)
+    if end_date is not None:
+        filters.append(AuditLog.created_at <= end_date)
+    return filters
+
+
+@user_router.get("/audit-logs", response_model=AuditLogListResponse)
+async def get_audit_logs(
+    user_id: Optional[UUID] = None,
+    action: Optional[str] = None,
+    audit_status: Optional[str] = Query(None, alias="status"),
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> AuditLogListResponse:
+    """Retrieve audit logs with optional filtering (admin only)."""
+    filters = _build_audit_filters(user_id, action, audit_status, start_date, end_date)
+
+    # Build base query with filters
+    query = select(AuditLog).options(selectinload(AuditLog.user))
+    for f in filters:
+        query = query.where(f)
+
+    # Count total matching records using same filters
+    count_query = select(func.count()).select_from(AuditLog)
+    for f in filters:
+        count_query = count_query.where(f)
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Fetch paginated results
+    query = (
+        query
+        .order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    return AuditLogListResponse(
+        logs=[
+            AuditLogResponse(
+                id=log.id,
+                user_id=log.user_id,
+                username=log.user.username if log.user else None,
+                action=log.action,
+                resource=log.resource,
+                ip_address=log.ip_address,
+                user_agent=log.user_agent,
+                status=log.status,
+                details=log.details,
+                created_at=log.created_at,
+            )
+            for log in logs
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )

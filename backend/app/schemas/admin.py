@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -113,3 +114,34 @@ class KernelMetricsResponse(BaseModel):
         "queue_size": 0,
         "timestamp": "2024-01-15T10:30:00Z",
     }}}
+
+
+class UserUnlockResponse(BaseModel):
+    user_id: UUID
+    username: str
+    message: str
+    unlocked_at: datetime
+
+
+class AuditLogResponse(BaseModel):
+    """Single audit log entry."""
+
+    id: UUID
+    user_id: Optional[UUID] = None
+    username: Optional[str] = None
+    action: str
+    resource: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    status: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    """Paginated list of audit log entries."""
+
+    logs: List[AuditLogResponse]
+    total: int
+    page: int
+    page_size: int

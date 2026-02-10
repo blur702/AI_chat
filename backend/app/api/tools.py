@@ -13,11 +13,11 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import verify_token
+from app.auth import get_current_user_payload
 from app.database import get_db_session
 from app.kernel.tool_registry import ToolRegistry
 from app.models.chat import Chat
@@ -66,36 +66,6 @@ def get_tool_registry(request: Request) -> ToolRegistry:
         )
 
     return registry
-
-
-def get_current_user_payload(
-    authorization: Optional[str] = Header(None),
-) -> dict:
-    """
-    Dependency to extract and verify JWT from the Authorization header.
-
-    Returns the decoded token payload.
-
-    Raises:
-        HTTPException 401: If token is missing or invalid.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization[len("Bearer "):]
-    payload = verify_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return payload
 
 
 async def _validate_chat_access(

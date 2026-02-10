@@ -84,8 +84,17 @@ export interface OperationStateResponse {
   state: Record<string, unknown> | null;
 }
 
+export interface SystemStats {
+  cpu_percent: number;
+  ram_total_mb: number;
+  ram_used_mb: number;
+  ram_free_mb: number;
+  ram_percent: number;
+}
+
 export interface ResourceStatusResponse {
   vram_stats: VRAMStats;
+  system_stats: SystemStats | null;
   loaded_resources: Resource[];
   queue_size: number;
   active_operations_count: number;

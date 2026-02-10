@@ -174,7 +174,7 @@ class ContextManager(BaseKernelService):
             }
 
         # Cache the state
-        await self._redis.setex(cache_key, self.CONVERSATION_CACHE_TTL, json.dumps(state))
+        await self._redis.setex(cache_key, self.CONVERSATION_CACHE_TTL, json.dumps(state, default=str))
         return state
 
     async def update_conversation_state(
@@ -222,7 +222,10 @@ class ContextManager(BaseKernelService):
                 {
                     "id": str(c.id),
                     "title": c.title,
+                    "is_pinned": c.is_pinned,
+                    "is_archived": c.is_archived,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
                 }
                 for c in project.chats
                 if not c.is_deleted
@@ -240,7 +243,7 @@ class ContextManager(BaseKernelService):
                 "chats": chat_list,
             }
 
-        await self._redis.setex(cache_key, self.PROJECT_CACHE_TTL, json.dumps(context))
+        await self._redis.setex(cache_key, self.PROJECT_CACHE_TTL, json.dumps(context, default=str))
         return context
 
     async def get_all_chats_in_project(self, project_id: UUID) -> List[Dict[str, Any]]:
@@ -255,7 +258,10 @@ class ContextManager(BaseKernelService):
                 {
                     "id": str(c.id),
                     "title": c.title,
+                    "is_pinned": c.is_pinned,
+                    "is_archived": c.is_archived,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
                 }
                 for c in chats
             ]
@@ -285,9 +291,13 @@ class ContextManager(BaseKernelService):
                 "custom_system_prompt": pref.custom_system_prompt,
                 "coding_principles": pref.coding_principles,
                 "response_style": pref.response_style,
+                "default_model": pref.default_model,
+                "default_temperature": pref.default_temperature,
+                "email_notifications": pref.email_notifications,
+                "in_app_notifications": pref.in_app_notifications,
             }
 
-        await self._redis.setex(cache_key, self.USER_PREFS_CACHE_TTL, json.dumps(prefs_dict))
+        await self._redis.setex(cache_key, self.USER_PREFS_CACHE_TTL, json.dumps(prefs_dict, default=str))
         return prefs_dict
 
     async def invalidate_user_preferences_cache(self, user_id: UUID) -> None:
@@ -379,6 +389,119 @@ class ContextManager(BaseKernelService):
             logger.warning(f"Failed to publish context_compacted event: {e}")
 
         return compaction_id
+
+    # -------------------------------------------------------------------------
+    # Knowledge Base Context Retrieval
+    # -------------------------------------------------------------------------
+
+    async def get_relevant_kb_context(
+        self,
+        project_id: UUID,
+        query: str,
+        top_k: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve relevant KB chunks for a query using vector similarity.
+
+        Returns an empty list if the embedding service is unavailable or
+        no chunks with embeddings exist for the project.
+        """
+        try:
+            from app.kernel import WorkstationKernel
+
+            kernel = WorkstationKernel()
+            embedding_svc = kernel.get_service("embedding_service")
+            if embedding_svc is None or not embedding_svc.is_running:
+                return []
+
+            query_embedding = await embedding_svc.generate_embedding(query)
+
+            from app.models.kb_chunk import KBChunk
+            from pgvector.sqlalchemy import cosine_distance
+
+            async with self._session_factory() as session:
+                distance_expr = cosine_distance(KBChunk.embedding, query_embedding)
+                similarity_expr = (1 - distance_expr).label("similarity")
+
+                stmt = (
+                    select(KBChunk, similarity_expr)
+                    .where(
+                        KBChunk.project_id == project_id,
+                        KBChunk.embedding.isnot(None),
+                    )
+                    .order_by(distance_expr)
+                    .limit(top_k)
+                )
+
+                result = await session.execute(stmt)
+                rows = result.all()
+
+                return [
+                    {
+                        "content": chunk.content,
+                        "source_id": str(chunk.source_id),
+                        "similarity": float(sim),
+                    }
+                    for chunk, sim in rows
+                ]
+
+        except Exception as exc:
+            logger.warning("KB context retrieval failed: %s", exc)
+            return []
+
+    # -------------------------------------------------------------------------
+    # Automation Action Helpers
+    # -------------------------------------------------------------------------
+
+    PENDING_ACTIONS_PREFIX = "context:pending_actions:"
+    PENDING_ACTIONS_TTL = 30  # seconds
+
+    async def get_pending_automation_actions(
+        self, project_id: UUID
+    ) -> List[Dict[str, Any]]:
+        """Get pending (unapproved, unexecuted) automation actions for a project.
+
+        Results are cached in Redis for 30 seconds.
+        """
+        cache_key = f"{self.PENDING_ACTIONS_PREFIX}{project_id}"
+
+        # Check cache
+        if self._redis:
+            cached = await self._redis.get(cache_key)
+            if cached:
+                return json.loads(cached)
+
+        from app.models.automation_action import AutomationAction
+
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(AutomationAction)
+                .where(
+                    AutomationAction.project_id == project_id,
+                    AutomationAction.user_approved == False,  # noqa: E712
+                    AutomationAction.executed_at.is_(None),
+                )
+                .order_by(AutomationAction.created_at.desc())
+            )
+            actions = result.scalars().all()
+
+            summaries = [
+                {
+                    "id": str(a.id),
+                    "action_type": a.action_type,
+                    "action_data": a.action_data,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in actions
+            ]
+
+        if self._redis:
+            await self._redis.set(
+                cache_key,
+                json.dumps(summaries),
+                ex=self.PENDING_ACTIONS_TTL,
+            )
+
+        return summaries
 
     # -------------------------------------------------------------------------
     # Database Helpers

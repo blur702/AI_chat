@@ -1,0 +1,55 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { getClient } from "../client";
+import type { YoloEdit } from "../types";
+
+export function useYoloEdits(projectId: string) {
+  const [edits, setEdits] = useState<YoloEdit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getClient().listYoloEdits(projectId, { limit: 50 });
+      setEdits(res.edits);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load edits");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const undo = useCallback(
+    async (editId: string) => {
+      try {
+        setError(null);
+        const result = await getClient().undoYoloEdit(editId);
+        await refresh();
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to undo edit";
+        setError(message);
+        throw err;
+      }
+    },
+    [refresh]
+  );
+
+  const undoableCount = edits.filter((e) => !e.undo_performed).length;
+
+  return {
+    edits,
+    loading,
+    error,
+    undoableCount,
+    refresh,
+    undo,
+  };
+}

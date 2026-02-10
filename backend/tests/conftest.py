@@ -29,9 +29,41 @@ async def event_loop():
 
 @pytest.fixture
 async def mock_redis():
-    """Provide a fresh fakeredis async client with decode_responses=True."""
+    """Provide a fresh fakeredis async client with decode_responses=True.
+
+    Wraps pubsub instances so that subscribe/psubscribe drain the
+    subscription confirmation message, matching real Redis behaviour
+    (where execute_command consumes the server response inline).
+    """
     server = fakeredis.aioredis.FakeServer()
     client = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+
+    _original_pubsub = client.pubsub
+
+    def _patched_pubsub(*args, **kwargs):
+        ps = _original_pubsub(*args, **kwargs)
+        _orig_subscribe = ps.subscribe
+        _orig_psubscribe = ps.psubscribe
+
+        async def _subscribe_and_drain(*a, **kw):
+            ret = await _orig_subscribe(*a, **kw)
+            # Drain confirmation(s) so they don't pollute get_message
+            for _ in range(len(a) + len(kw)):
+                await ps.get_message(timeout=0)
+            return ret
+
+        async def _psubscribe_and_drain(*a, **kw):
+            ret = await _orig_psubscribe(*a, **kw)
+            for _ in range(len(a) + len(kw)):
+                await ps.get_message(timeout=0)
+            return ret
+
+        ps.subscribe = _subscribe_and_drain
+        ps.psubscribe = _psubscribe_and_drain
+        return ps
+
+    client.pubsub = _patched_pubsub
+
     yield client
     await client.aclose()
 

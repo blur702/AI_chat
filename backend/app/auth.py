@@ -1,16 +1,19 @@
 """
 JWT Authentication utilities for WebSocket and API authentication.
 
-Provides token generation and validation functions using python-jose.
+Provides token generation, validation, FastAPI dependencies for auth,
+and audit logging utilities for security events.
 """
 
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
+from fastapi import Header, HTTPException, Request, status
 from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("workstation.auth")
 
@@ -114,3 +117,121 @@ def create_websocket_token(user_id: UUID, expires_minutes: int = 60) -> str:
         data={"user_id": str(user_id), "token_type": "websocket"},
         expires_delta=timedelta(minutes=expires_minutes)
     )
+
+
+# -------------------------------------------------------------------------
+# FastAPI Dependencies
+# -------------------------------------------------------------------------
+
+
+def get_current_user_payload(
+    authorization: Optional[str] = Header(None),
+) -> dict:
+    """
+    Dependency to extract and verify JWT from the Authorization header.
+
+    Returns the decoded token payload.
+
+    Raises:
+        HTTPException 401: If token is missing or invalid.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = authorization[len("Bearer "):]
+    payload = verify_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
+
+
+def require_admin(
+    authorization: Optional[str] = Header(None),
+) -> dict:
+    """
+    Dependency that validates JWT and enforces admin role.
+
+    Returns:
+        Decoded JWT payload if valid and admin.
+
+    Raises:
+        HTTPException 401: If token is missing or invalid.
+        HTTPException 403: If authenticated user is not an admin.
+    """
+    payload = get_current_user_payload(authorization)
+
+    if payload.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+
+    return payload
+
+
+# -------------------------------------------------------------------------
+# Audit Logging
+# -------------------------------------------------------------------------
+
+
+def extract_request_metadata(request: Request) -> Dict[str, Optional[str]]:
+    """Extract IP address and user agent from a request."""
+    return {
+        "ip_address": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent"),
+    }
+
+
+async def log_security_event(
+    db: AsyncSession,
+    action: str,
+    event_status: str,
+    user_id: Optional[UUID] = None,
+    resource: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+) -> Optional[UUID]:
+    """
+    Record a security event in the audit log.
+
+    Args:
+        db: Database session.
+        action: Action type (e.g. 'login_success', 'password_change').
+        event_status: Outcome ('success', 'failure', 'warning').
+        user_id: User who performed the action (nullable).
+        resource: Affected resource identifier.
+        ip_address: Client IP address.
+        user_agent: Client user agent string.
+        details: Additional JSON context.
+
+    Returns:
+        The created audit log ID, or None on failure.
+    """
+    from app.models.audit_log import AuditLog
+
+    try:
+        log_entry = AuditLog(
+            user_id=user_id,
+            action=action,
+            resource=resource,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            status=event_status,
+            details=details or {},
+        )
+        db.add(log_entry)
+        await db.flush()
+        return log_entry.id
+    except Exception as e:
+        logger.error("Failed to write audit log: %s", e)
+        return None

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ScrollArea, Skeleton } from "@workstation/ui";
 import { MessageBubble } from "./message-bubble";
+import { ThinkingIndicator } from "./thinking-indicator";
 import type { MessageSummary } from "@workstation/api";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -63,9 +64,11 @@ This gives you a fully async database setup. Let me know if you need help with m
 interface MessageThreadProps {
   messages: MessageSummary[];
   loading: boolean;
+  processing?: boolean;
+  progress?: number;
 }
 
-export function MessageThread({ messages, loading }: MessageThreadProps) {
+export function MessageThread({ messages, loading, processing, progress = 0 }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const displayMessages =
@@ -75,10 +78,14 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
         ? MOCK_MESSAGES
         : [];
 
+  // Track content length of last message for auto-scroll during streaming
+  const lastMsg = displayMessages[displayMessages.length - 1];
+  const lastContentLen = lastMsg?.content?.length ?? 0;
+
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     bottomRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
-  }, [messages.length]);
+  }, [messages.length, processing, lastContentLen]);
 
   if (loading) {
     return (
@@ -126,6 +133,7 @@ export function MessageThread({ messages, loading }: MessageThreadProps) {
             }
           />
         ))}
+        {processing && <ThinkingIndicator progress={progress} />}
         <div ref={bottomRef} />
       </div>
     </ScrollArea>

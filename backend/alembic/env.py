@@ -31,6 +31,7 @@ from app.models.kb_chunk import KBChunk
 from app.models.automation_action import AutomationAction
 from app.models.yolo_edit import YoloEdit
 from app.models.archive import Archive
+from app.models.audit_log import AuditLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

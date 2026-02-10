@@ -266,10 +266,31 @@ class OperationStateResponse(BaseModel):
 # -------------------------------------------------------------------------
 
 
+class SystemStatsResponse(BaseModel):
+    """CPU and RAM statistics for the host system."""
+
+    cpu_percent: float = Field(..., description="CPU utilization as percentage (0-100)")
+    ram_total_mb: int = Field(..., description="Total system RAM in megabytes")
+    ram_used_mb: int = Field(..., description="Used system RAM in megabytes")
+    ram_free_mb: int = Field(..., description="Available system RAM in megabytes")
+    ram_percent: float = Field(..., description="RAM utilization as percentage (0-100)")
+
+    model_config = {"json_schema_extra": {"example": {
+        "cpu_percent": 24.5,
+        "ram_total_mb": 32768,
+        "ram_used_mb": 16384,
+        "ram_free_mb": 16384,
+        "ram_percent": 50.0,
+    }}}
+
+
 class ResourceStatusResponse(BaseModel):
-    """Comprehensive resource status aggregating VRAM, loaded resources, and queue info."""
+    """Comprehensive resource status aggregating VRAM, system stats, loaded resources, and queue info."""
 
     vram_stats: VRAMStatsResponse = Field(..., description="Current VRAM statistics")
+    system_stats: Optional[SystemStatsResponse] = Field(
+        None, description="CPU and RAM statistics (None if unavailable)"
+    )
     loaded_resources: List[ResourceResponse] = Field(
         default_factory=list, description="Currently loaded resources"
     )
@@ -286,6 +307,13 @@ class ResourceStatusResponse(BaseModel):
             "free_mb": 16384,
             "utilization_percent": 33.33,
             "gpu_count": 1,
+        },
+        "system_stats": {
+            "cpu_percent": 24.5,
+            "ram_total_mb": 32768,
+            "ram_used_mb": 16384,
+            "ram_free_mb": 16384,
+            "ram_percent": 50.0,
         },
         "loaded_resources": [],
         "queue_size": 0,

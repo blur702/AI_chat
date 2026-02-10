@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
-import type { VRAMStats, Resource, ResourceStatusResponse } from "../types";
+import type { VRAMStats, SystemStats, Resource, ResourceStatusResponse } from "../types";
 
 interface UseResourcesReturn {
   vramStats: VRAMStats | null;
+  systemStats: SystemStats | null;
   resources: Resource[];
   fullStatus: ResourceStatusResponse | null;
   loading: boolean;
@@ -15,6 +16,7 @@ interface UseResourcesReturn {
 
 export function useResources(autoRefreshMs?: number): UseResourcesReturn {
   const [vramStats, setVramStats] = useState<VRAMStats | null>(null);
+  const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
   const [fullStatus, setFullStatus] = useState<ResourceStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
       const status = await getClient().getResourceStatus();
       setFullStatus(status);
       setVramStats(status.vram_stats);
+      setSystemStats(status.system_stats);
       setResources(status.loaded_resources);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch resources");
@@ -42,5 +45,5 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
     }
   }, [refresh, autoRefreshMs]);
 
-  return { vramStats, resources, fullStatus, loading, error, refresh };
+  return { vramStats, systemStats, resources, fullStatus, loading, error, refresh };
 }

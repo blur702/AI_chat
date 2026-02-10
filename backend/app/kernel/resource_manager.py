@@ -216,6 +216,8 @@ class ResourceManager(BaseKernelService):
         self._vram_tracker: Optional[VRAMTracker] = None
         self._running = False
         self._monitor_task: Optional[asyncio.Task] = None
+        self._kernel = None
+        self._last_broadcast_utilization: Optional[float] = None
 
         # Priority queue stores tuples: (negative_score, timestamp, resource_id, user_id)
         # Using negative score for max-heap behavior with asyncio.PriorityQueue
@@ -602,20 +604,65 @@ class ResourceManager(BaseKernelService):
         """
         Background loop that refreshes VRAM cache every second.
 
-        Runs continuously while service is running. Catches and logs
-        exceptions without crashing the service.
+        Broadcasts resource_updated events via EventBus when VRAM utilization
+        changes by more than 5% or on the first iteration.
         """
         logger.info("VRAM monitor loop started")
 
         while self._running:
             try:
                 await self.refresh_vram_cache()
+                await self._maybe_broadcast_vram_update()
             except Exception as e:
                 logger.error(f"Error in VRAM monitor loop: {e}")
 
             await asyncio.sleep(1.0)
 
         logger.info("VRAM monitor loop stopped")
+
+    async def _maybe_broadcast_vram_update(self) -> None:
+        """Broadcast resource_updated event if VRAM changed significantly (>5%)."""
+        if not self._kernel:
+            return
+
+        stats = await self.get_cached_vram_stats()
+        current_util = stats.get("utilization_percent", 0.0)
+        prev_util = self._last_broadcast_utilization
+
+        # Broadcast on first iteration or when utilization changes by >5%
+        should_broadcast = (
+            prev_util is None
+            or abs(current_util - prev_util) > 5.0
+        )
+
+        if not should_broadcast:
+            return
+
+        event_bus = self._kernel.get_service("event_bus")
+        if not event_bus:
+            return
+
+        loaded_count = 0
+        try:
+            loaded = await self.get_loaded_resources()
+            loaded_count = len(loaded)
+        except Exception as e:
+            logger.debug("Failed to get loaded resources for broadcast: %s", e)
+
+        await event_bus.publish_event(
+            event_type="resource_updated",
+            event_data={
+                "vram_stats": stats,
+                "loaded_resources_count": loaded_count,
+                "queue_size": self._load_queue.qsize(),
+            },
+            severity="info",
+            source="resource_manager",
+            persist=False,
+        )
+
+        # Update state only after successful broadcast so failures trigger retry
+        self._last_broadcast_utilization = current_util
 
     # -------------------------------------------------------------------------
     # Preemption Algorithm (LRU-based)

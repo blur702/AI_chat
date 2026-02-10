@@ -7,16 +7,23 @@ JWT authentication, and state snapshot delivery on reconnection.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
 from app.auth import get_user_id_from_token, verify_token
+from app.database import AsyncSessionLocal
+from app.models.project import Project
+from app.services.sandbox_manager import COMMAND_TIMEOUT
 
 logger = logging.getLogger("workstation.websocket")
+
+MAX_COMMAND_LENGTH = 8192  # Max chars for terminal commands
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
@@ -414,6 +421,200 @@ async def websocket_events_endpoint(
 
     finally:
         await manager.disconnect(connection_id)
+
+
+@router.websocket("/sandbox/{project_id}/terminal")
+async def websocket_terminal_endpoint(
+    websocket: WebSocket,
+    project_id: str,
+    token: Optional[str] = Query(None),
+):
+    """
+    WebSocket endpoint for interactive terminal sessions.
+
+    Creates or reuses a Docker container for the project and streams
+    command I/O back to the client.
+
+    Authentication:
+        Token is passed as query parameter: /ws/sandbox/{project_id}/terminal?token=<jwt>
+
+    Client messages:
+        {"type": "command", "data": {"command": "ls -la"}}
+
+    Server messages:
+        {"type": "connected", "data": {"container_id": "..."}}
+        {"type": "output", "data": {"stream": "stdout", "content": "..."}}
+        {"type": "exit", "data": {"code": 0}}
+        {"type": "error", "data": {"message": "..."}}
+    """
+    # -- Authenticate --
+    if token is None:
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+
+    payload = verify_token(token)
+    if payload is None:
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        return
+
+    user_id_str = payload.get("user_id")
+    if not user_id_str:
+        await websocket.close(code=1008, reason="Invalid user")
+        return
+
+    try:
+        user_id = UUID(user_id_str)
+    except (ValueError, TypeError):
+        await websocket.close(code=1008, reason="Invalid user")
+        return
+
+    try:
+        project_uuid = UUID(project_id)
+    except (ValueError, TypeError):
+        await websocket.close(code=1008, reason="Invalid project ID")
+        return
+
+    # -- Verify project exists and user owns it --
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Project.user_id)
+            .where(Project.id == project_uuid, Project.is_deleted == False)  # noqa: E712
+        )
+        row = result.one_or_none()
+        if row is None:
+            await websocket.close(code=1008, reason="Project not found")
+            return
+        (owner_id,) = row
+        if str(owner_id) != str(user_id):
+            await websocket.close(code=1008, reason="Access denied")
+            return
+
+    # -- Get SandboxManager from kernel --
+    kernel = getattr(websocket.app.state, "kernel", None)
+    if kernel is None:
+        await websocket.close(code=1011, reason="Kernel not available")
+        return
+
+    sandbox_manager = kernel.get_service("sandbox_manager")
+    if sandbox_manager is None:
+        await websocket.close(code=1011, reason="Sandbox service not available")
+        return
+
+    await websocket.accept()
+    logger.info("Terminal WebSocket accepted for project %s, user %s", project_id[:12], user_id_str[:12])
+
+    try:
+        # Get or create sandbox container
+        container_id = await sandbox_manager.get_or_create_container(project_uuid)
+
+        await websocket.send_json({
+            "type": "connected",
+            "data": {"container_id": container_id[:12]},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+        # Command loop
+        while True:
+            raw = await websocket.receive_text()
+
+            try:
+                msg = json.loads(raw)
+            except (ValueError, TypeError):
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {"message": "Invalid JSON"},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+                continue
+
+            msg_type = msg.get("type")
+            if msg_type != "command":
+                continue
+
+            command = (msg.get("data") or {}).get("command", "").strip()
+            if not command:
+                continue
+
+            if len(command) > MAX_COMMAND_LENGTH:
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {"message": f"Command too long (max {MAX_COMMAND_LENGTH} chars)"},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+                continue
+
+            try:
+                exec_info = await sandbox_manager.execute_command(container_id, command)
+                exec_id = exec_info["exec_id"]
+
+                async def _run_and_stream() -> int:
+                    """Stream output then return exit code."""
+                    async for stream_type, chunk in sandbox_manager.stream_exec_output(exec_id):
+                        await websocket.send_json({
+                            "type": "output",
+                            "data": {"stream": stream_type, "content": chunk},
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                    return await sandbox_manager.get_exec_exit_code(exec_id)
+
+                try:
+                    exit_code = await asyncio.wait_for(
+                        _run_and_stream(), timeout=COMMAND_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Command timed out after %ds in container %s",
+                        COMMAND_TIMEOUT, container_id[:12],
+                    )
+                    # Kill the orphaned process inside the container
+                    try:
+                        exec_inspect = await asyncio.to_thread(
+                            sandbox_manager._client.api.exec_inspect, exec_id
+                        )
+                        pid = exec_inspect.get("Pid", 0)
+                        if pid:
+                            container = await asyncio.to_thread(
+                                sandbox_manager._client.containers.get, container_id
+                            )
+                            await asyncio.to_thread(
+                                container.exec_run,
+                                ["kill", "-9", str(pid)],
+                            )
+                    except Exception as kill_err:
+                        logger.debug("Failed to kill timed-out process: %s", kill_err)
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {"message": f"Command timed out after {COMMAND_TIMEOUT}s"},
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    exit_code = 124  # conventional timeout exit code
+
+                await websocket.send_json({
+                    "type": "exit",
+                    "data": {"code": exit_code},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+            except Exception as exec_err:
+                logger.error("Command execution error: %s", exec_err)
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {"message": "Command execution failed"},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+    except WebSocketDisconnect:
+        logger.info("Terminal WebSocket disconnected for project %s", project_id[:12])
+    except Exception as e:
+        logger.error("Terminal WebSocket error for project %s: %s", project_id[:12], e)
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "data": {"message": "Internal server error"},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
 
 
 @router.get("/state-snapshot")

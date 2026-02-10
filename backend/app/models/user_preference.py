@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Text
+from sqlalchemy import Boolean, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,8 +22,9 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
     """
     User preferences for AI behavior customization.
 
-    Stores custom system prompts, coding principles, and response style
-    configurations. Each user has at most one preference record.
+    Stores custom system prompts, coding principles, response style
+    configurations, default model/temperature, and notification settings.
+    Each user has at most one preference record.
     """
 
     __tablename__ = "user_preferences"
@@ -48,6 +49,29 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
     response_style: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
+    )
+
+    default_model: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    default_temperature: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        default=0.7,
+    )
+
+    email_notifications: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
+    in_app_notifications: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
     )
 
     # Relationship

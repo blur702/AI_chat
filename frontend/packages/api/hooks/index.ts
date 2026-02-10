@@ -1,7 +1,14 @@
 export { AuthProvider, useAuth } from "./use-auth";
 export { useWebSocket } from "./use-websocket";
 export { useResources } from "./use-resources";
+export { useChats } from "./use-chats";
 export { useConversation } from "./use-conversation";
 export { useProject } from "./use-project";
+export { useProjects } from "./use-projects";
 export { useEvents } from "./use-events";
 export { useTools } from "./use-tools";
+export { useFileExplorer } from "./use-file-explorer";
+export { useSandboxConversation } from "./use-sandbox-conversation";
+export { useAutomationActions } from "./use-automation-actions";
+export { useYoloEdits } from "./use-yolo-edits";
+export { useSettings } from "./use-settings";

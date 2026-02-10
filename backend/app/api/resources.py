@@ -30,6 +30,7 @@ from app.schemas.resource import (
     ReloadRequest,
     ResourceResponse,
     ResourceStatusResponse,
+    SystemStatsResponse,
     VRAMStatsResponse,
 )
 
@@ -81,6 +82,24 @@ async def get_vram_stats(
     return VRAMStatsResponse(**stats)
 
 
+def _get_system_stats() -> SystemStatsResponse | None:
+    """Collect CPU and RAM statistics using psutil."""
+    try:
+        import psutil
+
+        cpu_percent = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        return SystemStatsResponse(
+            cpu_percent=cpu_percent,
+            ram_total_mb=mem.total // (1024 * 1024),
+            ram_used_mb=mem.used // (1024 * 1024),
+            ram_free_mb=mem.available // (1024 * 1024),
+            ram_percent=mem.percent,
+        )
+    except Exception:
+        return None
+
+
 @router.get("/status", response_model=ResourceStatusResponse)
 async def get_resource_status(
     resource_manager: ResourceManager = Depends(get_resource_manager),
@@ -88,13 +107,14 @@ async def get_resource_status(
     """
     Get comprehensive resource status.
 
-    Aggregates VRAM statistics, loaded resources, queue depth,
-    and active operation count into a single response.
+    Aggregates VRAM statistics, system stats (CPU/RAM), loaded resources,
+    queue depth, and active operation count into a single response.
     """
     vram_stats = await resource_manager.get_cached_vram_stats()
     loaded = await resource_manager.get_loaded_resources()
     queue_size = resource_manager.get_queue_size()
     operation_ids = await resource_manager.scan_operation_keys()
+    system_stats = _get_system_stats()
 
     loaded_responses = [
         ResourceResponse(
@@ -111,6 +131,7 @@ async def get_resource_status(
 
     return ResourceStatusResponse(
         vram_stats=VRAMStatsResponse(**vram_stats),
+        system_stats=system_stats,
         loaded_resources=loaded_responses,
         queue_size=queue_size,
         active_operations_count=len(operation_ids),

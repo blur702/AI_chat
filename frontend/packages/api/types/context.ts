@@ -28,7 +28,38 @@ export interface ConversationState {
 export interface ChatSummary {
   id: string;
   title: string;
+  is_pinned?: boolean;
+  is_archived?: boolean;
   created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChatCreateRequest {
+  project_id: string;
+  title: string;
+}
+
+export interface ChatCreateResponse {
+  id: string;
+  title: string;
+  project_id: string;
+  created_at?: string;
+}
+
+export interface ChatUpdateRequest {
+  title?: string;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+}
+
+export interface ChatUpdateResponse {
+  id: string;
+  title: string;
+  project_id: string;
+  is_pinned: boolean;
+  is_archived: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProjectContext {
@@ -52,6 +83,30 @@ export interface UserPreferences {
   custom_system_prompt?: string;
   coding_principles?: unknown[];
   response_style?: Record<string, unknown>;
+  default_model?: string;
+  default_temperature?: number;
+  email_notifications?: boolean;
+  in_app_notifications?: boolean;
+}
+
+export interface UserPreferencesUpdateRequest {
+  custom_system_prompt?: string;
+  coding_principles?: unknown[];
+  response_style?: Record<string, unknown>;
+  default_model?: string;
+  default_temperature?: number;
+  email_notifications?: boolean;
+  in_app_notifications?: boolean;
+}
+
+export interface ModelInfo {
+  name: string;
+  size?: number;
+  modified_at?: string;
+}
+
+export interface ModelListResponse {
+  models: ModelInfo[];
 }
 
 export interface TokenUsageRequest {
@@ -64,4 +119,80 @@ export interface TokenUsageResponse {
   max_tokens: number;
   usage_ratio: number;
   compaction_triggered: boolean;
+}
+
+export interface StreamTokenEvent {
+  type: "token";
+  content: string;
+}
+
+export interface StreamDoneEvent {
+  type: "done";
+  message_id: string;
+  model: string;
+  created_at?: string;
+}
+
+export interface StreamErrorEvent {
+  type: "error";
+  message: string;
+}
+
+export type StreamEvent = StreamTokenEvent | StreamDoneEvent | StreamErrorEvent;
+
+export interface SandboxChatResponse {
+  chat_id: string;
+  conversation: ConversationState;
+}
+
+export interface ProjectCreateRequest {
+  name: string;
+  path: string;
+  type?: string;
+  settings?: Record<string, unknown>;
+  custom_context?: string;
+  important_files?: string[];
+}
+
+export interface ProjectCreateResponse {
+  id: string;
+  name: string;
+  path: string;
+  type?: string;
+  created_at?: string;
+}
+
+export interface ProjectUpdateRequest {
+  name?: string;
+  path?: string;
+  type?: string;
+  settings?: Record<string, unknown>;
+  custom_context?: string;
+  important_files?: string[];
+}
+
+export interface ProjectUpdateResponse {
+  id: string;
+  name: string;
+  path: string;
+  type?: string;
+  settings?: Record<string, unknown>;
+  custom_context?: string;
+  important_files?: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  path: string;
+  type?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectSummary[];
+  count: number;
 }

@@ -12,13 +12,24 @@ from sqlalchemy import text
 
 from app.database import engine, close_db, AsyncSessionLocal
 from app.kernel import WorkstationKernel, ResourceManager, EventBus, ToolRegistry, ContextManager
+from app.services.ollama_client import OllamaClient
+from app.services.kb_ingestion import KBIngestionService
+from app.services.embedding_service import EmbeddingService
+from app.services.comfyui_client import ComfyUIClient
+from app.services.sandbox_manager import SandboxManager
+from app.api.auth import router as auth_router, users_router
 from app.api.resources import router as resources_router
 from app.api.events import router as events_router
 from app.api.tools import router as tools_router
-from app.api.context import router as context_router
+from app.api.context import router as context_router, projects_router, messages_router, chats_router, context_projects_router
 from app.api.websocket import router as websocket_router, get_websocket_manager
 from app.api.operations import router as operations_router
-from app.api.admin import router as admin_router
+from app.api.admin import router as admin_router, user_router as admin_user_router
+from app.api.kb import router as kb_router
+from app.api.image import router as image_router
+from app.api.sandbox import router as sandbox_router
+from app.api.automation import router as automation_router
+from app.api.yolo import router as yolo_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -41,18 +52,25 @@ async def lifespan(app: FastAPI):
         await conn.execute(text("SELECT 1"))
     logger.info("Database connection verified")
 
+    # Seed default admin user if none exists
+    await _seed_admin_user()
+
+    # Seed master admin user (protected, cannot be modified by others)
+    await _seed_master_user()
+
     # Initialize kernel and register services
     kernel = WorkstationKernel()
 
-    # Register ResourceManager with database session factory
-    resource_manager = ResourceManager(session_factory=AsyncSessionLocal)
-    kernel.register_service(resource_manager)
-    logger.info("ResourceManager registered with kernel")
-
-    # Register EventBus with database session factory
+    # Register EventBus first so it's available for other services
     event_bus = EventBus(session_factory=AsyncSessionLocal)
     kernel.register_service(event_bus)
     logger.info("EventBus registered with kernel")
+
+    # Register ResourceManager with database session factory and kernel reference
+    resource_manager = ResourceManager(session_factory=AsyncSessionLocal)
+    resource_manager._kernel = kernel
+    kernel.register_service(resource_manager)
+    logger.info("ResourceManager registered with kernel")
 
     # Register ToolRegistry
     tool_registry = ToolRegistry()
@@ -63,6 +81,37 @@ async def lifespan(app: FastAPI):
     context_manager = ContextManager(session_factory=AsyncSessionLocal)
     kernel.register_service(context_manager)
     logger.info("ContextManager registered with kernel")
+
+    # Register OllamaClient for LLM chat completion
+    ollama_client = OllamaClient(
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+    )
+    kernel.register_service(ollama_client)
+    logger.info("OllamaClient registered with kernel")
+
+    # Register KBIngestionService for document processing
+    kb_ingestion = KBIngestionService()
+    kernel.register_service(kb_ingestion)
+    logger.info("KBIngestionService registered with kernel")
+
+    # Register EmbeddingService for vector embedding generation
+    embedding_service = EmbeddingService(
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+    )
+    kernel.register_service(embedding_service)
+    logger.info("EmbeddingService registered with kernel")
+
+    # Register ComfyUIClient for image generation
+    comfyui_client = ComfyUIClient(
+        base_url=os.getenv("COMFYUI_BASE_URL", "http://host.docker.internal:8188")
+    )
+    kernel.register_service(comfyui_client)
+    logger.info("ComfyUIClient registered with kernel")
+
+    # Register SandboxManager for Docker container sandboxes
+    sandbox_manager = SandboxManager()
+    kernel.register_service(sandbox_manager)
+    logger.info("SandboxManager registered with kernel")
 
     try:
         await kernel.startup()
@@ -93,6 +142,90 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete")
 
 
+async def _seed_admin_user() -> None:
+    """Seed default admin user if no admin exists.
+
+    Reads ADMIN_USERNAME and ADMIN_PASSWORD from environment variables.
+    Skips creation if ADMIN_PASSWORD is absent or shorter than 8 characters.
+    """
+    from app.models.user import User
+    from app.models.utils import hash_password, validate_password_strength
+
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+
+    if not admin_password:
+        logger.warning("ADMIN_PASSWORD not set, skipping admin user seed")
+        return
+
+    is_valid, error_msg = validate_password_strength(admin_password)
+    if not is_valid:
+        logger.warning("ADMIN_PASSWORD does not meet strength requirements: %s — skipping admin user seed", error_msg)
+        return
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
+        )
+        if result.scalar_one_or_none() is not None:
+            logger.info("Admin user already exists, skipping seed")
+            return
+
+        admin = User(
+            username=admin_username,
+            email=f"{admin_username}@workstation.local",
+            hashed_password=hash_password(admin_password),
+            role="admin",
+            screen_name=admin_username,
+        )
+        session.add(admin)
+        await session.commit()
+        logger.info("Default admin user created successfully")
+
+
+async def _seed_master_user() -> None:
+    """Ensure the protected master admin user exists.
+
+    This user has full admin privileges and cannot be modified or
+    deactivated by other users through the API.
+    Reads MASTER_PASSWORD from environment variables.
+    """
+    from app.models.user import User, MASTER_USERNAMES
+    from app.models.utils import hash_password
+
+    master_password = os.getenv("MASTER_PASSWORD")
+    if not master_password:
+        logger.warning("MASTER_PASSWORD not set, skipping master user seed")
+        return
+
+    if len(master_password) < 8:
+        logger.warning("MASTER_PASSWORD does not meet minimum strength (8+ chars), skipping master user seed")
+        return
+
+    async with AsyncSessionLocal() as session:
+        for username in MASTER_USERNAMES:
+            result = await session.execute(
+                text("SELECT id FROM users WHERE username = :u"),
+                {"u": username},
+            )
+            if result.scalar_one_or_none() is not None:
+                logger.info("Master user '%s' already exists, skipping seed", username)
+                continue
+
+            master = User(
+                username=username,
+                email=f"{username}@workstation.local",
+                hashed_password=hash_password(master_password),
+                role="admin",
+                first_name=os.getenv("MASTER_FIRST_NAME", username),
+                screen_name=os.getenv("MASTER_SCREEN_NAME", username),
+                is_active=True,
+            )
+            session.add(master)
+        await session.commit()
+        logger.info("Master user seeding complete")
+
+
 app = FastAPI(
     title="AI Workstation API",
     description="Backend API for AI Workstation",
@@ -110,14 +243,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting middleware (global safety net)
+from app.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+app.add_middleware(RateLimitMiddleware)
+
 # Register API routers
+app.include_router(auth_router, prefix="/api", tags=["auth"])
+app.include_router(users_router, prefix="/api", tags=["users"])
 app.include_router(resources_router, prefix="/api", tags=["resources"])
 app.include_router(events_router, prefix="/api", tags=["events"])
 app.include_router(tools_router, prefix="/api", tags=["tools"])
 app.include_router(context_router, prefix="/api", tags=["context"])
+app.include_router(messages_router, prefix="/api", tags=["context"])
+app.include_router(chats_router, prefix="/api", tags=["context"])
+app.include_router(context_projects_router, prefix="/api", tags=["context"])
+app.include_router(projects_router, prefix="/api", tags=["projects"])
 app.include_router(websocket_router, prefix="/api", tags=["websocket"])
 app.include_router(operations_router, prefix="/api", tags=["operations"])
 app.include_router(admin_router, prefix="/api", tags=["admin"])
+app.include_router(admin_user_router, prefix="/api", tags=["admin"])
+app.include_router(kb_router, prefix="/api", tags=["kb"])
+app.include_router(image_router, prefix="/api", tags=["image"])
+app.include_router(sandbox_router, prefix="/api", tags=["sandbox"])
+app.include_router(automation_router, prefix="/api", tags=["automation"])
+app.include_router(yolo_router, prefix="/api", tags=["yolo"])
 
 
 async def check_postgres() -> tuple[bool, str]:

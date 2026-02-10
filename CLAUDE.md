@@ -99,10 +99,15 @@ Browser → Nginx → /api,/ws → Backend → PostgreSQL/Redis/Ollama/ComfyUI
 The backend uses a **WorkstationKernel** singleton (`app/kernel/__init__.py`) that orchestrates four core services. Services start in registration order and shut down in reverse (LIFO). The kernel uses `asyncio.Lock` for thread-safe startup/shutdown.
 
 ### Service Registration Order (in `app/main.py` lifespan)
-1. **ResourceManager** — GPU VRAM tracking (pynvml), priority-based model loading queue, LRU preemption, CPU offloading, operation state recovery via Redis
-2. **EventBus** — Redis pub/sub event distribution, PostgreSQL event persistence, in-process subscriber callbacks, WebSocket broadcasting
+1. **EventBus** — Redis pub/sub event distribution, PostgreSQL event persistence, in-process subscriber callbacks, WebSocket broadcasting (registered first so other services can use it)
+2. **ResourceManager** — GPU VRAM tracking (pynvml), priority-based model loading queue, LRU preemption, CPU offloading, operation state recovery via Redis
 3. **ToolRegistry** — Tool registration with JSON Schema validation, permission checking, Redis result caching (5min TTL), per-chat sequential execution queues, LRU eviction (100 results/chat)
 4. **ContextManager** — Conversation/project/user preference caching via Redis, token usage tracking with 80% threshold compaction trigger
+5. **OllamaClient** — LLM chat completion via Ollama API
+6. **KBIngestionService** — Document processing for knowledge base
+7. **EmbeddingService** — Vector embedding generation via Ollama
+8. **ComfyUIClient** — Image generation via ComfyUI
+9. **SandboxManager** — Docker container sandbox lifecycle management
 
 ### Key Patterns
 - All services extend `BaseKernelService` (ABC in `app/kernel/base.py`) with `startup()`, `shutdown()`, `health_check()` lifecycle
@@ -248,6 +253,25 @@ Next.js 14 with App Router, TypeScript, React 18.
 | `unit` | Isolated, fast tests for individual service methods |
 | `integration` | Tests involving multiple services or kernel coordination |
 | `slow` | Tests with background loops, timeouts, or real delays |
+
+## CodeRabbit CLI (AI Code Review)
+
+CodeRabbit CLI is installed in WSL (Ubuntu-24.04) and wrapped for Windows use.
+
+```bash
+coderabbit --version              # Check version
+coderabbit auth status            # Check auth status
+coderabbit review                 # Review current changes
+coderabbit review --plain         # Detailed feedback with fix suggestions
+coderabbit review --prompt-only   # Minimal output for token efficiency
+```
+
+- **Binary location:** `~/.local/bin/coderabbit` (WSL/Linux)
+- **Windows wrapper:** `%USERPROFILE%\.local\bin\coderabbit.cmd`
+- **Auth provider:** GitHub (blur702)
+- **Requires:** WSL Ubuntu-24.04 running, `libsecret`, `gnome-keyring`, `dbus-x11`
+- **Re-authenticate:** `coderabbit auth login`
+- Run commands from the git repository root directory
 
 ## Environment Variables
 
