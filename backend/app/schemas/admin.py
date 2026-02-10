@@ -145,3 +145,56 @@ class AuditLogListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# -------------------------------------------------------------------------
+# User Management Schemas
+# -------------------------------------------------------------------------
+
+
+class AdminUserResponse(BaseModel):
+    """User details returned by admin endpoints."""
+
+    id: UUID
+    username: str
+    email: Optional[str] = None
+    role: str
+    is_active: bool
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    screen_name: Optional[str] = None
+    email_verified: bool = False
+    failed_login_attempts: int = 0
+    locked_until: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+    last_password_change: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    is_master: bool = False
+
+
+class AdminUserListResponse(BaseModel):
+    """Paginated list of users for admin."""
+
+    users: List[AdminUserResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdminUserUpdateRequest(BaseModel):
+    """Admin request to update a user."""
+
+    role: Optional[str] = Field(None, pattern="^(admin|user)$")
+    is_active: Optional[bool] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    screen_name: Optional[str] = None
+    email: Optional[str] = None
+
+
+class AdminUserUpdateResponse(BaseModel):
+    """Response after admin updates a user."""
+
+    user: AdminUserResponse
+    message: str

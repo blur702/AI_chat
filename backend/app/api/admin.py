@@ -5,14 +5,18 @@ Provides REST endpoints for deep kernel introspection, per-service debugging,
 and aggregated performance metrics. Intended for admin/operator use.
 """
 
+import csv
+import io
+import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,7 +25,12 @@ from app.database import get_db_session
 from app.kernel import WorkstationKernel
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.models.user import is_master_user
 from app.schemas.admin import (
+    AdminUserListResponse,
+    AdminUserResponse,
+    AdminUserUpdateRequest,
+    AdminUserUpdateResponse,
     AuditLogListResponse,
     AuditLogResponse,
     KernelDebugResponse,
@@ -401,6 +410,8 @@ def _build_audit_filters(
     audit_status: Optional[str],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
+    ip_address: Optional[str] = None,
+    search: Optional[str] = None,
 ) -> list:
     """Build a list of SQLAlchemy filter clauses for audit log queries."""
     filters = []
@@ -414,7 +425,202 @@ def _build_audit_filters(
         filters.append(AuditLog.created_at >= start_date)
     if end_date is not None:
         filters.append(AuditLog.created_at <= end_date)
+    if ip_address is not None:
+        filters.append(AuditLog.ip_address.ilike(f"%{ip_address}%"))
+    if search is not None:
+        term = f"%{search}%"
+        filters.append(
+            or_(
+                AuditLog.action.ilike(term),
+                AuditLog.resource.ilike(term),
+                AuditLog.ip_address.ilike(term),
+            )
+        )
     return filters
+
+
+@user_router.get("", response_model=AdminUserListResponse)
+async def list_users(
+    search: Optional[str] = Query(None, description="Search by username, email, or name"),
+    role: Optional[str] = Query(None, description="Filter by role (admin/user)"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    sort_by: str = Query("created_at", description="Sort field"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdminUserListResponse:
+    """List all users with search, filter, sort, and pagination (admin only)."""
+    query = select(User)
+    count_query = select(func.count()).select_from(User)
+
+    filters = []
+    if search:
+        search_term = f"%{search}%"
+        filters.append(
+            (User.username.ilike(search_term))
+            | (User.email.ilike(search_term))
+            | (User.first_name.ilike(search_term))
+            | (User.last_name.ilike(search_term))
+            | (User.screen_name.ilike(search_term))
+        )
+    if role is not None:
+        filters.append(User.role == role)
+    if is_active is not None:
+        filters.append(User.is_active == is_active)
+
+    for f in filters:
+        query = query.where(f)
+        count_query = count_query.where(f)
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    sort_column = getattr(User, sort_by, User.created_at)
+    order = sort_column.asc() if sort_order == "asc" else sort_column.desc()
+    query = query.order_by(order).offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    return AdminUserListResponse(
+        users=[
+            AdminUserResponse(
+                id=u.id,
+                username=u.username,
+                email=u.email,
+                role=u.role,
+                is_active=u.is_active,
+                first_name=u.first_name,
+                last_name=u.last_name,
+                screen_name=u.screen_name,
+                email_verified=u.email_verified,
+                failed_login_attempts=u.failed_login_attempts,
+                locked_until=u.locked_until,
+                last_login_at=u.last_login_at,
+                last_password_change=u.last_password_change,
+                created_at=u.created_at,
+                updated_at=u.updated_at,
+                is_master=is_master_user(u.username),
+            )
+            for u in users
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@user_router.get("/{user_id}", response_model=AdminUserResponse)
+async def get_user_details(
+    user_id: UUID,
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdminUserResponse:
+    """Get detailed user information (admin only)."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return AdminUserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        screen_name=user.screen_name,
+        email_verified=user.email_verified,
+        failed_login_attempts=user.failed_login_attempts,
+        locked_until=user.locked_until,
+        last_login_at=user.last_login_at,
+        last_password_change=user.last_password_change,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        is_master=is_master_user(user.username),
+    )
+
+
+@user_router.put("/{user_id}", response_model=AdminUserUpdateResponse)
+async def update_user_as_admin(
+    user_id: UUID,
+    body: AdminUserUpdateRequest,
+    request: Request,
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdminUserUpdateResponse:
+    """Update user fields including role and is_active (admin only)."""
+    meta = extract_request_metadata(request)
+    admin_id = _payload.get("user_id")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if is_master_user(user.username):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot modify a master user account",
+        )
+
+    changes = {}
+    if body.role is not None and body.role != user.role:
+        changes["role"] = {"from": user.role, "to": body.role}
+        user.role = body.role
+    if body.is_active is not None and body.is_active != user.is_active:
+        changes["is_active"] = {"from": user.is_active, "to": body.is_active}
+        user.is_active = body.is_active
+    if body.first_name is not None:
+        user.first_name = body.first_name
+    if body.last_name is not None:
+        user.last_name = body.last_name
+    if body.screen_name is not None:
+        user.screen_name = body.screen_name
+    if body.email is not None:
+        user.email = body.email
+
+    await log_security_event(
+        db, action="admin_user_update", event_status="success",
+        user_id=user.id,
+        ip_address=meta["ip_address"], user_agent=meta["user_agent"],
+        details={"admin_id": admin_id, "username": user.username, "changes": changes},
+    )
+    await db.commit()
+    await db.refresh(user)
+
+    return AdminUserUpdateResponse(
+        user=AdminUserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            role=user.role,
+            is_active=user.is_active,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            screen_name=user.screen_name,
+            email_verified=user.email_verified,
+            failed_login_attempts=user.failed_login_attempts,
+            locked_until=user.locked_until,
+            last_login_at=user.last_login_at,
+            last_password_change=user.last_password_change,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+            is_master=is_master_user(user.username),
+        ),
+        message="User updated successfully",
+    )
 
 
 @user_router.get("/audit-logs", response_model=AuditLogListResponse)
@@ -424,13 +630,20 @@ async def get_audit_logs(
     audit_status: Optional[str] = Query(None, alias="status"),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    ip_address: Optional[str] = Query(None, description="Filter by IP address (partial match)"),
+    search: Optional[str] = Query(None, description="Search across action, resource, IP"),
+    sort_by: str = Query("created_at", description="Sort field (created_at, action, status, ip_address)"),
+    order: Literal["asc", "desc"] = Query("desc", description="Sort order"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     _payload: dict = Depends(require_admin),
     db: AsyncSession = Depends(get_db_session),
 ) -> AuditLogListResponse:
-    """Retrieve audit logs with optional filtering (admin only)."""
-    filters = _build_audit_filters(user_id, action, audit_status, start_date, end_date)
+    """Retrieve audit logs with optional filtering, search, and sorting (admin only)."""
+    filters = _build_audit_filters(
+        user_id, action, audit_status, start_date, end_date,
+        ip_address=ip_address, search=search,
+    )
 
     # Build base query with filters
     query = select(AuditLog).options(selectinload(AuditLog.user))
@@ -445,10 +658,14 @@ async def get_audit_logs(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
+    # Dynamic sorting
+    sort_col = getattr(AuditLog, sort_by, AuditLog.created_at)
+    sort_order = sort_col.asc() if order == "asc" else sort_col.desc()
+
     # Fetch paginated results
     query = (
         query
-        .order_by(AuditLog.created_at.desc())
+        .order_by(sort_order)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -474,4 +691,129 @@ async def get_audit_logs(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@user_router.get("/audit-logs/export")
+async def export_audit_logs(
+    user_id: Optional[UUID] = None,
+    action: Optional[str] = None,
+    audit_status: Optional[str] = Query(None, alias="status"),
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    ip_address: Optional[str] = None,
+    search: Optional[str] = None,
+    sort_by: str = Query("created_at"),
+    order: Literal["asc", "desc"] = Query("desc"),
+    format: Literal["csv", "json"] = Query("csv", description="Export format"),
+    limit: int = Query(10000, ge=1, le=100000, description="Max rows to export"),
+    _payload: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> StreamingResponse:
+    """Export audit logs as CSV or JSON (admin only). Streams results in chunks."""
+    chunk_size = 500
+
+    filters = _build_audit_filters(
+        user_id, action, audit_status, start_date, end_date,
+        ip_address=ip_address, search=search,
+    )
+
+    base_query = select(AuditLog).options(selectinload(AuditLog.user))
+    for f in filters:
+        base_query = base_query.where(f)
+
+    sort_col = getattr(AuditLog, sort_by, AuditLog.created_at)
+    sort_order_clause = sort_col.asc() if order == "asc" else sort_col.desc()
+    base_query = base_query.order_by(sort_order_clause)
+
+    def _log_to_dict(log: AuditLog) -> Dict[str, Any]:
+        return {
+            "id": str(log.id),
+            "user_id": str(log.user_id) if log.user_id else None,
+            "username": log.user.username if log.user else None,
+            "action": log.action,
+            "resource": log.resource,
+            "ip_address": log.ip_address,
+            "user_agent": log.user_agent,
+            "status": log.status,
+            "details": log.details,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+
+    if format == "json":
+        async def stream_json():
+            yield "[\n"
+            first = True
+            offset = 0
+            emitted = 0
+            while emitted < limit:
+                batch_size = min(chunk_size, limit - emitted)
+                batch_q = base_query.offset(offset).limit(batch_size)
+                result = await db.execute(batch_q)
+                batch = result.scalars().all()
+                if not batch:
+                    break
+                for log in batch:
+                    if not first:
+                        yield ",\n"
+                    first = False
+                    yield json.dumps(_log_to_dict(log))
+                emitted += len(batch)
+                offset += len(batch)
+                if len(batch) < batch_size:
+                    break
+            yield "\n]"
+
+        return StreamingResponse(
+            stream_json(),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=audit_logs.json"},
+        )
+
+    # CSV format — streamed in chunks
+    async def stream_csv():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            "id", "user_id", "username", "action", "resource",
+            "ip_address", "user_agent", "status", "details", "created_at",
+        ])
+        yield buf.getvalue()
+        buf.seek(0)
+        buf.truncate(0)
+
+        offset = 0
+        emitted = 0
+        while emitted < limit:
+            batch_size = min(chunk_size, limit - emitted)
+            batch_q = base_query.offset(offset).limit(batch_size)
+            result = await db.execute(batch_q)
+            batch = result.scalars().all()
+            if not batch:
+                break
+            for log in batch:
+                writer.writerow([
+                    str(log.id),
+                    str(log.user_id) if log.user_id else "",
+                    log.user.username if log.user else "",
+                    log.action,
+                    log.resource or "",
+                    log.ip_address or "",
+                    log.user_agent or "",
+                    log.status,
+                    json.dumps(log.details) if log.details else "",
+                    log.created_at.isoformat() if log.created_at else "",
+                ])
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate(0)
+            emitted += len(batch)
+            offset += len(batch)
+            if len(batch) < batch_size:
+                break
+
+    return StreamingResponse(
+        stream_csv(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=audit_logs.csv"},
     )

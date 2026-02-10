@@ -19,6 +19,7 @@ interface FileExplorerProps {
   onCreateDirectory: (path: string) => Promise<void>;
   onDelete: (path: string) => Promise<void>;
   onRename: (oldPath: string, newPath: string) => Promise<void>;
+  onRunToolOnFile?: (path: string) => void;
 }
 
 export function FileExplorer({
@@ -33,6 +34,7 @@ export function FileExplorer({
   onCreateDirectory,
   onDelete,
   onRename,
+  onRunToolOnFile,
 }: FileExplorerProps) {
   const [creatingType, setCreatingType] = useState<"file" | "directory" | null>(null);
 
@@ -120,6 +122,7 @@ export function FileExplorer({
                 onRename={onRename}
                 onCreateFile={onCreateFile}
                 onCreateDirectory={onCreateDirectory}
+                onRunToolOnFile={onRunToolOnFile}
               />
             ))}
 

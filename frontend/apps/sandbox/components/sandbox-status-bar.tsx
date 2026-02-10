@@ -1,8 +1,8 @@
 "use client";
 
 import { Badge, cn } from "@workstation/ui";
-import { Cpu, GitBranch, MemoryStick, Monitor, Wifi, WifiOff } from "lucide-react";
-import { useEffect } from "react";
+import { Cpu, GitBranch, HardDrive, MemoryStick, Monitor, Wifi, WifiOff, Wrench, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useResources, useWebSocket, useAuth } from "@workstation/api/hooks";
 
 function usageColor(percent: number | null): string {
@@ -17,9 +17,60 @@ function pct(value: number | null | undefined, fallback = "N/A"): string {
   return `${Math.round(value)}%`;
 }
 
+interface LastToolExecution {
+  toolName: string;
+  success: boolean;
+  timestamp: number;
+}
+
+const LAST_TOOL_KEY = "tools:last-execution";
+
+function useLastToolExecution(): LastToolExecution | null {
+  const [data, setData] = useState<LastToolExecution | null>(null);
+
+  useEffect(() => {
+    // Read initial value
+    try {
+      const raw = localStorage.getItem(LAST_TOOL_KEY);
+      if (raw) setData(JSON.parse(raw));
+    } catch { /* ignore */ }
+
+    // Listen for storage events from other components
+    const handler = (e: StorageEvent) => {
+      if (e.key === LAST_TOOL_KEY) {
+        try {
+          setData(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener("storage", handler);
+
+    // Also poll for same-window updates
+    const interval = setInterval(() => {
+      try {
+        const raw = localStorage.getItem(LAST_TOOL_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as LastToolExecution;
+          setData((prev) =>
+            prev?.timestamp !== parsed.timestamp ? parsed : prev
+          );
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener("storage", handler);
+      clearInterval(interval);
+    };
+  }, []);
+
+  return data;
+}
+
 export function SandboxStatusBar() {
-  const { token } = useAuth();
-  const { vramStats, systemStats, loading, refresh } = useResources(5000);
+  const lastToolExecution = useLastToolExecution();
+  const { token, userId } = useAuth();
+  const { vramStats, systemStats, loading, refresh, preference, fetchPreference } = useResources(5000);
   const { status, subscribe } = useWebSocket({ token, autoConnect: true });
 
   const connected = status === "connected";
@@ -31,6 +82,11 @@ export function SandboxStatusBar() {
     });
     return unsubscribe;
   }, [subscribe, refresh]);
+
+  // Fetch offload preference
+  useEffect(() => {
+    if (userId) fetchPreference(userId);
+  }, [userId, fetchPreference]);
 
   const vramPercent = vramStats?.utilization_percent ?? null;
   const cpuPercent = systemStats?.cpu_percent ?? null;
@@ -56,6 +112,19 @@ export function SandboxStatusBar() {
             {connected ? "Connected" : "Disconnected"}
           </span>
         </div>
+        {lastToolExecution && (
+          <div className="flex items-center gap-1.5">
+            <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+            {lastToolExecution.success ? (
+              <CheckCircle2 className="h-3 w-3 text-green-500" />
+            ) : (
+              <XCircle className="h-3 w-3 text-destructive" />
+            )}
+            <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+              {lastToolExecution.toolName}
+            </span>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -75,6 +144,12 @@ export function SandboxStatusBar() {
           <span className={cn("text-xs", usageColor(vramPercent))}>
             VRAM: {loadingText ?? pct(vramPercent)}
             {gpuCount !== null && gpuCount > 0 && ` (${gpuCount} GPU${gpuCount > 1 ? "s" : ""})`}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5" title={`Offload: ${preference.replace(/_/g, " ")}`}>
+          <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground capitalize">
+            {preference === "ask_each_time" ? "Ask" : preference === "always_offload" ? "Auto-offload" : "No offload"}
           </span>
         </div>
         <Badge variant="outline" className="h-5 text-[10px]">

@@ -10,8 +10,9 @@ import {
   TabsContent,
   ThemeToggle,
 } from "@workstation/ui";
-import { useAuth, useSettings } from "@workstation/api/hooks";
-import { ArrowLeft, Loader2, Check, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { useAuth, useSettings, useResources } from "@workstation/api/hooks";
+import { ArrowLeft, Loader2, Check, AlertCircle, Eye, EyeOff, ImageIcon, HardDrive } from "lucide-react";
+import { OffloadPreferences } from "@/components/resources/offload-preferences";
 import Link from "next/link";
 
 function StatusMessage({ message, type }: { message: string; type: "success" | "error" }) {
@@ -52,6 +53,18 @@ export default function SettingsPage() {
     modelsLoading,
   } = useSettings(userId);
 
+  const {
+    preference: resourcePreference,
+    preferenceLoading: resourcePreferenceLoading,
+    fetchPreference: fetchResourcePreference,
+    setPreference: setResourcePreference,
+  } = useResources();
+
+  // Fetch resource preference on mount
+  useEffect(() => {
+    if (userId) fetchResourcePreference(userId);
+  }, [userId, fetchResourcePreference]);
+
   // Profile form state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -78,6 +91,22 @@ export default function SettingsPage() {
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [aiMsg, setAiMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  // Image generation preferences form state
+  const [imggenWorkflow, setImggenWorkflow] = useState("text-to-image");
+  const [imggenWidth, setImggenWidth] = useState(512);
+  const [imggenHeight, setImggenHeight] = useState(512);
+  const [imggenSteps, setImggenSteps] = useState(20);
+  const [imggenCfgScale, setImggenCfgScale] = useState(7.0);
+  const [imggenNegativePrompt, setImggenNegativePrompt] = useState("");
+  const [imggenCompletionNotif, setImggenCompletionNotif] = useState(true);
+  const [imggenDesktopNotif, setImggenDesktopNotif] = useState(false);
+  const [imggenSoundNotif, setImggenSoundNotif] = useState(false);
+  const [imggenNotifSound, setImggenNotifSound] = useState("default");
+  const [imggenAutoDeleteDays, setImggenAutoDeleteDays] = useState<number | "">("");
+  const [imggenMaxGenerations, setImggenMaxGenerations] = useState<number | "">("");
+  const [comfyuiBaseUrl, setComfyuiBaseUrl] = useState("");
+  const [imggenMsg, setImggenMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
   // Populate profile form when user data loads
   useEffect(() => {
     if (user) {
@@ -96,6 +125,19 @@ export default function SettingsPage() {
       setDefaultModel(preferences.default_model ?? "");
       setDefaultTemperature(preferences.default_temperature ?? 0.7);
       setCustomSystemPrompt(preferences.custom_system_prompt ?? "");
+      setImggenWorkflow(preferences.imggen_default_workflow ?? "text-to-image");
+      setImggenWidth(preferences.imggen_default_width ?? 512);
+      setImggenHeight(preferences.imggen_default_height ?? 512);
+      setImggenSteps(preferences.imggen_default_steps ?? 20);
+      setImggenCfgScale(preferences.imggen_default_cfg_scale ?? 7.0);
+      setImggenNegativePrompt(preferences.imggen_default_negative_prompt ?? "");
+      setImggenCompletionNotif(preferences.imggen_completion_notification ?? true);
+      setImggenDesktopNotif(preferences.imggen_desktop_notification ?? false);
+      setImggenSoundNotif(preferences.imggen_sound_notification ?? false);
+      setImggenNotifSound(preferences.imggen_notification_sound ?? "default");
+      setImggenAutoDeleteDays(preferences.imggen_auto_delete_days ?? "");
+      setImggenMaxGenerations(preferences.imggen_max_generations ?? "");
+      setComfyuiBaseUrl(preferences.comfyui_base_url ?? "");
     }
   }, [preferences]);
 
@@ -184,6 +226,30 @@ export default function SettingsPage() {
     }
   };
 
+  const handleImggenPreferencesSave = async () => {
+    setImggenMsg(null);
+    const result = await updatePreferences({
+      imggen_default_workflow: imggenWorkflow || undefined,
+      imggen_default_width: imggenWidth,
+      imggen_default_height: imggenHeight,
+      imggen_default_steps: imggenSteps,
+      imggen_default_cfg_scale: imggenCfgScale,
+      imggen_default_negative_prompt: imggenNegativePrompt || undefined,
+      imggen_completion_notification: imggenCompletionNotif,
+      imggen_desktop_notification: imggenDesktopNotif,
+      imggen_sound_notification: imggenSoundNotif,
+      imggen_notification_sound: imggenNotifSound || undefined,
+      imggen_auto_delete_days: imggenAutoDeleteDays === "" ? undefined : imggenAutoDeleteDays,
+      imggen_max_generations: imggenMaxGenerations === "" ? undefined : imggenMaxGenerations,
+      comfyui_base_url: comfyuiBaseUrl || undefined,
+    });
+    if (result.success) {
+      setImggenMsg({ text: "Image generation preferences saved", type: "success" });
+    } else {
+      setImggenMsg({ text: result.error ?? "Failed to save preferences", type: "error" });
+    }
+  };
+
   const isLoading = userLoading || preferencesLoading;
 
   return (
@@ -203,11 +269,13 @@ export default function SettingsPage() {
         </div>
       ) : (
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList aria-label="Settings sections" className="w-full grid grid-cols-5">
+          <TabsList aria-label="Settings sections" className="w-full grid grid-cols-7">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="ai">AI</TabsTrigger>
+            <TabsTrigger value="image-gen">Image Gen</TabsTrigger>
+            <TabsTrigger value="resources">Resources</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
@@ -528,6 +596,300 @@ export default function SettingsPage() {
               {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save AI Preferences
             </Button>
+          </TabsContent>
+
+          {/* Image Generation Tab */}
+          <TabsContent value="image-gen" className="space-y-6 pt-6">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Image Generation</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure default settings for image generation with ComfyUI.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="imggenWorkflow" className="text-sm font-medium">
+                  Default Workflow
+                </label>
+                <select
+                  id="imggenWorkflow"
+                  value={imggenWorkflow}
+                  onChange={(e) => setImggenWorkflow(e.target.value)}
+                  className="flex h-11 w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="text-to-image">Text to Image</option>
+                  <option value="image-to-image">Image to Image</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="imggenWidth" className="text-sm font-medium">
+                    Default Width
+                  </label>
+                  <Input
+                    id="imggenWidth"
+                    type="number"
+                    min={64}
+                    max={4096}
+                    step={64}
+                    value={imggenWidth}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value, 10);
+                      setImggenWidth(isNaN(parsed) ? 512 : parsed);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="imggenHeight" className="text-sm font-medium">
+                    Default Height
+                  </label>
+                  <Input
+                    id="imggenHeight"
+                    type="number"
+                    min={64}
+                    max={4096}
+                    step={64}
+                    value={imggenHeight}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value, 10);
+                      setImggenHeight(isNaN(parsed) ? 512 : parsed);
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="imggenSteps" className="text-sm font-medium">
+                    Default Steps: {imggenSteps}
+                  </label>
+                  <input
+                    id="imggenSteps"
+                    type="range"
+                    min={1}
+                    max={150}
+                    step={1}
+                    value={imggenSteps}
+                    onChange={(e) => setImggenSteps(parseInt(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>1</span>
+                    <span>150</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="imggenCfgScale" className="text-sm font-medium">
+                    CFG Scale: {imggenCfgScale.toFixed(1)}
+                  </label>
+                  <input
+                    id="imggenCfgScale"
+                    type="range"
+                    min={1}
+                    max={30}
+                    step={0.5}
+                    value={imggenCfgScale}
+                    onChange={(e) => setImggenCfgScale(parseFloat(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>1.0</span>
+                    <span>30.0</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="imggenNegativePrompt" className="text-sm font-medium">
+                  Default Negative Prompt
+                </label>
+                <textarea
+                  id="imggenNegativePrompt"
+                  value={imggenNegativePrompt}
+                  onChange={(e) => setImggenNegativePrompt(e.target.value)}
+                  placeholder="blurry, low quality, distorted..."
+                  rows={3}
+                  className="flex w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y min-h-[80px]"
+                />
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold mb-3">Notifications</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Completion Notification</p>
+                      <p className="text-xs text-muted-foreground">Notify when generation completes</p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={imggenCompletionNotif}
+                      aria-label="Completion Notification"
+                      onClick={() => setImggenCompletionNotif(!imggenCompletionNotif)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        imggenCompletionNotif ? "bg-primary" : "bg-muted-foreground/30"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        imggenCompletionNotif ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Desktop Notification</p>
+                      <p className="text-xs text-muted-foreground">Show browser desktop notification</p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={imggenDesktopNotif}
+                      aria-label="Desktop Notification"
+                      onClick={() => setImggenDesktopNotif(!imggenDesktopNotif)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        imggenDesktopNotif ? "bg-primary" : "bg-muted-foreground/30"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        imggenDesktopNotif ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Sound Notification</p>
+                      <p className="text-xs text-muted-foreground">Play a sound when generation completes</p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={imggenSoundNotif}
+                      aria-label="Sound Notification"
+                      onClick={() => setImggenSoundNotif(!imggenSoundNotif)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        imggenSoundNotif ? "bg-primary" : "bg-muted-foreground/30"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        imggenSoundNotif ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+
+                  {imggenSoundNotif && (
+                    <div className="space-y-2 pl-4">
+                      <label htmlFor="imggenNotifSound" className="text-sm font-medium">
+                        Notification Sound
+                      </label>
+                      <select
+                        id="imggenNotifSound"
+                        value={imggenNotifSound}
+                        onChange={(e) => setImggenNotifSound(e.target.value)}
+                        className="flex h-9 w-full rounded-input border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="default">Default</option>
+                        <option value="chime">Chime</option>
+                        <option value="bell">Bell</option>
+                        <option value="ding">Ding</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold mb-3">Storage</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="imggenAutoDelete" className="text-sm font-medium">
+                      Auto-delete after (days)
+                    </label>
+                    <Input
+                      id="imggenAutoDelete"
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={imggenAutoDeleteDays}
+                      onChange={(e) => setImggenAutoDeleteDays(e.target.value ? parseInt(e.target.value) : "")}
+                      placeholder="Never"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave blank to keep forever.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="imggenMaxGen" className="text-sm font-medium">
+                      Max stored generations
+                    </label>
+                    <Input
+                      id="imggenMaxGen"
+                      type="number"
+                      min={0}
+                      max={10000}
+                      value={imggenMaxGenerations}
+                      onChange={(e) => setImggenMaxGenerations(e.target.value ? parseInt(e.target.value) : "")}
+                      placeholder="Unlimited"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave blank for no limit.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold mb-3">ComfyUI Connection</h3>
+                <div className="space-y-2">
+                  <label htmlFor="comfyuiUrl" className="text-sm font-medium">
+                    ComfyUI Base URL
+                  </label>
+                  <Input
+                    id="comfyuiUrl"
+                    type="url"
+                    value={comfyuiBaseUrl}
+                    onChange={(e) => setComfyuiBaseUrl(e.target.value)}
+                    placeholder="http://host.docker.internal:8188"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Override the default ComfyUI server URL. Leave blank to use server default.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {imggenMsg && <StatusMessage message={imggenMsg.text} type={imggenMsg.type} />}
+
+            <Button onClick={handleImggenPreferencesSave} disabled={preferencesSaving}>
+              {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Image Generation Preferences
+            </Button>
+          </TabsContent>
+
+          {/* Resources Tab */}
+          <TabsContent value="resources" className="space-y-6 pt-6">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Resource Management</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure GPU resource offloading, preemption, and VRAM management preferences.
+              </p>
+            </div>
+
+            <OffloadPreferences
+              preference={resourcePreference}
+              preferenceLoading={resourcePreferenceLoading}
+              onSave={async (pref, remember) => {
+                if (!userId) {
+                  console.error("Cannot save resource preference: userId is not available");
+                  throw new Error("User session not available. Please log in again.");
+                }
+                await setResourcePreference(userId, pref, remember);
+              }}
+              onReset={async () => {
+                if (!userId) {
+                  console.error("Cannot reset resource preference: userId is not available");
+                  throw new Error("User session not available. Please log in again.");
+                }
+                await setResourcePreference(userId, "ask_each_time", true);
+              }}
+            />
           </TabsContent>
 
           {/* Appearance Tab */}

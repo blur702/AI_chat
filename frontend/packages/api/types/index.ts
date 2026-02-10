@@ -8,3 +8,5 @@ export * from "./terminal";
 export * from "./sandbox";
 export * from "./automation";
 export * from "./yolo";
+export * from "./image";
+export * from "./kb";

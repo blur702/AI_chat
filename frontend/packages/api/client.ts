@@ -22,6 +22,7 @@ import type {
   OperationListResponse,
   EventCreate,
   EventResponse,
+  EventBroadcastResponse,
   EventListResponse,
   ToolInfo,
   ToolListResponse,
@@ -44,8 +45,18 @@ import type {
   UserPreferencesUpdateRequest,
   TokenUsageRequest,
   TokenUsageResponse,
-  KernelDebug,
+  KernelDebugInfo,
   KernelMetrics,
+  ServiceDebugInfo,
+  AdminUser,
+  AdminUserListResponse,
+  AdminUserListParams,
+  AdminUserUpdateRequest,
+  AdminUserUpdateResponse,
+  UserUnlockResponse,
+  AuditLogEntry,
+  AuditLogListResponse,
+  AuditLogFilters,
   StreamEvent,
   SandboxChatResponse,
   FileNode,
@@ -58,6 +69,10 @@ import type {
   YoloEditListResponse,
   YoloEditUndoResponse,
   ModelListResponse,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
+  ImageGenerationListResponse,
+  KBChunk,
 } from "./types";
 
 export class ApiError extends Error {
@@ -209,7 +224,7 @@ export class WorkstationClient {
   async checkPreemption(
     data: PreemptionCheckRequest
   ): Promise<PreemptionCheckResponse> {
-    return this.request("/api/resources/preemption-check", {
+    return this.request("/api/resources/check-preemption", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -218,7 +233,7 @@ export class WorkstationClient {
   async submitOffloadDecision(
     data: OffloadDecisionRequest
   ): Promise<OffloadDecisionResponse> {
-    return this.request("/api/resources/offload-decision", {
+    return this.request("/api/resources/offload", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -234,14 +249,14 @@ export class WorkstationClient {
   }
 
   async setPreference(data: PreferenceRequest): Promise<PreferenceResponse> {
-    return this.request("/api/resources/preferences", {
+    return this.request("/api/resources/preference", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async getPreference(userId: string): Promise<PreferenceResponse> {
-    return this.request(`/api/resources/preferences/${userId}`);
+    return this.request(`/api/resources/preference/${userId}`);
   }
 
   // Operations
@@ -296,6 +311,32 @@ export class WorkstationClient {
 
   async getEvent(eventId: string): Promise<EventResponse> {
     return this.request(`/api/events/${eventId}`);
+  }
+
+  async getEventTypes(): Promise<string[]> {
+    return this.request("/api/events/types/list");
+  }
+
+  async createEventBroadcast(data: EventCreate): Promise<EventResponse | EventBroadcastResponse> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/events`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response.json();
   }
 
   // Tools
@@ -634,13 +675,196 @@ export class WorkstationClient {
     });
   }
 
+  // Image Generation
+  async generateImage(
+    data: ImageGenerationRequest
+  ): Promise<ImageGenerationResponse> {
+    const payload: ImageGenerationRequest = {
+      project_id: data.project_id,
+      workflow_type: data.workflow_type,
+      prompt: data.prompt,
+      negative_prompt: data.negative_prompt,
+      width: data.width,
+      height: data.height,
+      steps: data.steps,
+      cfg_scale: data.cfg_scale,
+      ...(data.input_image ? { input_image: data.input_image } : {}),
+      ...(data.denoise !== undefined ? { denoise: data.denoise } : {}),
+    };
+
+    return this.request("/api/image/generate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getGenerationStatus(jobId: string): Promise<ImageGenerationResponse> {
+    return this.request(`/api/image/status/${encodeURIComponent(jobId)}`);
+  }
+
+  async getGenerationResult(jobId: string): Promise<ImageGenerationResponse> {
+    return this.request(`/api/image/result/${encodeURIComponent(jobId)}`);
+  }
+
+  async listGenerations(
+    projectId?: string,
+    skip?: number,
+    limit?: number,
+    status?: string
+  ): Promise<ImageGenerationListResponse> {
+    const params = new URLSearchParams();
+    if (projectId) params.set("project_id", projectId);
+    if (skip !== undefined) params.set("skip", String(skip));
+    if (limit !== undefined) params.set("limit", String(limit));
+    if (status) params.set("status", status);
+
+    const query = params.toString();
+    return this.request(`/api/image/generations${query ? `?${query}` : ""}`);
+  }
+
+  async downloadImage(jobId: string, filename: string): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/image/download/${encodeURIComponent(jobId)}/${encodeURIComponent(filename)}`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response.blob();
+  }
+
+  async deleteGeneration(jobId: string): Promise<void> {
+    return this.request(`/api/image/generations/${encodeURIComponent(jobId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Knowledge Base
+  async getKBChunks(
+    sourceId: string,
+    skip?: number,
+    limit?: number
+  ): Promise<KBChunk[]> {
+    const params = new URLSearchParams();
+    if (skip !== undefined) params.set("skip", String(skip));
+    if (limit !== undefined) params.set("limit", String(limit));
+    const query = params.toString();
+    return this.request(
+      `/api/kb/chunks/${encodeURIComponent(sourceId)}${query ? `?${query}` : ""}`
+    );
+  }
+
   // Admin
-  async getKernelDebug(): Promise<KernelDebug> {
+  async getKernelDebug(): Promise<KernelDebugInfo> {
     return this.request("/api/admin/kernel/debug");
   }
 
   async getKernelMetrics(): Promise<KernelMetrics> {
     return this.request("/api/admin/kernel/metrics");
+  }
+
+  async getServiceDebug(serviceName: string): Promise<ServiceDebugInfo> {
+    return this.request(`/api/admin/kernel/services/${encodeURIComponent(serviceName)}`);
+  }
+
+  // Admin User Management
+  async listUsers(params?: AdminUserListParams): Promise<AdminUserListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      if (params.search) searchParams.set("search", params.search);
+      if (params.role) searchParams.set("role", params.role);
+      if (params.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
+      if (params.sort_by) searchParams.set("sort_by", params.sort_by);
+      if (params.sort_order) searchParams.set("sort_order", params.sort_order);
+      if (params.page !== undefined) searchParams.set("page", String(params.page));
+      if (params.page_size !== undefined) searchParams.set("page_size", String(params.page_size));
+    }
+    const query = searchParams.toString();
+    return this.request(`/api/admin/users${query ? `?${query}` : ""}`);
+  }
+
+  async getUserDetails(userId: string): Promise<AdminUser> {
+    return this.request(`/api/admin/users/${encodeURIComponent(userId)}`);
+  }
+
+  async updateUserAsAdmin(userId: string, data: AdminUserUpdateRequest): Promise<AdminUserUpdateResponse> {
+    return this.request(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async unlockUser(userId: string): Promise<UserUnlockResponse> {
+    return this.request(`/api/admin/users/${encodeURIComponent(userId)}/unlock`, {
+      method: "POST",
+    });
+  }
+
+  // Admin Audit Logs
+  async getAuditLogs(params?: AuditLogFilters): Promise<AuditLogListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      if (params.user_id) searchParams.set("user_id", params.user_id);
+      if (params.action) searchParams.set("action", params.action);
+      if (params.status) searchParams.set("status", params.status);
+      if (params.start_date) searchParams.set("start_date", params.start_date);
+      if (params.end_date) searchParams.set("end_date", params.end_date);
+      if (params.ip_address) searchParams.set("ip_address", params.ip_address);
+      if (params.search) searchParams.set("search", params.search);
+      if (params.sort_by) searchParams.set("sort_by", params.sort_by);
+      if (params.order) searchParams.set("order", params.order);
+      if (params.page !== undefined) searchParams.set("page", String(params.page));
+      if (params.page_size !== undefined) searchParams.set("page_size", String(params.page_size));
+    }
+    const query = searchParams.toString();
+    return this.request(`/api/admin/users/audit-logs${query ? `?${query}` : ""}`);
+  }
+
+  async exportAuditLogs(
+    params?: AuditLogFilters,
+    format: "csv" | "json" = "csv"
+  ): Promise<Blob> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("format", format);
+    if (params) {
+      if (params.user_id) searchParams.set("user_id", params.user_id);
+      if (params.action) searchParams.set("action", params.action);
+      if (params.status) searchParams.set("status", params.status);
+      if (params.start_date) searchParams.set("start_date", params.start_date);
+      if (params.end_date) searchParams.set("end_date", params.end_date);
+      if (params.ip_address) searchParams.set("ip_address", params.ip_address);
+      if (params.search) searchParams.set("search", params.search);
+      if (params.sort_by) searchParams.set("sort_by", params.sort_by);
+      if (params.order) searchParams.set("order", params.order);
+    }
+
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/admin/users/audit-logs/export?${searchParams}`,
+      { method: "GET", headers }
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response.blob();
   }
 }
 

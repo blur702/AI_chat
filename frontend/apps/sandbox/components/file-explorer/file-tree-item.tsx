@@ -20,6 +20,7 @@ import {
   Pencil,
   FilePlus,
   FolderPlus,
+  Wrench,
 } from "lucide-react";
 import { NewItemInput } from "./new-item-input";
 import type { FileNode } from "@workstation/api/types";
@@ -33,6 +34,7 @@ interface FileTreeItemProps {
   onRename: (oldPath: string, newPath: string) => Promise<void>;
   onCreateFile: (path: string, content?: string) => Promise<void>;
   onCreateDirectory: (path: string) => Promise<void>;
+  onRunToolOnFile?: (path: string) => void;
 }
 
 export function FileTreeItem({
@@ -44,6 +46,7 @@ export function FileTreeItem({
   onRename,
   onCreateFile,
   onCreateDirectory,
+  onRunToolOnFile,
 }: FileTreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -136,6 +139,15 @@ export function FileTreeItem({
           </ContextMenuItem>
         </>
       )}
+      {node.type === "file" && onRunToolOnFile && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={() => onRunToolOnFile(node.path)}>
+            <Wrench className="mr-2 h-3.5 w-3.5" />
+            Run Tool on File
+          </ContextMenuItem>
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem
         onClick={handleDelete}
@@ -209,6 +221,7 @@ export function FileTreeItem({
                 onRename={onRename}
                 onCreateFile={onCreateFile}
                 onCreateDirectory={onCreateDirectory}
+                onRunToolOnFile={onRunToolOnFile}
               />
             ))}
           </div>

@@ -11,6 +11,7 @@ Provides REST endpoints for:
 import logging
 import os
 import shutil
+from typing import Optional
 from uuid import UUID
 
 from arq import create_pool
@@ -327,6 +328,7 @@ async def download_image(
 async def list_generations(
     request: Request,
     project_id: UUID = Query(default=None),
+    status: Optional[str] = Query(default=None, description="Filter by status (pending/processing/completed/failed)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     payload: dict = Depends(get_current_user_payload),
@@ -335,24 +337,26 @@ async def list_generations(
     """List image generation jobs for the current user."""
     user_id = payload.get("user_id") or payload.get("sub", "")
 
-    stmt = (
-        select(ImageGeneration)
-        .where(ImageGeneration.user_id == UUID(user_id))
-        .order_by(ImageGeneration.created_at.desc())
-    )
+    filters = [ImageGeneration.user_id == UUID(user_id)]
 
     if project_id:
         await validate_project_access(project_id, user_id, db)
-        stmt = stmt.where(ImageGeneration.project_id == project_id)
+        filters.append(ImageGeneration.project_id == project_id)
 
-    # Get total count
-    count_stmt = (
-        select(func.count())
-        .select_from(ImageGeneration)
-        .where(ImageGeneration.user_id == UUID(user_id))
+    if status is not None:
+        filters.append(ImageGeneration.status == status)
+
+    stmt = (
+        select(ImageGeneration)
+        .order_by(ImageGeneration.created_at.desc())
     )
-    if project_id:
-        count_stmt = count_stmt.where(ImageGeneration.project_id == project_id)
+    for f in filters:
+        stmt = stmt.where(f)
+
+    # Get total count with same filters
+    count_stmt = select(func.count()).select_from(ImageGeneration)
+    for f in filters:
+        count_stmt = count_stmt.where(f)
     count_result = await db.execute(count_stmt)
     total_count = count_result.scalar() or 0
 

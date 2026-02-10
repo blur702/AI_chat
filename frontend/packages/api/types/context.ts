@@ -87,6 +87,21 @@ export interface UserPreferences {
   default_temperature?: number;
   email_notifications?: boolean;
   in_app_notifications?: boolean;
+
+  // Image generation defaults
+  imggen_default_workflow?: string;
+  imggen_default_width?: number;
+  imggen_default_height?: number;
+  imggen_default_steps?: number;
+  imggen_default_cfg_scale?: number;
+  imggen_default_negative_prompt?: string;
+  imggen_completion_notification?: boolean;
+  imggen_desktop_notification?: boolean;
+  imggen_sound_notification?: boolean;
+  imggen_notification_sound?: string;
+  imggen_auto_delete_days?: number;
+  imggen_max_generations?: number;
+  comfyui_base_url?: string;
 }
 
 export interface UserPreferencesUpdateRequest {
@@ -97,6 +112,21 @@ export interface UserPreferencesUpdateRequest {
   default_temperature?: number;
   email_notifications?: boolean;
   in_app_notifications?: boolean;
+
+  // Image generation defaults
+  imggen_default_workflow?: string;
+  imggen_default_width?: number;
+  imggen_default_height?: number;
+  imggen_default_steps?: number;
+  imggen_default_cfg_scale?: number;
+  imggen_default_negative_prompt?: string;
+  imggen_completion_notification?: boolean;
+  imggen_desktop_notification?: boolean;
+  imggen_sound_notification?: boolean;
+  imggen_notification_sound?: string;
+  imggen_auto_delete_days?: number;
+  imggen_max_generations?: number;
+  comfyui_base_url?: string;
 }
 
 export interface ModelInfo {

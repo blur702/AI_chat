@@ -142,6 +142,21 @@ class UserPreferencesResponse(BaseModel):
     email_notifications: Optional[bool] = None
     in_app_notifications: Optional[bool] = None
 
+    # Image generation defaults
+    imggen_default_workflow: Optional[str] = None
+    imggen_default_width: Optional[int] = None
+    imggen_default_height: Optional[int] = None
+    imggen_default_steps: Optional[int] = None
+    imggen_default_cfg_scale: Optional[float] = None
+    imggen_default_negative_prompt: Optional[str] = None
+    imggen_completion_notification: Optional[bool] = None
+    imggen_desktop_notification: Optional[bool] = None
+    imggen_sound_notification: Optional[bool] = None
+    imggen_notification_sound: Optional[str] = None
+    imggen_auto_delete_days: Optional[int] = None
+    imggen_max_generations: Optional[int] = None
+    comfyui_base_url: Optional[str] = None
+
 
 class UserPreferencesUpdateRequest(BaseModel):
     """Request body for updating user preferences."""
@@ -153,6 +168,21 @@ class UserPreferencesUpdateRequest(BaseModel):
     default_temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     email_notifications: Optional[bool] = None
     in_app_notifications: Optional[bool] = None
+
+    # Image generation defaults
+    imggen_default_workflow: Optional[str] = Field(default=None, max_length=50)
+    imggen_default_width: Optional[int] = Field(default=None, ge=64, le=4096)
+    imggen_default_height: Optional[int] = Field(default=None, ge=64, le=4096)
+    imggen_default_steps: Optional[int] = Field(default=None, ge=1, le=150)
+    imggen_default_cfg_scale: Optional[float] = Field(default=None, ge=1.0, le=30.0)
+    imggen_default_negative_prompt: Optional[str] = None
+    imggen_completion_notification: Optional[bool] = None
+    imggen_desktop_notification: Optional[bool] = None
+    imggen_sound_notification: Optional[bool] = None
+    imggen_notification_sound: Optional[str] = Field(default=None, max_length=100)
+    imggen_auto_delete_days: Optional[int] = Field(default=None, ge=0, le=365)
+    imggen_max_generations: Optional[int] = Field(default=None, ge=0, le=10000)
+    comfyui_base_url: Optional[str] = Field(default=None, max_length=500)
 
 
 class ModelInfo(BaseModel):

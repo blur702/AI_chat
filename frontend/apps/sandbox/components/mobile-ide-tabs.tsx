@@ -7,9 +7,22 @@ import {
   Terminal,
   Eye,
   MessageSquare,
+  ImageIcon,
+  Wrench,
+  HardDrive,
+  Zap,
 } from "lucide-react";
 
-export type MobileIdeTab = "files" | "editor" | "terminal" | "preview" | "chat";
+export type MobileIdeTab =
+  | "files"
+  | "editor"
+  | "terminal"
+  | "preview"
+  | "chat"
+  | "image-gen"
+  | "tools"
+  | "events"
+  | "resources";
 
 const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "files", label: "Files", icon: FolderOpen },
@@ -17,6 +30,10 @@ const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "terminal", label: "Terminal", icon: Terminal },
   { id: "preview", label: "Preview", icon: Eye },
   { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "image-gen", label: "Images", icon: ImageIcon },
+  { id: "tools", label: "Tools", icon: Wrench },
+  { id: "events", label: "Events", icon: Zap },
+  { id: "resources", label: "GPU", icon: HardDrive },
 ];
 
 interface MobileIdeTabsProps {

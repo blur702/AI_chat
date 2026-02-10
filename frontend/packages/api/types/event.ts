@@ -45,6 +45,18 @@ export interface EventListResponse {
   offset: number;
 }
 
+export interface EventBroadcastResponse {
+  event_type: string;
+  event_data: Record<string, unknown>;
+  severity: string;
+  source: string;
+  user_id: string | null;
+  chat_id: string | null;
+  resource_id: string | null;
+  persisted: boolean;
+  broadcast_at: string;
+}
+
 export interface WebSocketMessage {
   type: string;
   data: Record<string, unknown>;

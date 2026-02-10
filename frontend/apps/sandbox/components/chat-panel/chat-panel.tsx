@@ -2,9 +2,9 @@
 
 import { useRef, useEffect, useState } from "react";
 import { Button, ScrollArea, cn } from "@workstation/ui";
-import { X, Send, Bot, User, AlertCircle, ListChecks } from "lucide-react";
+import { X, Send, Bot, User, AlertCircle, ListChecks, Wrench, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useSandboxConversation } from "@workstation/api/hooks";
-import type { FileNode } from "@workstation/api/types";
+import type { FileNode, ToolExecuteResponse } from "@workstation/api/types";
 import { ThinkingIndicator } from "./thinking-indicator";
 
 interface ChatPanelProps {
@@ -14,6 +14,7 @@ interface ChatPanelProps {
   terminalHistory: string[];
   onClose: () => void;
   onShowActions?: () => void;
+  toolResults?: ToolExecuteResponse[];
 }
 
 export function ChatPanel({
@@ -23,6 +24,7 @@ export function ChatPanel({
   terminalHistory,
   onClose,
   onShowActions,
+  toolResults = [],
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -119,6 +121,45 @@ export function ChatPanel({
             <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Tool Execution Results */}
+          {toolResults.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Tool Results
+              </p>
+              {toolResults.slice(0, 3).map((result, i) => (
+                <div
+                  key={`tool-${i}`}
+                  className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-2"
+                >
+                  <Wrench className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      {result.success ? (
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <XCircle className="h-3 w-3 text-destructive" />
+                      )}
+                      <span className="text-xs font-medium">{result.tool}</span>
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 ml-auto">
+                        <Clock className="h-2.5 w-2.5" />
+                        {result.duration_ms}ms
+                      </span>
+                    </div>
+                    {result.success && result.result && (
+                      <pre className="text-[10px] bg-background rounded px-1.5 py-1 overflow-auto max-h-20 whitespace-pre-wrap">
+                        {JSON.stringify(result.result, null, 2)}
+                      </pre>
+                    )}
+                    {!result.success && result.error && (
+                      <p className="text-[10px] text-destructive">{result.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

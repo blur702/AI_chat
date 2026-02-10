@@ -12,11 +12,17 @@ import { PreviewPane } from "./preview/preview-pane";
 import { ChatPanel } from "./chat-panel/chat-panel";
 import { AutomationActionsPanel } from "./automation-actions-panel";
 import { YoloEditHistory } from "./yolo-edit-history";
+import { ImageGenPanel } from "./image-gen/image-gen-panel";
+import { ToolsPanel } from "./tools/tools-panel";
+import { ResourcesPanel } from "./resources/resources-panel";
+import { EventsPanel } from "./events/events-panel";
 import { SandboxToolbar } from "./sandbox-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
-import { useState, useCallback, useRef } from "react";
+
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useBreakpoint } from "@workstation/ui";
-import { useFileExplorer, useAutomationActions } from "@workstation/api/hooks";
+import { useFileExplorer, useAutomationActions, useTools } from "@workstation/api/hooks";
+import type { ToolExecuteResponse } from "@workstation/api/types";
 
 interface IDELayoutProps {
   projectId: string;
@@ -26,6 +32,24 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showChat, setShowChat] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showImageGen, setShowImageGen] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [showEvents, setShowEvents] = useState(false);
+  const [showResources, setShowResources] = useState(false);
+  const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
+  const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
+  const [lastToolExecution, setLastToolExecution] = useState<{
+    toolName: string;
+    success: boolean;
+    timestamp: number;
+    params: Record<string, unknown>;
+  } | null>(null);
+  const [rerunExecution, setRerunExecution] = useState<{
+    toolName: string;
+    params: Record<string, unknown>;
+    timestamp: number;
+  } | null>(null);
+  const [toolResultsForChat, setToolResultsForChat] = useState<ToolExecuteResponse[]>([]);
   const [mobileTab, setMobileTab] = useState<MobileIdeTab>("editor");
   const { isMobile } = useBreakpoint();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -44,6 +68,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   } = useFileExplorer(projectId);
 
   const { pendingCount } = useAutomationActions(projectId);
+  const { tools, loading: toolsLoading, error: toolsError, executeTool, refresh: refreshTools } = useTools();
 
   const handleTerminalCommand = useCallback((cmd: string) => {
     setTerminalHistory((prev) => [...prev.slice(-49), cmd]);
@@ -85,9 +110,130 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     setShowHistory((prev) => !prev);
   }, []);
 
+  const handleImageGenClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("image-gen");
+    } else {
+      setShowImageGen((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleResourcesClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("resources");
+    } else {
+      setShowResources((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleEventsClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("events");
+    } else {
+      setShowEvents((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleToolsClick = useCallback(() => {
+    setToolsPrefillFile(null);
+    setToolsFilterForFile(false);
+    if (isMobile) {
+      setMobileTab("tools");
+    } else {
+      setShowTools((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleRunToolOnFile = useCallback(
+    (filePath: string) => {
+      setToolsPrefillFile(filePath);
+      setToolsFilterForFile(true);
+      if (isMobile) {
+        setMobileTab("tools");
+      } else {
+        setShowTools(true);
+      }
+    },
+    [isMobile]
+  );
+
+  const handleToolExecuted = useCallback(
+    (result: ToolExecuteResponse, toolName: string, params: Record<string, unknown>) => {
+      const execution = {
+        toolName,
+        success: result.success,
+        timestamp: Date.now(),
+        params,
+      };
+      setLastToolExecution(execution);
+      setToolResultsForChat((prev) => [result, ...prev.slice(0, 9)]);
+      // Persist for status bar (which reads from localStorage)
+      try {
+        localStorage.setItem(
+          "tools:last-execution",
+          JSON.stringify({ toolName, success: result.success, timestamp: execution.timestamp })
+        );
+      } catch { /* ignore */ }
+    },
+    []
+  );
+
+  const handleRerunLastTool = useCallback(async () => {
+    if (!lastToolExecution) return;
+    setShowTools(true);
+    setRerunExecution({
+      toolName: lastToolExecution.toolName,
+      params: lastToolExecution.params,
+      timestamp: Date.now(),
+    });
+  }, [lastToolExecution]);
+
   const handleSettingsClick = useCallback(() => {
     // Settings panel placeholder - can be expanded later
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+
+      // Cmd/Ctrl+T — open quick execute (tools panel)
+      if (mod && !e.shiftKey && e.key === "t") {
+        e.preventDefault();
+        if (isMobile) {
+          setMobileTab("tools");
+        } else {
+          setShowTools(true);
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+Shift+T — open tools page (same panel, "all" tab focus)
+      if (mod && e.shiftKey && e.key === "T") {
+        e.preventDefault();
+        setToolsPrefillFile(null);
+        setToolsFilterForFile(false);
+        if (isMobile) {
+          setMobileTab("tools");
+        } else {
+          setShowTools(true);
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+; — re-run last tool
+      if (mod && e.key === ";") {
+        e.preventDefault();
+        if (lastToolExecution) {
+          handleRerunLastTool();
+        }
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMobile, lastToolExecution, handleRerunLastTool]);
 
   const fileExplorerProps = {
     projectId,
@@ -101,6 +247,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     onCreateDirectory: createDirectory,
     onDelete: deleteFile,
     onRename: renameFile,
+    onRunToolOnFile: handleRunToolOnFile,
   };
 
   const editorProps = {
@@ -128,8 +275,24 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onRunClick={handleRunClick}
           onChatClick={handleChatClick}
           onActionsClick={handleActionsClick}
+          onImageGenClick={handleImageGenClick}
+          onResourcesClick={handleResourcesClick}
+          onEventsClick={handleEventsClick}
+          onToolsClick={handleToolsClick}
           onSettingsClick={handleSettingsClick}
           pendingActionsCount={pendingCount}
+          toolsCount={tools.length}
+          pinnedTools={tools.filter((t) => {
+            try {
+              const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
+              return pinned.includes(t.name);
+            } catch { return false; }
+          })}
+          onQuickExecuteTool={(toolName) => {
+            setToolsPrefillFile(null);
+            setToolsFilterForFile(false);
+            setMobileTab("tools");
+          }}
         />
         <div className="flex-1 overflow-hidden">
           {mobileTab === "files" && <FileExplorer {...fileExplorerProps} />}
@@ -145,8 +308,35 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           {mobileTab === "chat" && (
             <ChatPanel
               {...chatPanelProps}
+              toolResults={toolResultsForChat}
               onClose={() => setMobileTab("editor")}
             />
+          )}
+          {mobileTab === "image-gen" && (
+            <ImageGenPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
+          {mobileTab === "tools" && (
+            <ToolsPanel
+              tools={tools}
+              loading={toolsLoading}
+              error={toolsError}
+              onExecute={executeTool}
+              onRefresh={refreshTools}
+              onClose={() => setMobileTab("editor")}
+              prefillFile={toolsPrefillFile}
+              filterForFile={toolsFilterForFile}
+              onToolExecuted={handleToolExecuted}
+              rerunExecution={rerunExecution}
+            />
+          )}
+          {mobileTab === "events" && (
+            <EventsPanel onClose={() => setMobileTab("editor")} />
+          )}
+          {mobileTab === "resources" && (
+            <ResourcesPanel onClose={() => setMobileTab("editor")} />
           )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
@@ -162,8 +352,25 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onChatClick={handleChatClick}
         onActionsClick={handleActionsClick}
         onHistoryClick={handleHistoryClick}
+        onImageGenClick={handleImageGenClick}
+        onResourcesClick={handleResourcesClick}
+        onEventsClick={handleEventsClick}
+        onToolsClick={handleToolsClick}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
+        toolsCount={tools.length}
+        pinnedTools={tools.filter((t) => {
+          try {
+            const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
+            return pinned.includes(t.name);
+          } catch { return false; }
+        })}
+        onQuickExecuteTool={(toolName) => {
+          setToolsPrefillFile(null);
+          setToolsFilterForFile(false);
+          setShowTools(true);
+        }}
+        lastToolExecution={lastToolExecution}
       />
       <PanelGroup direction="horizontal" className="flex-1">
         {/* File Explorer */}
@@ -174,7 +381,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
-        <Panel defaultSize={showChat || showAutomations || showHistory ? 55 : 85} minSize={30}>
+        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources ? 55 : 85} minSize={30}>
           <PanelGroup direction="vertical">
             {/* Editor Area */}
             <Panel defaultSize={65} minSize={30}>
@@ -209,6 +416,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <ChatPanel
                 {...chatPanelProps}
+                toolResults={toolResultsForChat}
                 onClose={() => setShowChat(false)}
               />
             </Panel>
@@ -237,6 +445,60 @@ export function IDELayout({ projectId }: IDELayoutProps) {
                 projectId={projectId}
                 onClose={() => setShowHistory(false)}
               />
+            </Panel>
+          </>
+        )}
+
+        {/* Image Generation Panel (collapsible) */}
+        {showImageGen && (
+          <>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={30} minSize={20} maxSize={40}>
+              <ImageGenPanel
+                projectId={projectId}
+                onClose={() => setShowImageGen(false)}
+              />
+            </Panel>
+          </>
+        )}
+
+        {/* Tools Panel (collapsible) */}
+        {showTools && (
+          <>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={30} minSize={20} maxSize={40}>
+              <ToolsPanel
+                tools={tools}
+                loading={toolsLoading}
+                error={toolsError}
+                onExecute={executeTool}
+                onRefresh={refreshTools}
+                onClose={() => setShowTools(false)}
+                prefillFile={toolsPrefillFile}
+                filterForFile={toolsFilterForFile}
+                onToolExecuted={handleToolExecuted}
+                rerunExecution={rerunExecution}
+              />
+            </Panel>
+          </>
+        )}
+
+        {/* Events Panel (collapsible) */}
+        {showEvents && (
+          <>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={25} minSize={15} maxSize={35}>
+              <EventsPanel onClose={() => setShowEvents(false)} />
+            </Panel>
+          </>
+        )}
+
+        {/* Resources Panel (collapsible) */}
+        {showResources && (
+          <>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={25} minSize={15} maxSize={35}>
+              <ResourcesPanel onClose={() => setShowResources(false)} />
             </Panel>
           </>
         )}
