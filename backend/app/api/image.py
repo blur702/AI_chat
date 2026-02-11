@@ -328,7 +328,7 @@ async def download_image(
 async def list_generations(
     request: Request,
     project_id: UUID = Query(default=None),
-    status: Optional[str] = Query(default=None, description="Filter by status (pending/processing/completed/failed)"),
+    status_filter: Optional[str] = Query(default=None, alias="status", description="Filter by status (pending/processing/completed/failed)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     payload: dict = Depends(get_current_user_payload),
@@ -337,14 +337,21 @@ async def list_generations(
     """List image generation jobs for the current user."""
     user_id = payload.get("user_id") or payload.get("sub", "")
 
+    _allowed_statuses = {"pending", "processing", "completed", "failed"}
+    if status_filter is not None and status_filter not in _allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status filter. Allowed values: {', '.join(sorted(_allowed_statuses))}",
+        )
+
     filters = [ImageGeneration.user_id == UUID(user_id)]
 
     if project_id:
         await validate_project_access(project_id, user_id, db)
         filters.append(ImageGeneration.project_id == project_id)
 
-    if status is not None:
-        filters.append(ImageGeneration.status == status)
+    if status_filter is not None:
+        filters.append(ImageGeneration.status == status_filter)
 
     stmt = (
         select(ImageGeneration)

@@ -9,6 +9,8 @@ interface UseAdminReturn {
   debugInfo: KernelDebugInfo | null;
   loading: boolean;
   error: string | null;
+  metricsError: string | null;
+  debugError: string | null;
   refreshMetrics: () => Promise<void>;
   refreshDebugInfo: () => Promise<void>;
   getServiceDebug: (serviceName: string) => Promise<ServiceDebugInfo>;
@@ -24,22 +26,24 @@ export function useAdmin(): UseAdminReturn {
   const [debugInfo, setDebugInfo] = useState<KernelDebugInfo | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [debugLoading, setDebugLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const loading = metricsLoading || debugLoading;
+  const error = metricsError || debugError;
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState(10000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshMetrics = useCallback(async () => {
     setMetricsLoading(true);
-    setError(null);
+    setMetricsError(null);
     try {
       const data = await getClient().getKernelMetrics();
       setMetrics(data);
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load metrics");
+      setMetricsError(err instanceof Error ? err.message : "Failed to load metrics");
     } finally {
       setMetricsLoading(false);
     }
@@ -47,13 +51,13 @@ export function useAdmin(): UseAdminReturn {
 
   const refreshDebugInfo = useCallback(async () => {
     setDebugLoading(true);
-    setError(null);
+    setDebugError(null);
     try {
       const data = await getClient().getKernelDebug();
       setDebugInfo(data);
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load debug info");
+      setDebugError(err instanceof Error ? err.message : "Failed to load debug info");
     } finally {
       setDebugLoading(false);
     }
@@ -96,6 +100,8 @@ export function useAdmin(): UseAdminReturn {
     debugInfo,
     loading,
     error,
+    metricsError,
+    debugError,
     refreshMetrics,
     refreshDebugInfo,
     getServiceDebug: getServiceDebugFn,

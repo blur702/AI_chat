@@ -45,11 +45,6 @@ interface SandboxToolbarProps {
   toolsCount?: number;
   pinnedTools?: ToolInfo[];
   onQuickExecuteTool?: (toolName: string) => void;
-  lastToolExecution?: {
-    toolName: string;
-    success: boolean;
-    timestamp: number;
-  } | null;
 }
 
 export function SandboxToolbar({
@@ -67,7 +62,6 @@ export function SandboxToolbar({
   toolsCount = 0,
   pinnedTools = [],
   onQuickExecuteTool,
-  lastToolExecution,
 }: SandboxToolbarProps) {
   const { isMobile } = useBreakpoint();
 

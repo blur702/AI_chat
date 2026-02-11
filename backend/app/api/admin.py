@@ -404,6 +404,18 @@ async def unlock_user_account(
     )
 
 
+def _escape_like(value: str) -> str:
+    """Escape special LIKE pattern characters so they are matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Columns allowed for dynamic sorting in user list queries.
+ALLOWED_USER_SORT_COLUMNS = frozenset({
+    "id", "username", "email", "role", "is_active",
+    "created_at", "updated_at", "last_login_at",
+})
+
+
 def _build_audit_filters(
     user_id: Optional[UUID],
     action: Optional[str],
@@ -426,14 +438,15 @@ def _build_audit_filters(
     if end_date is not None:
         filters.append(AuditLog.created_at <= end_date)
     if ip_address is not None:
-        filters.append(AuditLog.ip_address.ilike(f"%{ip_address}%"))
+        escaped_ip = f"%{_escape_like(ip_address)}%"
+        filters.append(AuditLog.ip_address.ilike(escaped_ip, escape="\\"))
     if search is not None:
-        term = f"%{search}%"
+        escaped_term = f"%{_escape_like(search)}%"
         filters.append(
             or_(
-                AuditLog.action.ilike(term),
-                AuditLog.resource.ilike(term),
-                AuditLog.ip_address.ilike(term),
+                AuditLog.action.ilike(escaped_term, escape="\\"),
+                AuditLog.resource.ilike(escaped_term, escape="\\"),
+                AuditLog.ip_address.ilike(escaped_term, escape="\\"),
             )
         )
     return filters
@@ -457,13 +470,13 @@ async def list_users(
 
     filters = []
     if search:
-        search_term = f"%{search}%"
+        escaped_pattern = f"%{_escape_like(search)}%"
         filters.append(
-            (User.username.ilike(search_term))
-            | (User.email.ilike(search_term))
-            | (User.first_name.ilike(search_term))
-            | (User.last_name.ilike(search_term))
-            | (User.screen_name.ilike(search_term))
+            (User.username.ilike(escaped_pattern, escape="\\"))
+            | (User.email.ilike(escaped_pattern, escape="\\"))
+            | (User.first_name.ilike(escaped_pattern, escape="\\"))
+            | (User.last_name.ilike(escaped_pattern, escape="\\"))
+            | (User.screen_name.ilike(escaped_pattern, escape="\\"))
         )
     if role is not None:
         filters.append(User.role == role)
@@ -477,7 +490,8 @@ async def list_users(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    sort_column = getattr(User, sort_by, User.created_at)
+    sort_attr = sort_by if sort_by in ALLOWED_USER_SORT_COLUMNS else "created_at"
+    sort_column = getattr(User, sort_attr)
     order = sort_column.asc() if sort_order == "asc" else sort_column.desc()
     query = query.order_by(order).offset((page - 1) * page_size).limit(page_size)
 

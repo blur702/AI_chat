@@ -370,7 +370,6 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           setToolsFilterForFile(false);
           setShowTools(true);
         }}
-        lastToolExecution={lastToolExecution}
       />
       <PanelGroup direction="horizontal" className="flex-1">
         {/* File Explorer */}

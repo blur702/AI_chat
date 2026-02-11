@@ -226,9 +226,12 @@ export function OffloadPreferences({
                 min={5}
                 max={1440}
                 value={idleTimeoutMin}
-                onChange={(e) =>
-                  setIdleTimeoutMin(parseInt(e.target.value) || 30)
-                }
+                onChange={(e) => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val)) val = 30;
+                  val = Math.max(5, Math.min(1440, val));
+                  setIdleTimeoutMin(val);
+                }}
                 className="w-32"
               />
               <p className="text-xs text-muted-foreground">

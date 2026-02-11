@@ -23,8 +23,8 @@ export interface UseImageGenerationReturn {
   deleteGeneration: (jobId: string) => Promise<void>;
   bulkDelete: (jobIds: string[]) => Promise<void>;
   downloadImage: (jobId: string, filename: string) => Promise<void>;
-  setPage: (page: number) => void;
-  setFilter: (status: ImageGenerationStatus | "all") => void;
+  setPage: (page: number) => Promise<void>;
+  setFilter: (status: ImageGenerationStatus | "all") => Promise<void>;
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -214,19 +214,19 @@ export function useImageGeneration(
     []
   );
 
-  const setPage = useCallback((page: number) => {
+  const setPage = useCallback(async (page: number) => {
     const newPage = Math.max(1, page);
     currentPageRef.current = newPage;
     setCurrentPage(newPage);
-    refresh();
+    await refresh();
   }, [refresh]);
 
-  const setFilter = useCallback((status: ImageGenerationStatus | "all") => {
+  const setFilter = useCallback(async (status: ImageGenerationStatus | "all") => {
     filterStatusRef.current = status;
     currentPageRef.current = 1;
     setFilterStatus(status);
     setCurrentPage(1);
-    refresh();
+    await refresh();
   }, [refresh]);
 
   useEffect(() => {

@@ -45,8 +45,63 @@ function SortIcon({
   );
 }
 
+const STABLE_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString();
+  return STABLE_DATE_FORMAT.format(new Date(dateStr));
+}
+
+const SENSITIVE_KEYS = new Set([
+  "token",
+  "password",
+  "secret",
+  "ssn",
+  "email",
+  "ip",
+  "cookie",
+  "access_token",
+  "refresh_token",
+  "authorization",
+  "auth_token",
+  "auth_key",
+  "api_key",
+  "private_key",
+  "credit_card",
+]);
+
+function isSensitiveKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return (
+    SENSITIVE_KEYS.has(lower) ||
+    lower.startsWith("auth") ||
+    lower.endsWith("_token") ||
+    lower.endsWith("_secret") ||
+    lower.endsWith("_key")
+  );
+}
+
+function sanitizeDetails(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeDetails);
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = isSensitiveKey(key) ? "[REDACTED]" : sanitizeDetails(value);
+    }
+    return result;
+  }
+  if (typeof obj === "string" && obj.length > 500) {
+    return obj.slice(0, 500) + "...[truncated]";
+  }
+  return obj;
 }
 
 export function AuditLogTable({
@@ -243,7 +298,7 @@ export function AuditLogTable({
                                   Details:
                                 </span>
                                 <pre className="mt-1 rounded-md bg-muted p-2 text-[11px] overflow-x-auto max-h-[200px]">
-                                  {JSON.stringify(log.details, null, 2)}
+                                  {JSON.stringify(sanitizeDetails(log.details), null, 2)}
                                 </pre>
                               </div>
                             )}

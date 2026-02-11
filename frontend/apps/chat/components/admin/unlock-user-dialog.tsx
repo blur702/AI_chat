@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Dialog,
@@ -28,6 +28,11 @@ export function UnlockUserDialog({
 }: UnlockUserDialogProps) {
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setError(null);
+    setUnlocking(false);
+  }, [open]);
 
   const handleUnlock = async () => {
     if (!user) return;

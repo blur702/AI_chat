@@ -111,18 +111,18 @@ export function ImageCard({
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 hidden items-center justify-center gap-2 bg-black/50 group-hover:flex">
-              <Button size="icon" variant="secondary" onClick={onView}>
+              <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); onView(); }}>
                 <Eye className="h-4 w-4" />
               </Button>
               <Button
                 size="icon"
                 variant="secondary"
-                onClick={onDownload}
+                onClick={(e) => { e.stopPropagation(); onDownload?.(); }}
                 disabled={!onDownload}
               >
                 <Download className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="destructive" onClick={onDelete}>
+              <Button size="icon" variant="destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

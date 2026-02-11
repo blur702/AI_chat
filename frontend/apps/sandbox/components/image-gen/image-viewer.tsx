@@ -64,16 +64,23 @@ export function ImageViewer({
 
   const handleDownload = useCallback(async () => {
     if (!currentImage) return;
-    const filename = getFilenameFromUrl(currentImage);
-    const blob = await getClient().downloadImage(generation.id, filename);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    let url: string | null = null;
+    let anchor: HTMLAnchorElement | null = null;
+    try {
+      const filename = getFilenameFromUrl(currentImage);
+      const blob = await getClient().downloadImage(generation.id, filename);
+      url = URL.createObjectURL(blob);
+      anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+    } catch (err) {
+      console.error("Failed to download image:", err);
+    } finally {
+      if (anchor) anchor.remove();
+      if (url) URL.revokeObjectURL(url);
+    }
   }, [currentImage, generation.id]);
 
   const navigateImage = useCallback(

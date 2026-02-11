@@ -45,9 +45,15 @@ export function UserManagement() {
   };
 
   const handleSaveUser = async (userId: string, data: AdminUserUpdateRequest) => {
-    await updateUser(userId, data);
-    if (selectedUser?.id === userId) {
-      selectAndLoadUser(userId);
+    try {
+      await updateUser(userId, data);
+    } catch (err) {
+      console.error("Failed to update user:", err);
+      throw err;
+    } finally {
+      if (selectedUser?.id === userId) {
+        selectAndLoadUser(userId);
+      }
     }
   };
 
@@ -57,9 +63,15 @@ export function UserManagement() {
   };
 
   const handleUnlockConfirm = async (userId: string) => {
-    await unlockUser(userId);
-    if (selectedUser?.id === userId) {
-      selectAndLoadUser(userId);
+    try {
+      await unlockUser(userId);
+    } catch (err) {
+      console.error("Failed to unlock user:", err);
+      throw err;
+    } finally {
+      if (selectedUser?.id === userId) {
+        selectAndLoadUser(userId);
+      }
     }
   };
 

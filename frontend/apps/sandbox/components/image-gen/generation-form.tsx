@@ -127,8 +127,8 @@ export function GenerationForm({ projectId, hookState, userPreferences, onSaveAs
     if (form.steps < 20 || form.steps > 50) {
       nextErrors.steps = "Steps must be between 20 and 50.";
     }
-    if (form.cfg_scale < 1 || form.cfg_scale > 20) {
-      nextErrors.cfg_scale = "CFG scale must be between 1 and 20.";
+    if (form.cfg_scale < 1 || form.cfg_scale > 30) {
+      nextErrors.cfg_scale = "CFG scale must be between 1 and 30.";
     }
     if (form.denoise < 0 || form.denoise > 1) {
       nextErrors.denoise = "Denoise must be between 0 and 1.";
@@ -413,7 +413,7 @@ export function GenerationForm({ projectId, hookState, userPreferences, onSaveAs
                 <TooltipTrigger asChild>
                   <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
-                <TooltipContent>Controls prompt adherence. Range: 1 to 20.</TooltipContent>
+                <TooltipContent>Controls prompt adherence. Range: 1 to 30.</TooltipContent>
               </Tooltip>
             </span>
             <span>{form.cfg_scale.toFixed(1)}</span>
@@ -421,7 +421,7 @@ export function GenerationForm({ projectId, hookState, userPreferences, onSaveAs
           <input
             type="range"
             min={1}
-            max={20}
+            max={30}
             step={0.5}
             value={form.cfg_scale}
             onChange={(event) =>

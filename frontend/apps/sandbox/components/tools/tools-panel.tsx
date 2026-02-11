@@ -104,6 +104,7 @@ export function ToolsPanel({
 
   // Handle rerun execution from parent
   const processedRerunRef = useRef<number>(0);
+  const pendingRerunRef = useRef<{ toolName: string; params: Record<string, unknown>; timestamp: number } | null>(null);
   const onExecuteRef = useRef(onExecute);
   const onToolExecutedRef = useRef(onToolExecuted);
   onExecuteRef.current = onExecute;
@@ -111,8 +112,12 @@ export function ToolsPanel({
 
   useEffect(() => {
     if (!rerunExecution || rerunExecution.timestamp <= processedRerunRef.current) return;
-    if (executing) return;
-    processedRerunRef.current = rerunExecution.timestamp;
+
+    if (executing) {
+      // Store for later so reruns during execution aren't lost
+      pendingRerunRef.current = rerunExecution;
+      return;
+    }
 
     const found = tools.find((t) => t.name === rerunExecution.toolName);
     if (!found) return;
@@ -123,6 +128,7 @@ export function ToolsPanel({
 
     // Execute directly using the known tool and params
     (async () => {
+      processedRerunRef.current = rerunExecution.timestamp;
       setExecuting(true);
       setLastResult(null);
       try {
@@ -154,6 +160,17 @@ export function ToolsPanel({
         onToolExecutedRef.current?.(failResult, found.name, rerunExecution.params);
       } finally {
         setExecuting(false);
+        // Check if a rerun was requested while we were executing
+        if (pendingRerunRef.current && pendingRerunRef.current.timestamp > processedRerunRef.current) {
+          const pending = pendingRerunRef.current;
+          pendingRerunRef.current = null;
+          const pendingTool = tools.find((t) => t.name === pending.toolName);
+          if (pendingTool) {
+            setSelectedTool(pendingTool);
+            setParamValues(pending.params);
+            // Re-trigger by updating the ref so the effect runs again
+          }
+        }
       }
     })();
   }, [rerunExecution, tools, executing]);
