@@ -110,11 +110,59 @@ export function ToolsPanel({
   onExecuteRef.current = onExecute;
   onToolExecutedRef.current = onToolExecuted;
 
+  const runToolRef = useRef<(tool: ToolInfo, params: Record<string, unknown>, timestamp: number) => Promise<void>>();
+  runToolRef.current = async (tool: ToolInfo, params: Record<string, unknown>, timestamp: number) => {
+    processedRerunRef.current = timestamp;
+    setSelectedTool(tool);
+    setParamValues(params);
+    setActiveTab("execute");
+    setExecuting(true);
+    setLastResult(null);
+    try {
+      const result = await onExecuteRef.current({
+        tool_name: tool.name,
+        parameters: params,
+      });
+      setLastResult(result);
+      setRecentExecutions((prev) => [
+        { tool: tool.name, timestamp: Date.now(), result, parameters: params },
+        ...prev.slice(0, 19),
+      ]);
+      onToolExecutedRef.current?.(result, tool.name, params);
+    } catch (err) {
+      const failResult: ToolExecuteResponse = {
+        tool: tool.name,
+        success: false,
+        result: null,
+        error: err instanceof Error ? err.message : "Execution failed",
+        cached: false,
+        duration_ms: 0,
+        conversation_context: null,
+      };
+      setLastResult(failResult);
+      setRecentExecutions((prev) => [
+        { tool: tool.name, timestamp: Date.now(), result: failResult, parameters: params },
+        ...prev.slice(0, 19),
+      ]);
+      onToolExecutedRef.current?.(failResult, tool.name, params);
+    } finally {
+      setExecuting(false);
+      // Execute any rerun that was queued while we were busy
+      if (pendingRerunRef.current && pendingRerunRef.current.timestamp > processedRerunRef.current) {
+        const pending = pendingRerunRef.current;
+        pendingRerunRef.current = null;
+        const pendingTool = tools.find((t) => t.name === pending.toolName);
+        if (pendingTool) {
+          runToolRef.current?.(pendingTool, pending.params, pending.timestamp);
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     if (!rerunExecution || rerunExecution.timestamp <= processedRerunRef.current) return;
 
     if (executing) {
-      // Store for later so reruns during execution aren't lost
       pendingRerunRef.current = rerunExecution;
       return;
     }
@@ -122,57 +170,7 @@ export function ToolsPanel({
     const found = tools.find((t) => t.name === rerunExecution.toolName);
     if (!found) return;
 
-    setSelectedTool(found);
-    setParamValues(rerunExecution.params);
-    setActiveTab("execute");
-
-    // Execute directly using the known tool and params
-    (async () => {
-      processedRerunRef.current = rerunExecution.timestamp;
-      setExecuting(true);
-      setLastResult(null);
-      try {
-        const result = await onExecuteRef.current({
-          tool_name: found.name,
-          parameters: rerunExecution.params,
-        });
-        setLastResult(result);
-        setRecentExecutions((prev) => [
-          { tool: found.name, timestamp: Date.now(), result, parameters: rerunExecution.params },
-          ...prev.slice(0, 19),
-        ]);
-        onToolExecutedRef.current?.(result, found.name, rerunExecution.params);
-      } catch (err) {
-        const failResult: ToolExecuteResponse = {
-          tool: found.name,
-          success: false,
-          result: null,
-          error: err instanceof Error ? err.message : "Execution failed",
-          cached: false,
-          duration_ms: 0,
-          conversation_context: null,
-        };
-        setLastResult(failResult);
-        setRecentExecutions((prev) => [
-          { tool: found.name, timestamp: Date.now(), result: failResult, parameters: rerunExecution.params },
-          ...prev.slice(0, 19),
-        ]);
-        onToolExecutedRef.current?.(failResult, found.name, rerunExecution.params);
-      } finally {
-        setExecuting(false);
-        // Check if a rerun was requested while we were executing
-        if (pendingRerunRef.current && pendingRerunRef.current.timestamp > processedRerunRef.current) {
-          const pending = pendingRerunRef.current;
-          pendingRerunRef.current = null;
-          const pendingTool = tools.find((t) => t.name === pending.toolName);
-          if (pendingTool) {
-            setSelectedTool(pendingTool);
-            setParamValues(pending.params);
-            // Re-trigger by updating the ref so the effect runs again
-          }
-        }
-      }
-    })();
+    runToolRef.current?.(found, rerunExecution.params, rerunExecution.timestamp);
   }, [rerunExecution, tools, executing]);
 
   // Pre-fill file path if provided
