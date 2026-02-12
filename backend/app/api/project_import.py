@@ -163,15 +163,14 @@ async def import_from_archive(
                 if not chunk:
                     break
                 await out_f.write(chunk)
+        os.chmod(temp_path, 0o600)
     except Exception:
-        # Clean up on write failure
+        # Clean up on write or chmod failure
         try:
             os.remove(temp_path)
         except OSError:
             pass
         raise
-
-    os.chmod(temp_path, 0o600)
 
     # Create project
     project = Project(

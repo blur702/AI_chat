@@ -154,7 +154,7 @@ class TestEventPublishing:
         assert payload["chat_id"] == str(chat_id)
         assert payload["resource_id"] == "res-1"
 
-        await pubsub.close()
+        await pubsub.aclose()
         await bus.shutdown()
 
     @pytest.mark.unit
@@ -175,7 +175,7 @@ class TestEventPublishing:
         assert msg is not None, "Expected a pub/sub message but got None"
         assert msg["channel"] == f"{CHANNEL_PREFIX}model_loaded"
 
-        await pubsub.close()
+        await pubsub.aclose()
         await bus.shutdown()
 
     @pytest.mark.unit

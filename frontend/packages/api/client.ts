@@ -235,10 +235,6 @@ export class WorkstationClient {
     return this.request("/api/resources/vram");
   }
 
-  async getResources(): Promise<Resource[]> {
-    return this.request("/api/resources/loaded");
-  }
-
   async getResourceStatus(): Promise<ResourceStatusResponse> {
     return this.request("/api/resources/status");
   }

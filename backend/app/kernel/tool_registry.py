@@ -121,7 +121,7 @@ class ToolRegistry(BaseKernelService):
         )
 
         if self._redis:
-            await self._redis.close()
+            await self._redis.aclose()
             self._redis = None
 
         logger.info("ToolRegistry service shutdown complete")

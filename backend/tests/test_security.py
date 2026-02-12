@@ -56,6 +56,21 @@ def _verify_password(raw: str, hashed: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Auto-reset rate limiter state between tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Prevent rate limiter state from leaking between tests."""
+    _rl_mod._state.script_sha = None
+    _rl_mod._state.use_evalsha = True
+    _rl_mod._state.memory_limiter = _rl_mod._InMemoryRateLimiter()
+    _rl_mod._state.redis_client = None
+    yield
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -485,9 +500,11 @@ class TestLoginFlow:
 
 
 def _reset_rate_limit_globals():
-    """Reset module-level caches so each test starts clean."""
-    _rl_mod._script_sha = None
-    _rl_mod._use_evalsha = True
+    """Reset rate limiter caches so each test starts clean."""
+    _rl_mod._state.script_sha = None
+    _rl_mod._state.use_evalsha = True
+    _rl_mod._state.memory_limiter = _rl_mod._InMemoryRateLimiter()
+    _rl_mod._state.redis_client = None
 
 
 @pytest.mark.integration
@@ -1429,7 +1446,11 @@ class TestSecurityAttacks:
         _reset_rate_limit_globals()
 
     async def test_brute_force_attack_simulation(self, mock_db_session):
-        """Simulate 10 rapid login attempts; account locks after 5."""
+        """Simulate 10 rapid login attempts; account locks after 5.
+
+        Later attempts may be blocked by the rate limiter (429) instead of
+        the auth layer (401) — both are valid blocking responses.
+        """
         user = _make_user(failed_login_attempts=0)
         mock_db_session.flush = AsyncMock()
 
@@ -1451,7 +1472,7 @@ class TestSecurityAttacks:
                     await login(
                         body=body, request=request, db=mock_db_session
                     )
-                assert exc_info.value.status_code == 401
+                assert exc_info.value.status_code in (401, 429)
 
         assert user.is_locked()
         assert user.failed_login_attempts >= 5
@@ -1671,9 +1692,32 @@ class TestAdminFunctionality:
             require_admin(authorization=auth_header)
         assert exc_info.value.status_code == 403
 
-    async def test_admin_audit_log_retrieval(self, mock_db_session):
+    async def _call_get_audit_logs(self, mock_db_session, admin_payload, **kwargs):
+        """Helper to call get_audit_logs with explicit defaults for Query(...) params.
+
+        When calling the endpoint directly (bypassing FastAPI), Query(...)
+        defaults produce FieldInfo objects instead of their default values.
+        This helper ensures those params always receive proper Python values.
+        """
         from app.api.admin import get_audit_logs
 
+        defaults = dict(
+            page=1,
+            page_size=50,
+            audit_status=None,
+            ip_address=None,
+            search=None,
+            sort_by="created_at",
+            order="desc",
+        )
+        defaults.update(kwargs)
+        return await get_audit_logs(
+            _payload=admin_payload,
+            db=mock_db_session,
+            **defaults,
+        )
+
+    async def test_admin_audit_log_retrieval(self, mock_db_session):
         log_mock = MagicMock()
         log_mock.id = uuid4()
         log_mock.user_id = uuid4()
@@ -1698,19 +1742,12 @@ class TestAdminFunctionality:
         )
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
-        resp = await get_audit_logs(
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
-        )
+        resp = await self._call_get_audit_logs(mock_db_session, admin_payload)
         assert resp.total == 1
         assert len(resp.logs) == 1
         assert resp.logs[0].action == "login_success"
 
     async def test_admin_audit_log_filter_by_action(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0
         log_result = MagicMock()
@@ -1721,19 +1758,13 @@ class TestAdminFunctionality:
         )
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
-        resp = await get_audit_logs(
-            action="login_failed",
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, action="login_failed",
         )
         assert resp.total == 0
         assert resp.logs == []
 
     async def test_admin_audit_log_pagination(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 100
         log_result = MagicMock()
@@ -1744,19 +1775,14 @@ class TestAdminFunctionality:
         )
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
-        resp = await get_audit_logs(
-            page=3,
-            page_size=10,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, page=3, page_size=10,
         )
         assert resp.total == 100
         assert resp.page == 3
         assert resp.page_size == 10
 
     async def test_admin_audit_log_filter_by_user_id(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         target_user_id = uuid4()
         count_result = MagicMock()
         count_result.scalar.return_value = 0
@@ -1768,19 +1794,13 @@ class TestAdminFunctionality:
         )
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
-        resp = await get_audit_logs(
-            user_id=target_user_id,
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, user_id=target_user_id,
         )
         assert resp.total == 0
         assert mock_db_session.execute.call_count == 2
 
     async def test_admin_audit_log_filter_by_status(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0
         log_result = MagicMock()
@@ -1791,19 +1811,13 @@ class TestAdminFunctionality:
         )
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
-        resp = await get_audit_logs(
-            audit_status="failure",
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, audit_status="failure",
         )
         assert resp.total == 0
         assert mock_db_session.execute.call_count == 2
 
     async def test_admin_audit_log_filter_by_start_date(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0
         log_result = MagicMock()
@@ -1815,19 +1829,13 @@ class TestAdminFunctionality:
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
         start = datetime.now(tz=timezone.utc) - timedelta(days=7)
-        resp = await get_audit_logs(
-            start_date=start,
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, start_date=start,
         )
         assert resp.total == 0
         assert mock_db_session.execute.call_count == 2
 
     async def test_admin_audit_log_filter_by_end_date(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0
         log_result = MagicMock()
@@ -1839,19 +1847,13 @@ class TestAdminFunctionality:
         admin_payload = {"user_id": str(uuid4()), "role": "admin"}
 
         end = datetime.now(tz=timezone.utc)
-        resp = await get_audit_logs(
-            end_date=end,
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, end_date=end,
         )
         assert resp.total == 0
         assert mock_db_session.execute.call_count == 2
 
     async def test_admin_audit_log_filter_by_date_range(self, mock_db_session):
-        from app.api.admin import get_audit_logs
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0
         log_result = MagicMock()
@@ -1864,13 +1866,8 @@ class TestAdminFunctionality:
 
         start = datetime.now(tz=timezone.utc) - timedelta(days=7)
         end = datetime.now(tz=timezone.utc)
-        resp = await get_audit_logs(
-            start_date=start,
-            end_date=end,
-            page=1,
-            page_size=50,
-            _payload=admin_payload,
-            db=mock_db_session,
+        resp = await self._call_get_audit_logs(
+            mock_db_session, admin_payload, start_date=start, end_date=end,
         )
         assert resp.total == 0
         assert mock_db_session.execute.call_count == 2
