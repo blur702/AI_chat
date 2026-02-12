@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Hash,
   Database,
+  AlertCircle,
 } from "lucide-react";
 import type { KBChunk } from "@workstation/api/types";
 
@@ -27,13 +28,13 @@ export function ChunkDetail({
   onPrevious,
   onNext,
 }: ChunkDetailProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(chunk.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement("textarea");
@@ -49,9 +50,11 @@ export function ChunkDetail({
         document.body.removeChild(textarea);
       }
       if (copiedWithFallback) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setCopyState("copied");
+      } else {
+        setCopyState("failed");
       }
+      setTimeout(() => setCopyState("idle"), 2000);
     }
   }, [chunk.content]);
 
@@ -109,10 +112,15 @@ export function ChunkDetail({
               className="h-7 text-xs gap-1.5"
               onClick={handleCopy}
             >
-              {copied ? (
+              {copyState === "copied" ? (
                 <>
                   <Check className="h-3 w-3" />
                   Copied
+                </>
+              ) : copyState === "failed" ? (
+                <>
+                  <AlertCircle className="h-3 w-3 text-destructive" />
+                  Failed
                 </>
               ) : (
                 <>

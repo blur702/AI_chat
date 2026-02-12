@@ -29,7 +29,7 @@ export interface EventCreate {
 export interface EventResponse {
   id: string;
   event_type: string;
-  event_data: Record<string, unknown>;
+  event_data: Record<string, unknown> | null;
   severity: string;
   source: string;
   user_id: string | null;

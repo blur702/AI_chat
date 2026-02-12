@@ -174,16 +174,18 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
     setActiveTab(id);
   };
 
-  const closeTab = (id: string) => {
-    if (tabs.length === 1) return;
-    const remaining = tabs.filter((t) => t.id !== id);
-    const nextActiveTab =
-      activeTab === id && remaining.length > 0 ? remaining[0].id : activeTab;
-    setTabs(remaining);
-    if (nextActiveTab !== activeTab) {
-      setActiveTab(nextActiveTab);
-    }
-  };
+  const closeTab = useCallback((id: string) => {
+    setTabs((prev) => {
+      if (prev.length === 1) return prev;
+      const remaining = prev.filter((t) => t.id !== id);
+      setActiveTab((currentActive) =>
+        currentActive === id && remaining.length > 0
+          ? remaining[0].id
+          : currentActive
+      );
+      return remaining;
+    });
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-[hsl(240,10%,4%)]">

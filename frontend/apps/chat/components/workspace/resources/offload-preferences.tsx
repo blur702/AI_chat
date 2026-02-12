@@ -199,15 +199,18 @@ export function OffloadPreferences({
 
       {/* Advanced: Auto-unload idle resources */}
       <div className="border-t pt-4">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-1">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Advanced Settings (Session only)</h3>
+          <h3 className="text-sm font-semibold">Advanced Settings</h3>
         </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          These settings apply to the current session only and are not persisted.
+        </p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Auto-unload idle resources (Session only)</p>
+              <p className="text-sm font-medium">Auto-unload idle resources</p>
               <p className="text-xs text-muted-foreground">
                 Automatically offload resources that haven't been used recently.
               </p>
@@ -223,7 +226,7 @@ export function OffloadPreferences({
           {autoUnloadIdle && (
             <div className="space-y-2 pl-4">
               <label htmlFor="idleTimeout" className="text-sm font-medium">
-                Idle timeout (minutes, session only)
+                Idle timeout (minutes)
               </label>
               <Input
                 id="idleTimeout"
@@ -244,7 +247,7 @@ export function OffloadPreferences({
 
           <div className="space-y-2">
             <label htmlFor="vramThreshold" className="text-sm font-medium">
-              VRAM warning threshold (Session only): {vramThreshold}%
+              VRAM warning threshold: {vramThreshold}%
             </label>
             <input
               id="vramThreshold"
@@ -267,7 +270,7 @@ export function OffloadPreferences({
 
           <div className="space-y-2">
             <label htmlFor="preemptionStrategy" className="text-sm font-medium">
-              Preemption strategy (Session only)
+              Preemption strategy
             </label>
             <select
               id="preemptionStrategy"
