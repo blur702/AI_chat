@@ -4,8 +4,8 @@ import { useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useAuth, useImageGeneration, useSettings } from "@workstation/api/hooks";
 import type { UserPreferences } from "@workstation/api/types";
-import { GenerationForm } from "@/components/image-gen/generation-form";
-import { ImageGallery } from "@/components/image-gen/image-gallery";
+import { GenerationForm } from "@/components/workspace/image-gen/generation-form";
+import { ImageGallery } from "@/components/workspace/image-gen/image-gallery";
 
 export default function ImageGenerationPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -46,4 +46,3 @@ export default function ImageGenerationPage() {
     </div>
   );
 }
-

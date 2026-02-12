@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button, useBreakpoint } from "@workstation/ui";
 import { useAuth, getClient } from "@workstation/api";
 import { Menu } from "lucide-react";
@@ -78,14 +78,15 @@ export default function ChatLayout({
   const { isMobile } = useBreakpoint();
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const projectId = useProjectId();
 
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace("/login");
+      router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, pathname]);
 
   if (!isAuthenticated) return null;
 

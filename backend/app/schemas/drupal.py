@@ -32,12 +32,11 @@ class DrupalConnectRequest(BaseModel):
         # Block private IP ranges
         try:
             addr = ipaddress.ip_address(hostname)
+        except ValueError:
+            pass  # Not a raw IP — that's fine (it's a hostname)
+        else:
             if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
                 raise ValueError("Site URL must not point to private or reserved IP addresses")
-        except ValueError as exc:
-            # Not a raw IP — that's fine (it's a hostname)
-            if "must not" in str(exc):
-                raise
         return v.strip()
 
 

@@ -22,7 +22,7 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2 } from "lucide-react";
 
 interface ChatSidebarProps {
   projectId: string | null;
@@ -381,6 +381,14 @@ function SidebarContent({
       </ScrollArea>
 
       <div className="border-t p-2 mt-2 space-y-1">
+        <Link
+          href="/projects"
+          onClick={onChatSelect}
+          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Code2 className="h-4 w-4" aria-hidden="true" />
+          <span className="text-sm">Projects</span>
+        </Link>
         <Link
           href="/settings"
           onClick={onChatSelect}

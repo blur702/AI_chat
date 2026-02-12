@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@workstation/api";
 import { Button, Input } from "@workstation/ui";
 
-export default function LoginPage() {
+function LoginForm() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { loginWithCredentials } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password) return;
@@ -20,7 +21,8 @@ export default function LoginPage() {
     try {
       const success = await loginWithCredentials(identifier.trim(), password);
       if (success) {
-        router.push("/chat");
+        const returnTo = searchParams.get("returnTo") || "/chat";
+        router.push(returnTo);
       } else {
         setError("Invalid username/email or password.");
       }
@@ -80,5 +82,13 @@ export default function LoginPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -10,55 +10,6 @@ importers:
 
   apps/chat:
     dependencies:
-      '@workstation/api':
-        specifier: workspace:*
-        version: link:../../packages/api
-      '@workstation/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      lucide-react:
-        specifier: ^0.344.0
-        version: 0.344.0(react@18.3.1)
-      next:
-        specifier: ^14.1.0
-        version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      next-themes:
-        specifier: ^0.2.1
-        version: 0.2.1(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      shiki:
-        specifier: ^1.1.0
-        version: 1.29.2
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.32
-      '@types/react':
-        specifier: ^18.2.0
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.2.0
-        version: 18.3.7(@types/react@18.3.28)
-      autoprefixer:
-        specifier: ^10.4.17
-        version: 10.4.24(postcss@8.5.6)
-      postcss:
-        specifier: ^8.4.35
-        version: 8.5.6
-      tailwindcss:
-        specifier: ^3.4.1
-        version: 3.4.19
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-
-  apps/sandbox:
-    dependencies:
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -92,6 +43,9 @@ importers:
       react-resizable-panels:
         specifier: ^2.0.0
         version: 2.1.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      shiki:
+        specifier: ^1.1.0
+        version: 1.29.2
     devDependencies:
       '@types/node':
         specifier: ^20.11.0

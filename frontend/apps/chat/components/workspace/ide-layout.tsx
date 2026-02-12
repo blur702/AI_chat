@@ -17,10 +17,11 @@ import { ToolsPanel } from "./tools/tools-panel";
 import { ResourcesPanel } from "./resources/resources-panel";
 import { EventsPanel } from "./events/events-panel";
 import { DrupalPanel } from "./drupal/drupal-panel";
-import { SandboxToolbar } from "./sandbox-toolbar";
+import { WorkspaceToolbar } from "./workspace-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useBreakpoint } from "@workstation/ui";
 import { useFileExplorer, useAutomationActions, useTools } from "@workstation/api/hooks";
 import type { ToolExecuteResponse } from "@workstation/api/types";
@@ -30,6 +31,7 @@ interface IDELayoutProps {
 }
 
 export function IDELayout({ projectId }: IDELayoutProps) {
+  const router = useRouter();
   const [showChat, setShowChat] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -199,8 +201,8 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   }, [lastToolExecution]);
 
   const handleSettingsClick = useCallback(() => {
-    window.location.href = "/settings";
-  }, []);
+    router.push("/settings");
+  }, [router]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -280,7 +282,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   if (isMobile) {
     return (
       <div className="flex h-full flex-col pb-14">
-        <SandboxToolbar
+        <WorkspaceToolbar
           onFilesClick={handleFilesClick}
           onRunClick={handleRunClick}
           onChatClick={handleChatClick}
@@ -363,7 +365,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <SandboxToolbar
+      <WorkspaceToolbar
         onFilesClick={handleFilesClick}
         onRunClick={handleRunClick}
         onChatClick={handleChatClick}

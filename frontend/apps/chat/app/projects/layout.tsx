@@ -1,0 +1,31 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuth } from "@workstation/api";
+import { ServiceStatusBanner } from "@/components/service-status-banner";
+
+export default function ProjectsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
+    }
+  }, [isAuthenticated, router, pathname]);
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className="flex h-screen flex-col">
+      <ServiceStatusBanner />
+      <main className="flex-1 overflow-auto">{children}</main>
+    </div>
+  );
+}

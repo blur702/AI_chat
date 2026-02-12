@@ -67,7 +67,7 @@ function useLastToolExecution(): LastToolExecution | null {
   return data;
 }
 
-export function SandboxStatusBar() {
+export function WorkspaceStatusBar() {
   const lastToolExecution = useLastToolExecution();
   const { token, userId } = useAuth();
   const { vramStats, systemStats, loading, refresh, preference, fetchPreference } = useResources(5000);
@@ -153,7 +153,7 @@ export function SandboxStatusBar() {
           </span>
         </div>
         <Badge variant="outline" className="h-5 text-[10px]">
-          Sandbox
+          Workspace
         </Badge>
       </div>
     </div>

@@ -208,7 +208,6 @@ export default function ProjectsPage() {
         branch: gitBranch.trim() || undefined,
         install_deps: gitInstallDeps,
       });
-      // Keep dialog open to show progress
     } catch (err) {
       setGitError(err instanceof Error ? err.message : "Git import failed");
     }
@@ -222,7 +221,6 @@ export default function ProjectsPage() {
     try {
       setArchiveError(null);
       await importFromArchive(archiveName.trim(), archiveFile, archiveInstallDeps);
-      // Keep dialog open to show progress
     } catch (err) {
       setArchiveError(err instanceof Error ? err.message : "Archive import failed");
     }
@@ -391,7 +389,6 @@ export default function ProjectsPage() {
             {/* Template selection */}
             <div className="grid gap-2">
               <label className="text-sm font-medium">Template</label>
-              {/* Category filter chips */}
               <div className="flex flex-wrap gap-2 mb-2">
                 <button
                   type="button"
@@ -419,7 +416,6 @@ export default function ProjectsPage() {
                   </button>
                 ))}
               </div>
-              {/* Template cards grid */}
               {templatesLoading ? (
                 <div className="grid grid-cols-2 gap-3">
                   {[1, 2, 3, 4].map((i) => (
@@ -428,7 +424,6 @@ export default function ProjectsPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Blank / no template option */}
                   <button
                     type="button"
                     className={`relative rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50 ${
@@ -670,7 +665,6 @@ export default function ProjectsPage() {
               />
               Auto-install dependencies
             </label>
-            {/* Import progress */}
             {importStatus && (
               <div className="rounded-lg border p-3">
                 <div className="flex items-center gap-2">
@@ -768,7 +762,6 @@ export default function ProjectsPage() {
               />
               Auto-install dependencies
             </label>
-            {/* Import progress */}
             {importStatus && (
               <div className="rounded-lg border p-3">
                 <div className="flex items-center gap-2">

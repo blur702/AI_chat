@@ -3,12 +3,8 @@
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "dev:chat": "pnpm --filter @workstation/chat dev",
-    "dev:sandbox": "pnpm --filter @workstation/sandbox dev",
-    "dev": "pnpm -r --parallel --filter @workstation/chat --filter @workstation/sandbox run dev",
-    "build": "pnpm --filter @workstation/chat build && pnpm --filter @workstation/sandbox build",
-    "build:chat": "pnpm --filter @workstation/chat build",
-    "build:sandbox": "pnpm --filter @workstation/sandbox build",
+    "dev": "pnpm --filter @workstation/chat dev",
+    "build": "pnpm --filter @workstation/chat build",
     "lint": "pnpm -r lint",
     "type-check": "pnpm -r type-check"
   },

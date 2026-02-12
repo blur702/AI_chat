@@ -62,7 +62,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-generate_random_secret_key_here}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-true}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:3002,http://localhost:9080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:9080}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -135,23 +135,6 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  sandbox:
-    build:
-      context: ./frontend
-      dockerfile: apps/sandbox/Dockerfile
-    container_name: workstation-sandbox
-    ports:
-      - "${SANDBOX_PORT:-3002}:3002"
-    networks:
-      - workstation-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3002 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
-
   nginx:
     image: nginx:alpine
     container_name: workstation-nginx
@@ -168,7 +151,6 @@ services:
     depends_on:
       - backend
       - chat
-      - sandbox
     # Reload nginx every 6h to pick up renewed certificates
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     healthcheck:

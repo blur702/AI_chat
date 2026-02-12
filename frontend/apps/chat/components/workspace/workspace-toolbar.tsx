@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 
-interface SandboxToolbarProps {
+interface WorkspaceToolbarProps {
   onFilesClick?: () => void;
   onRunClick?: () => void;
   onChatClick?: () => void;
@@ -49,7 +49,7 @@ interface SandboxToolbarProps {
   onQuickExecuteTool?: (toolName: string) => void;
 }
 
-export function SandboxToolbar({
+export function WorkspaceToolbar({
   onFilesClick,
   onRunClick,
   onChatClick,
@@ -65,15 +65,15 @@ export function SandboxToolbar({
   toolsCount = 0,
   pinnedTools = [],
   onQuickExecuteTool,
-}: SandboxToolbarProps) {
+}: WorkspaceToolbarProps) {
   const { isMobile } = useBreakpoint();
 
   return (
     <div className="flex items-center gap-1 md:gap-2 border-b bg-muted/30 px-2 md:px-3 py-1.5 overflow-x-auto">
-      <Link href="/projects" className="flex items-center gap-2 mr-2 md:mr-4 shrink-0">
+      <Link href="/chat" className="flex items-center gap-2 mr-2 md:mr-4 shrink-0">
         <Code2 className="h-5 w-5 text-primary" />
         {!isMobile && (
-          <span className="text-sm font-semibold">AI Sandbox</span>
+          <span className="text-sm font-semibold">AI Workstation</span>
         )}
       </Link>
 
