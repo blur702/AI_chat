@@ -167,12 +167,12 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
     };
   }, [handleRef, handleCommand]);
 
-  const addTab = () => {
-    const id = `term-${Date.now()}`;
+  const addTab = useCallback(() => {
+    const id = `term-${crypto.randomUUID()}`;
     const name = `Terminal ${tabs.length + 1}`;
     setTabs((prev) => [...prev, createTab(id, name)]);
     setActiveTab(id);
-  };
+  }, [tabs.length]);
 
   const closeTab = useCallback((id: string) => {
     setTabs((prev) => {

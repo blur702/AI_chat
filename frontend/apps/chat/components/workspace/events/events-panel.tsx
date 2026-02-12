@@ -280,7 +280,7 @@ function EventCard({
       {expanded && hasData && (
         <div className="border-t px-3 py-2">
           <pre className="text-[10px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(event.event_data, null, 2)}
+            {JSON.stringify(event.event_data ?? {}, null, 2)}
           </pre>
           {(event.user_id || event.chat_id || event.resource_id) && (
             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">

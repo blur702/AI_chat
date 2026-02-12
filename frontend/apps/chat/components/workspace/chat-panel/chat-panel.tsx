@@ -40,6 +40,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { chats, loading: chatsLoading, createChat } = useChats(projectId);
@@ -73,11 +74,14 @@ export function ChatPanel({
   const handleNewChat = useCallback(async () => {
     if (creatingChat) return;
     setCreatingChat(true);
+    setCreateError(null);
     try {
       const newId = await createChat("New Chat");
       if (newId) {
         setSelectedChatId(newId);
       }
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create chat");
     } finally {
       setCreatingChat(false);
     }
@@ -148,6 +152,14 @@ export function ChatPanel({
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {/* Chat creation error */}
+      {createError && (
+        <div className="flex items-center gap-2 border-b bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{createError}</span>
+        </div>
+      )}
 
       {/* Messages */}
       <ScrollArea className="flex-1">

@@ -27,7 +27,7 @@ function LoginForm() {
           !returnTo.startsWith("//") &&
           !returnTo.includes("://") &&
           !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(returnTo)
-            ? encodeURI(returnTo)
+            ? returnTo
             : "/chat";
         router.push(safeReturnTo);
       } else {

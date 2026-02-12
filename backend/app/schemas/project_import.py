@@ -1,8 +1,10 @@
 """Pydantic schemas for project import and container portability."""
 
+import ipaddress
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -29,6 +31,20 @@ class GitImportRequest(BaseModel):
             raise ValueError("Only HTTPS Git URLs are allowed")
         if not re.match(r"^https://[a-zA-Z0-9._\-]+/", v):
             raise ValueError("Invalid Git URL format")
+        # SSRF protection: block localhost and private IP ranges
+        parsed = urlparse(v)
+        hostname = parsed.hostname or ""
+        blocked = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+        if hostname in blocked:
+            raise ValueError("Git URLs pointing to localhost are not allowed")
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_link_local:
+                raise ValueError("Git URLs pointing to private networks are not allowed")
+        except ValueError as exc:
+            if "not allowed" in str(exc):
+                raise
+            # hostname is not an IP address — that's fine (e.g. github.com)
         return v
 
 
