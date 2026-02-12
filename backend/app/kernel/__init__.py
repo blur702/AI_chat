@@ -15,6 +15,7 @@ from .base import BaseKernelService
 from .context_manager import ContextManager
 from .event_bus import EventBus
 from .resource_manager import ResourceManager, VRAMTracker
+from .token_counter import TokenCounter
 from .tool_base import BaseTool
 from .tool_registry import ToolRegistry
 
@@ -364,6 +365,7 @@ __all__ = [
     "EventBus",
     "ResourceManager",
     "VRAMTracker",
+    "TokenCounter",
     "BaseTool",
     "ToolRegistry",
 ]

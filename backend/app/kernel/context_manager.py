@@ -164,13 +164,15 @@ class ContextManager(BaseKernelService):
                 for c in chat.context_compactions
             ]
 
+            active_messages = [m for m in messages if not m.get("is_excluded")]
+
             state = {
                 "chat_id": str(chat.id),
                 "project_id": str(chat.project_id),
                 "title": chat.title,
                 "messages": messages,
                 "compactions": compactions,
-                "current_token_count": len(messages),
+                "current_token_count": self._count_conversation_tokens(active_messages),
             }
 
         # Cache the state
@@ -341,54 +343,213 @@ class ContextManager(BaseKernelService):
         return usage["usage_ratio"] >= self.COMPACTION_THRESHOLD
 
     async def trigger_compaction(self, chat_id: UUID) -> Optional[str]:
-        async with self._session_factory() as session:
-            # Count current messages
-            result = await session.execute(
-                select(func.count(Message.id)).where(Message.chat_id == chat_id)
-            )
-            original_count = result.scalar_one()
+        """Create a pending compaction record. Returns compaction_id or None.
 
-            if original_count == 0:
+        This is the lightweight first step — actual LLM summarization runs in
+        ``perform_compaction`` (called by the ARQ background worker).
+        """
+        async with self._session_factory() as session:
+            # Only count non-excluded messages
+            result = await session.execute(
+                select(func.count(Message.id)).where(
+                    Message.chat_id == chat_id,
+                    Message.is_excluded == False,  # noqa: E712
+                )
+            )
+            active_count = result.scalar_one()
+
+            # Need at least 6 messages to make compaction worthwhile
+            if active_count < 6:
                 return None
 
-            # Create compaction record (actual summarization deferred to LLM service)
+            # Check for an existing pending compaction to avoid duplicates
+            pending_result = await session.execute(
+                select(func.count(ContextCompaction.id)).where(
+                    ContextCompaction.chat_id == chat_id,
+                    ContextCompaction.status == "pending",
+                )
+            )
+            if pending_result.scalar_one() > 0:
+                logger.debug("Pending compaction already exists for chat %s", chat_id)
+                return None
+
             compaction = ContextCompaction(
                 chat_id=chat_id,
-                original_message_count=original_count,
+                original_message_count=active_count,
                 compacted_message_count=0,
                 summary="[Pending compaction — awaiting LLM summarization]",
+                status="pending",
             )
             session.add(compaction)
             await session.commit()
             await session.refresh(compaction)
 
-            compaction_id = str(compaction.id)
+            # Publish compaction_triggered event
+            try:
+                from app.kernel import WorkstationKernel
+                kernel = WorkstationKernel()
+                event_bus = kernel.get_service("event_bus")
+                if event_bus:
+                    await event_bus.publish_event(
+                        event_type="compaction_triggered",
+                        event_data={
+                            "chat_id": str(chat_id),
+                            "compaction_id": str(compaction.id),
+                            "original_message_count": active_count,
+                        },
+                        severity="info",
+                        source="context_manager",
+                        persist=True,
+                    )
+            except Exception as e:
+                logger.warning("Failed to publish compaction_triggered event: %s", e)
 
-        # Invalidate conversation cache so next fetch reflects the compaction
-        await self.invalidate_conversation_cache(chat_id)
+            return str(compaction.id)
 
-        # Publish event via EventBus if available
+    async def perform_compaction(self, chat_id: UUID, compaction_id: str) -> Dict[str, Any]:
+        """Run LLM-based summarization for a pending compaction record.
+
+        This is the heavy operation meant to run inside an ARQ background worker.
+        It loads conversation messages, calls Ollama for a summary, updates the
+        compaction record, marks old messages as excluded, and invalidates the cache.
+        """
+        from app.services.ollama_client import OllamaClient
+
+        # Obtain an OllamaClient — try the kernel first, fall back to a fresh one
+        ollama: Optional[OllamaClient] = None
+        owns_ollama = False
         try:
             from app.kernel import WorkstationKernel
-
             kernel = WorkstationKernel()
-            event_bus = kernel.get_service("event_bus")
-            if event_bus:
-                await event_bus.publish_event(
-                    event_type="context_compacted",
-                    event_data={
-                        "chat_id": str(chat_id),
-                        "compaction_id": compaction_id,
-                        "original_message_count": original_count,
-                    },
-                    severity="info",
-                    source="context_manager",
-                    persist=True,
-                )
+            svc = kernel.get_service("ollama_client")
+            if svc is not None and svc.is_running:
+                ollama = svc
         except Exception as e:
-            logger.warning(f"Failed to publish context_compacted event: {e}")
+            logger.debug(
+                "Could not obtain OllamaClient from WorkstationKernel "
+                "(get_service('ollama_client'), svc.is_running): %s; "
+                "falling back to standalone ollama client",
+                e,
+            )
 
-        return compaction_id
+        if ollama is None:
+            ollama = OllamaClient(
+                base_url=os.environ.get(
+                    "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
+                )
+            )
+            await ollama.startup()
+            owns_ollama = True
+
+        try:
+            async with self._session_factory() as session:
+                # Load active (non-excluded) messages in chronological order
+                msg_result = await session.execute(
+                    select(Message)
+                    .where(
+                        Message.chat_id == chat_id,
+                        Message.is_excluded == False,  # noqa: E712
+                    )
+                    .order_by(Message.created_at.asc())
+                )
+                messages = list(msg_result.scalars().all())
+
+                if len(messages) < 6:
+                    logger.info(
+                        "Skipping compaction for chat %s: only %d active messages",
+                        chat_id, len(messages),
+                    )
+                    return {"status": "skipped", "reason": "too_few_messages"}
+
+                # Keep newest 25% (minimum 5 messages)
+                keep_count = max(5, len(messages) // 4)
+                to_compact = messages[:-keep_count]
+
+                # Build summarization prompt — truncate each message to 500 chars
+                truncated_history = "\n".join(
+                    f"{m.role}: {m.content[:500]}" for m in to_compact
+                )
+
+                summarization_messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Summarize the following conversation history concisely, "
+                            "preserving key context, decisions, and important details. "
+                            "Output only the summary."
+                        ),
+                    },
+                    {"role": "user", "content": truncated_history},
+                ]
+
+                # Call Ollama with low temperature for factual output
+                llm_result = await ollama.chat_completion(
+                    messages=summarization_messages,
+                    temperature=0.3,
+                )
+                summary = llm_result.get("message", {}).get("content", "")
+
+                if not summary:
+                    logger.warning("Empty summary from LLM for chat %s", chat_id)
+                    return {"status": "failed", "reason": "empty_summary"}
+
+                # Update compaction record with real summary
+                compaction = await session.get(
+                    ContextCompaction, UUID(compaction_id)
+                )
+                if compaction:
+                    compaction.summary = summary
+                    compaction.compacted_message_count = len(to_compact)
+                    compaction.status = "completed"
+
+                # Mark compacted messages as excluded (soft removal)
+                for msg in to_compact:
+                    msg.is_excluded = True
+
+                await session.commit()
+
+            # Invalidate conversation cache so next fetch uses the summary
+            await self.invalidate_conversation_cache(chat_id)
+
+            # Publish event via EventBus if available
+            try:
+                from app.kernel import WorkstationKernel
+                kernel = WorkstationKernel()
+                event_bus = kernel.get_service("event_bus")
+                if event_bus:
+                    await event_bus.publish_event(
+                        event_type="context_compacted",
+                        event_data={
+                            "chat_id": str(chat_id),
+                            "compaction_id": compaction_id,
+                            "compacted_message_count": len(to_compact),
+                            "summary_length": len(summary),
+                        },
+                        severity="info",
+                        source="context_manager",
+                        persist=True,
+                    )
+            except Exception as e:
+                logger.warning("Failed to publish context_compacted event: %s", e)
+
+            logger.info(
+                "Compaction completed: chat_id=%s, compacted=%d messages, summary=%d chars",
+                chat_id, len(to_compact), len(summary),
+            )
+            return {
+                "status": "completed",
+                "compaction_id": compaction_id,
+                "compacted_count": len(to_compact),
+                "summary_length": len(summary),
+            }
+
+        except Exception as exc:
+            logger.error("Compaction failed for chat %s: %s", chat_id, exc)
+            return {"status": "failed", "reason": str(exc)}
+
+        finally:
+            if owns_ollama and ollama is not None:
+                await ollama.shutdown()
 
     # -------------------------------------------------------------------------
     # Knowledge Base Context Retrieval
@@ -537,3 +698,16 @@ class ContextManager(BaseKernelService):
             select(UserPreference).where(UserPreference.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    def _count_conversation_tokens(messages: List[Dict[str, Any]]) -> int:
+        """Count actual tokens in conversation messages using tiktoken."""
+        try:
+            from app.kernel.token_counter import TokenCounter
+            counter = TokenCounter()
+            return counter.count_messages(
+                [{"role": m.get("role", ""), "content": m.get("content", "")} for m in messages]
+            )
+        except Exception:
+            # Fallback to message count if tiktoken unavailable
+            return len(messages)

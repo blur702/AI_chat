@@ -18,6 +18,7 @@ from app.models.kb_chunk import KBChunk
 from app.models.kb_source import KBSource
 from app.models.message import Message
 from app.models.project import Project
+from app.models.project_import import ProjectImport
 from app.models.resource import Resource
 from app.models.user import User
 from app.models.user_preference import UserPreference
@@ -37,6 +38,7 @@ __all__ = [
     "KBSource",
     "Message",
     "Project",
+    "ProjectImport",
     "Resource",
     "TimestampMixin",
     "UUIDMixin",

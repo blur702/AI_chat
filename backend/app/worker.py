@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from uuid import UUID
@@ -356,6 +357,49 @@ async def generate_image_task(ctx, generation_id: str) -> dict:
         await client.shutdown()
 
 
+async def compact_conversation_task(ctx, chat_id: str) -> dict:
+    """Background task for LLM-based conversation compaction.
+
+    Creates a pending compaction record, then runs actual summarization via
+    the OllamaClient to produce a real summary of older messages.
+    """
+    import redis.asyncio as aioredis
+
+    from app.database import AsyncSessionLocal
+    from app.kernel.context_manager import ContextManager
+
+    chat_uuid = UUID(chat_id)
+    logger.info("Starting compaction task for chat %s", chat_id)
+
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+    cm = ContextManager(
+        session_factory=AsyncSessionLocal, redis_client=redis_client
+    )
+    await cm.startup()
+
+    try:
+        compaction_id = await cm.trigger_compaction(chat_uuid)
+        if compaction_id is None:
+            logger.info(
+                "Compaction skipped for chat %s: not enough messages or already pending",
+                chat_id,
+            )
+            return {"chat_id": chat_id, "status": "skipped"}
+
+        result = await cm.perform_compaction(chat_uuid, compaction_id)
+        logger.info("Compaction result for chat %s: %s", chat_id, result)
+        return {"chat_id": chat_id, **result}
+
+    except Exception as exc:
+        logger.error("Compaction task failed for chat %s: %s", chat_id, exc)
+        return {"chat_id": chat_id, "status": "failed", "error": str(exc)}
+
+    finally:
+        await cm.shutdown()
+
+
 async def execute_automation_action_task(ctx, action_id: str) -> dict:
     """Execute an approved automation action in the project sandbox."""
     from datetime import datetime, timezone
@@ -423,6 +467,316 @@ async def execute_automation_action_task(ctx, action_id: str) -> dict:
         await sandbox.shutdown()
 
 
+def _get_install_command(project_type: str, framework: str | None, file_paths: list[str]) -> str | None:
+    """Return the appropriate dependency install command for a project type."""
+    names = {p.rsplit("/", 1)[-1] if "/" in p else p for p in file_paths}
+
+    if project_type == "python":
+        if "requirements.txt" in names:
+            return "pip install -r requirements.txt"
+        if "pyproject.toml" in names:
+            return "pip install -e ."
+        return None
+
+    if project_type == "node":
+        if "pnpm-lock.yaml" in names:
+            return "pnpm install"
+        if "yarn.lock" in names:
+            return "yarn install"
+        if "package-lock.json" in names:
+            return "npm ci"
+        return "npm install"
+
+    if project_type == "php":
+        return "composer install --no-interaction"
+
+    if project_type == "ruby":
+        return "bundle install"
+
+    return None
+
+
+def _validate_archive(path: str) -> None:
+    """Validate an uploaded archive for security.
+
+    Raises ValueError on rejection.
+    """
+    import tarfile
+    import zipfile
+
+    max_size = 500 * 1024 * 1024  # 500MB
+    file_size = os.path.getsize(path)
+    if file_size > max_size:
+        raise ValueError(f"Archive too large ({file_size} bytes, max {max_size})")
+
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path, "r") as zf:
+            for info in zf.infolist():
+                # Reject symlinks (external_attr check for Unix symlinks)
+                if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                    raise ValueError(f"Archive contains symlink: {info.filename}")
+                # Reject path traversal
+                if ".." in info.filename or info.filename.startswith("/"):
+                    raise ValueError(f"Archive contains unsafe path: {info.filename}")
+    elif tarfile.is_tarfile(path):
+        with tarfile.open(path, "r:*") as tf:
+            for member in tf.getmembers():
+                if member.issym() or member.islnk():
+                    raise ValueError(f"Archive contains symlink: {member.name}")
+                if ".." in member.name or member.name.startswith("/"):
+                    raise ValueError(f"Archive contains unsafe path: {member.name}")
+    else:
+        raise ValueError("Unsupported archive format (must be zip or tar)")
+
+
+async def import_git_project_task(ctx, import_id: str) -> dict:
+    """Clone a Git repository into a project container."""
+    import shlex
+
+    from app.database import AsyncSessionLocal
+    from app.models.project_import import ProjectImport
+    from app.services.project_detector import ProjectDetector
+    from app.services.sandbox_manager import SandboxManager
+    from sqlalchemy import select
+
+    import_uuid = UUID(import_id)
+    logger.info("Starting git import for %s", import_id)
+
+    sandbox = SandboxManager()
+    await sandbox.startup()
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(ProjectImport).where(ProjectImport.id == import_uuid)
+            )
+            record = result.scalar_one_or_none()
+            if record is None:
+                logger.error("ProjectImport %s not found", import_id)
+                return {"import_id": import_id, "status": "failed"}
+
+            # Update status: cloning
+            record.status = "cloning"
+            record.progress_message = "Cloning repository..."
+            await db.commit()
+
+            git_url = record.source_url
+            branch = record.import_options.get("branch")
+            install_deps = record.import_options.get("install_deps", True)
+
+            # Ensure container exists
+            container_id = await sandbox.get_or_create_container(record.project_id)
+
+            # Clone into a temp directory, then copy to /workspace
+            clone_cmd = f"git clone --depth 1 {shlex.quote(git_url)}"
+            if branch:
+                clone_cmd += f" --branch {shlex.quote(branch)}"
+            clone_cmd += " /tmp/_clone"
+
+            try:
+                await sandbox._exec_simple(container_id, clone_cmd)
+            except RuntimeError as e:
+                record.status = "failed"
+                record.error_message = f"Git clone failed: {e}"
+                await db.commit()
+                return {"import_id": import_id, "status": "failed"}
+
+            # Copy cloned files to workspace and clean up
+            await sandbox._exec_simple(
+                container_id, "cp -a /tmp/_clone/. /workspace/ && rm -rf /tmp/_clone"
+            )
+
+            # Detect project type
+            record.status = "detecting"
+            record.progress_message = "Detecting project type..."
+            await db.commit()
+
+            detection = await ProjectDetector.detect_from_container(sandbox, container_id)
+            record.detected_type = detection.project_type
+            record.detected_template_id = detection.suggested_template_id
+            await db.commit()
+
+            # Install dependencies if requested
+            if install_deps and detection.project_type != "unknown":
+                entries = await sandbox.list_directory_recursive(container_id)
+                file_paths = [e["path"] for e in entries]
+                install_cmd = _get_install_command(
+                    detection.project_type, detection.framework, file_paths
+                )
+                if install_cmd:
+                    record.status = "installing"
+                    record.progress_message = f"Running: {install_cmd}"
+                    await db.commit()
+                    try:
+                        await sandbox._exec_simple(container_id, install_cmd)
+                    except RuntimeError as e:
+                        logger.warning("Install command failed: %s", e)
+                        # Non-fatal; continue to completed
+
+            record.status = "completed"
+            record.progress_message = "Import completed successfully"
+            await db.commit()
+
+            logger.info("Git import completed for %s", import_id)
+            return {"import_id": import_id, "status": "completed"}
+
+    except Exception as exc:
+        logger.error("Git import failed for %s: %s", import_id, exc)
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(ProjectImport).where(ProjectImport.id == import_uuid)
+                )
+                record = result.scalar_one_or_none()
+                if record:
+                    record.status = "failed"
+                    record.error_message = str(exc)
+                    await db.commit()
+        except Exception as status_exc:
+            logger.warning("Failed to mark import %s as failed: %s", import_id, status_exc)
+        return {"import_id": import_id, "status": "failed"}
+    finally:
+        await sandbox.shutdown()
+
+
+async def import_archive_project_task(ctx, import_id: str, archive_path: str) -> dict:
+    """Extract an uploaded archive into a project container."""
+    import io
+    import tarfile
+    import zipfile
+
+    from app.database import AsyncSessionLocal
+    from app.models.project_import import ProjectImport
+    from app.services.project_detector import ProjectDetector
+    from app.services.sandbox_manager import SandboxManager
+    from sqlalchemy import select
+
+    import_uuid = UUID(import_id)
+    logger.info("Starting archive import for %s", import_id)
+
+    sandbox = SandboxManager()
+    await sandbox.startup()
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(ProjectImport).where(ProjectImport.id == import_uuid)
+            )
+            record = result.scalar_one_or_none()
+            if record is None:
+                logger.error("ProjectImport %s not found", import_id)
+                return {"import_id": import_id, "status": "failed"}
+
+            # Validate archive
+            record.status = "extracting"
+            record.progress_message = "Validating archive..."
+            await db.commit()
+
+            try:
+                _validate_archive(archive_path)
+            except ValueError as ve:
+                record.status = "failed"
+                record.error_message = str(ve)
+                await db.commit()
+                return {"import_id": import_id, "status": "failed"}
+
+            # Ensure container exists
+            container_id = await sandbox.get_or_create_container(record.project_id)
+
+            record.progress_message = "Extracting archive..."
+            await db.commit()
+
+            # Convert archive to tar format and put into container
+            tar_buffer = io.BytesIO()
+            if zipfile.is_zipfile(archive_path):
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    with tarfile.open(fileobj=tar_buffer, mode="w") as tf:
+                        for info in zf.infolist():
+                            if info.is_dir():
+                                ti = tarfile.TarInfo(name=info.filename)
+                                ti.type = tarfile.DIRTYPE
+                                ti.mode = 0o755
+                                tf.addfile(ti)
+                            else:
+                                data = zf.read(info.filename)
+                                ti = tarfile.TarInfo(name=info.filename)
+                                ti.size = len(data)
+                                ti.mode = 0o644
+                                tf.addfile(ti, io.BytesIO(data))
+            else:
+                # Already a tar — read raw bytes
+                with open(archive_path, "rb") as f:
+                    tar_buffer = io.BytesIO(f.read())
+
+            tar_bytes = tar_buffer.getvalue()
+            ok = await asyncio.to_thread(
+                sandbox._client.api.put_archive, container_id, "/workspace", tar_bytes
+            )
+            if not ok:
+                record.status = "failed"
+                record.error_message = "Failed to extract archive into container"
+                await db.commit()
+                return {"import_id": import_id, "status": "failed"}
+
+            # Detect project type
+            record.status = "detecting"
+            record.progress_message = "Detecting project type..."
+            await db.commit()
+
+            detection = await ProjectDetector.detect_from_container(sandbox, container_id)
+            record.detected_type = detection.project_type
+            record.detected_template_id = detection.suggested_template_id
+            await db.commit()
+
+            # Install dependencies
+            install_deps = record.import_options.get("install_deps", True)
+            if install_deps and detection.project_type != "unknown":
+                entries = await sandbox.list_directory_recursive(container_id)
+                file_paths = [e["path"] for e in entries]
+                install_cmd = _get_install_command(
+                    detection.project_type, detection.framework, file_paths
+                )
+                if install_cmd:
+                    record.status = "installing"
+                    record.progress_message = f"Running: {install_cmd}"
+                    await db.commit()
+                    try:
+                        await sandbox._exec_simple(container_id, install_cmd)
+                    except RuntimeError as e:
+                        logger.warning("Install command failed: %s", e)
+
+            record.status = "completed"
+            record.progress_message = "Import completed successfully"
+            await db.commit()
+
+            logger.info("Archive import completed for %s", import_id)
+            return {"import_id": import_id, "status": "completed"}
+
+    except Exception as exc:
+        logger.error("Archive import failed for %s: %s", import_id, exc)
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(ProjectImport).where(ProjectImport.id == import_uuid)
+                )
+                record = result.scalar_one_or_none()
+                if record:
+                    record.status = "failed"
+                    record.error_message = str(exc)
+                    await db.commit()
+        except Exception as status_exc:
+            logger.warning("Failed to mark import %s as failed: %s", import_id, status_exc)
+        return {"import_id": import_id, "status": "failed"}
+    finally:
+        await sandbox.shutdown()
+        # Clean up temp file
+        try:
+            if os.path.exists(archive_path):
+                os.remove(archive_path)
+        except OSError:
+            logger.warning("Failed to remove temp archive %s", archive_path)
+
+
 class WorkerSettings:
     """ARQ Worker settings."""
     redis_settings = get_redis_settings()
@@ -432,6 +786,9 @@ class WorkerSettings:
         generate_embeddings_task,
         generate_image_task,
         execute_automation_action_task,
+        compact_conversation_task,
+        import_git_project_task,
+        import_archive_project_task,
     ]
     max_jobs = 20
     job_timeout = 600

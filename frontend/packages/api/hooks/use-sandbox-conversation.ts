@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "../client";
 import type { ConversationState, MessageSummary, FileNode } from "../types";
+import { useTokenUsage } from "./use-token-usage";
+import type { TokenUsage } from "./use-token-usage";
 
 interface SandboxContext {
   selectedFile: string | null;
@@ -16,6 +18,7 @@ interface UseSandboxConversationReturn {
   processing: boolean;
   progress: number;
   error: string | null;
+  tokenUsage: TokenUsage | null;
   sendMessage: (content: string) => Promise<boolean>;
 }
 
@@ -57,6 +60,9 @@ export function useSandboxConversation(
   const abortRef = useRef<(() => void) | null>(null);
   const contextRef = useRef(context);
   contextRef.current = context;
+  const { tokenUsage, setFromStream } = useTokenUsage(chatId);
+  const setFromStreamRef = useRef(setFromStream);
+  setFromStreamRef.current = setFromStream;
 
   const clearProgress = useCallback(() => {
     if (progressRef.current) {
@@ -213,6 +219,7 @@ export function useSandboxConversation(
             );
             return { ...prev, messages: msgs };
           });
+          setFromStreamRef.current(data);
           finishProgress();
           abortRef.current = null;
         },
@@ -243,6 +250,7 @@ export function useSandboxConversation(
     processing,
     progress,
     error,
+    tokenUsage,
     sendMessage,
   };
 }

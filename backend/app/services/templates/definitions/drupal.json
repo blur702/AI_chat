@@ -1,0 +1,35 @@
+{
+  "id": "drupal",
+  "name": "Drupal",
+  "description": "Drupal CMS with PHP 8.3, Apache, MySQL sidecar, and Composer dependency management.",
+  "category": "php",
+  "dockerfile": "drupal/Dockerfile",
+  "scaffold_files": {
+    "web/sites/default/settings.local.php": "<?php\n\n$databases['default']['default'] = [\n  'database' => 'drupal',\n  'username' => 'drupal',\n  'password' => 'drupal',\n  'host' => 'drupal-db',\n  'port' => '3306',\n  'driver' => 'mysql',\n  'prefix' => '',\n];\n"
+  },
+  "setup_commands": [
+    "composer install --no-interaction --prefer-dist",
+    "chmod -R 775 web/sites/default/files || true"
+  ],
+  "exposed_ports": [8080],
+  "environment": {
+    "COMPOSER_ALLOW_SUPERUSER": "1"
+  },
+  "sidecar_services": [
+    {
+      "name": "drupal-db",
+      "image": "mysql:8.0",
+      "environment": {
+        "MYSQL_ROOT_PASSWORD": "root",
+        "MYSQL_DATABASE": "drupal",
+        "MYSQL_USER": "drupal",
+        "MYSQL_PASSWORD": "drupal"
+      },
+      "exposed_ports": [3306],
+      "volumes": {},
+      "memory_limit": "512m"
+    }
+  ],
+  "memory_limit": "1g",
+  "cpu_quota": 100000
+}

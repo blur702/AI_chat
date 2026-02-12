@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "../client";
 import type { ConversationState, MessageSummary } from "../types";
+import { useTokenUsage } from "./use-token-usage";
+import type { TokenUsage } from "./use-token-usage";
 
 interface UseConversationReturn {
   conversation: ConversationState | null;
@@ -11,6 +13,7 @@ interface UseConversationReturn {
   processing: boolean;
   progress: number;
   error: string | null;
+  tokenUsage: TokenUsage | null;
   refresh: () => Promise<void>;
   sendMessage: (content: string, role?: string) => Promise<boolean>;
 }
@@ -24,6 +27,9 @@ export function useConversation(chatId: string | null): UseConversationReturn {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const { tokenUsage, setFromStream } = useTokenUsage(chatId);
+  const setFromStreamRef = useRef(setFromStream);
+  setFromStreamRef.current = setFromStream;
 
   const clearProgress = useCallback(() => {
     if (progressRef.current) {
@@ -161,6 +167,7 @@ export function useConversation(chatId: string | null): UseConversationReturn {
             );
             return { ...prev, messages: msgs };
           });
+          setFromStreamRef.current(data);
           finishProgress();
           abortRef.current = null;
         },
@@ -191,6 +198,7 @@ export function useConversation(chatId: string | null): UseConversationReturn {
     processing,
     progress,
     error,
+    tokenUsage,
     refresh,
     sendMessage,
   };

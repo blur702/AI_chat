@@ -161,6 +161,10 @@ export interface StreamDoneEvent {
   message_id: string;
   model: string;
   created_at?: string;
+  action_ids?: string[];
+  token_count?: number;
+  max_tokens?: number;
+  usage_ratio?: number;
 }
 
 export interface StreamErrorEvent {
@@ -175,10 +179,35 @@ export interface SandboxChatResponse {
   conversation: ConversationState;
 }
 
+export interface SidecarServiceInfo {
+  name: string;
+  image: string;
+  exposed_ports: number[];
+}
+
+export interface TemplateInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  docker_image?: string;
+  exposed_ports: number[];
+  sidecar_services: SidecarServiceInfo[];
+  memory_limit: string;
+  cpu_quota: number;
+}
+
+export interface TemplateListResponse {
+  templates: TemplateInfo[];
+  categories: string[];
+  count: number;
+}
+
 export interface ProjectCreateRequest {
   name: string;
   path: string;
   type?: string;
+  template_id?: string;
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];
@@ -196,6 +225,7 @@ export interface ProjectUpdateRequest {
   name?: string;
   path?: string;
   type?: string;
+  template_id?: string;
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];

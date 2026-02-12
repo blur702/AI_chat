@@ -283,6 +283,7 @@ class ProjectCreateRequest(BaseModel):
     name: str = Field(..., max_length=255, description="Project name")
     path: str = Field(..., description="Project filesystem path")
     type: Optional[str] = Field(None, max_length=50, description="Project type")
+    template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None
@@ -304,6 +305,7 @@ class ProjectUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     path: Optional[str] = None
     type: Optional[str] = Field(None, max_length=50)
+    template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None

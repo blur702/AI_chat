@@ -20,6 +20,8 @@ from app.api.context_deps import (
     validate_chat_access,
 )
 from app.kernel.context_manager import ContextManager
+from app.kernel.prompt_builder import PromptBuilder
+from app.kernel.token_counter import TokenCounter
 from app.models.automation_action import AutomationAction
 from app.models.message import Message
 from app.schemas.context import (
@@ -31,6 +33,10 @@ from app.schemas.context import (
 from app.services.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
+
+# Shared prompt builder instance
+_token_counter = TokenCounter()
+_prompt_builder = PromptBuilder(_token_counter)
 
 router = APIRouter(prefix="/context", tags=["context"])
 
@@ -83,7 +89,7 @@ async def _extract_and_create_actions(
 # -------------------------------------------------------------------------
 
 
-@router.get("/conversation/{chat_id}", response_model=ConversationStateResponse)
+@router.get("/conversations/{chat_id}", response_model=ConversationStateResponse)
 async def get_conversation_state(
     chat_id: UUID,
     cm: ContextManager = Depends(get_context_manager),
@@ -104,7 +110,7 @@ async def get_conversation_state(
     return ConversationStateResponse(**state)
 
 
-@router.put("/conversation/{chat_id}", response_model=ConversationStateResponse)
+@router.put("/conversations/{chat_id}", response_model=ConversationStateResponse)
 async def update_conversation_state(
     chat_id: UUID,
     body: ConversationStateUpdateRequest,
@@ -127,7 +133,7 @@ async def update_conversation_state(
 
 
 @router.delete(
-    "/conversation/{chat_id}",
+    "/conversations/{chat_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def invalidate_conversation_cache(
@@ -182,46 +188,39 @@ async def submit_message(
 
     # -- 2. Build prompt from conversation history -------------------------
     state = await cm.get_conversation_state(chat_id)
-    history_messages: list[dict[str, str]] = []
 
     prefs = await cm.get_user_preferences(user_id)
-    system_prompt = (
-        prefs.get("custom_system_prompt")
-        or "You are a helpful AI assistant."
-    )
-    history_messages.append({"role": "system", "content": system_prompt})
-
-    if state and state.get("messages"):
-        recent = [
-            m for m in state["messages"]
-            if not m.get("is_excluded", False)
-        ][-50:]
-        for m in recent:
-            if m["role"] in ("user", "assistant"):
-                history_messages.append(
-                    {"role": m["role"], "content": m["content"]}
-                )
-
-    # -- 2b. Inject KB context (RAG) -----------------------------------------
     project_id = state.get("project_id") if state else None
+    project_context = {}
+    if project_id:
+        project_context = await cm.get_project_context(UUID(str(project_id))) or {}
+
+    system_prompt = _prompt_builder.build_system_prompt(prefs, project_context)
+
+    # -- 2b. Retrieve KB context (RAG) -----------------------------------------
+    kb_results = []
     if project_id:
         kb_results = await cm.get_relevant_kb_context(
             project_id=project_id, query=body.content, top_k=3
         )
-        if kb_results:
-            kb_context = "\n\n".join(
-                f"[Knowledge Base Context {i + 1}]\n{r['content']}"
-                for i, r in enumerate(kb_results)
-            )
-            history_messages.insert(1, {
-                "role": "system",
-                "content": f"Relevant project knowledge:\n{kb_context}",
-            })
-
-    history_messages.append({"role": "user", "content": body.content})
 
     # -- 3. Resolve model --------------------------------------------------
     model = body.model or await ollama.get_default_model()
+
+    # -- 3b. Build token-aware message list --------------------------------
+    conversation_msgs = list(state.get("messages", []) if state else [])
+    # Append the new user message so it's included in windowing
+    conversation_msgs.append({"role": "user", "content": body.content, "is_excluded": False})
+
+    history_messages, total_tokens = _prompt_builder.build_messages(
+        conversation_messages=conversation_msgs,
+        system_prompt=system_prompt,
+        kb_results=kb_results,
+        compactions=state.get("compactions", []) if state else [],
+        model_name=model,
+    )
+
+    temperature = prefs.get("default_temperature") or 0.7
 
     # -- 4. Call Ollama (no open DB transaction) ----------------------------
     t0 = time.monotonic()
@@ -229,6 +228,7 @@ async def submit_message(
         result = await ollama.chat_completion(
             messages=history_messages,
             model=model,
+            temperature=temperature,
         )
     except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as exc:
         # Use a fresh session to avoid race conditions with the injected session
@@ -284,8 +284,25 @@ async def submit_message(
             assistant_content, UUID(str(project_id)), db
         )
 
-    # -- 7. Invalidate cache -----------------------------------------------
+    # -- 7. Invalidate cache and track token usage -------------------------
     await cm.invalidate_conversation_cache(chat_id)
+
+    # Track token usage and enqueue compaction if threshold exceeded
+    response_tokens = _token_counter.count_tokens(assistant_content)
+    final_token_count = total_tokens + response_tokens
+    context_window = _token_counter.estimate_model_context_window(model)
+    needs_compaction = await cm.track_token_usage(chat_id, final_token_count, context_window)
+
+    if needs_compaction:
+        try:
+            from arq import create_pool
+            from app.worker import get_redis_settings
+            pool = await create_pool(get_redis_settings())
+            await pool.enqueue_job("compact_conversation_task", str(chat_id))
+            await pool.aclose()
+            logger.info("Enqueued compaction task for chat %s", chat_id)
+        except Exception as enqueue_exc:
+            logger.warning("Failed to enqueue compaction for chat %s: %s", chat_id, enqueue_exc)
 
     response = MessageSubmitResponse(
         message_id=user_msg_id,
@@ -359,46 +376,38 @@ async def stream_message(
 
     # -- Build prompt from conversation history ----------------------------
     state = await cm.get_conversation_state(chat_id)
-    history_messages: list[dict[str, str]] = []
 
     prefs = await cm.get_user_preferences(user_id)
-    system_prompt = (
-        prefs.get("custom_system_prompt")
-        or "You are a helpful AI assistant."
-    )
-    history_messages.append({"role": "system", "content": system_prompt})
-
-    if state and state.get("messages"):
-        recent = [
-            m for m in state["messages"]
-            if not m.get("is_excluded", False)
-        ][-50:]
-        for m in recent:
-            if m["role"] in ("user", "assistant"):
-                history_messages.append(
-                    {"role": m["role"], "content": m["content"]}
-                )
-
-    # -- Inject KB context (RAG) for streaming -----------------------------
     project_id = state.get("project_id") if state else None
+    project_context = {}
+    if project_id:
+        project_context = await cm.get_project_context(UUID(str(project_id))) or {}
+
+    system_prompt = _prompt_builder.build_system_prompt(prefs, project_context)
+
+    # -- Retrieve KB context (RAG) for streaming ---------------------------
+    kb_results = []
     if project_id:
         kb_results = await cm.get_relevant_kb_context(
             project_id=project_id, query=content, top_k=3
         )
-        if kb_results:
-            kb_context = "\n\n".join(
-                f"[Knowledge Base Context {i + 1}]\n{r['content']}"
-                for i, r in enumerate(kb_results)
-            )
-            history_messages.insert(1, {
-                "role": "system",
-                "content": f"Relevant project knowledge:\n{kb_context}",
-            })
-
-    history_messages.append({"role": "user", "content": content})
 
     # -- Resolve model -----------------------------------------------------
     resolved_model = model or await ollama.get_default_model()
+
+    # -- Build token-aware message list ------------------------------------
+    conversation_msgs = list(state.get("messages", []) if state else [])
+    conversation_msgs.append({"role": "user", "content": content, "is_excluded": False})
+
+    history_messages, total_tokens = _prompt_builder.build_messages(
+        conversation_messages=conversation_msgs,
+        system_prompt=system_prompt,
+        kb_results=kb_results,
+        compactions=state.get("compactions", []) if state else [],
+        model_name=resolved_model,
+    )
+
+    temperature = prefs.get("default_temperature") or 0.7
 
     # -- SSE generator -----------------------------------------------------
     async def event_generator():
@@ -408,6 +417,7 @@ async def stream_message(
             async for token_text in ollama.chat_completion_stream(
                 messages=history_messages,
                 model=resolved_model,
+                temperature=temperature,
             ):
                 full_content += token_text
                 event = json.dumps({"type": "token", "content": token_text})
@@ -445,11 +455,42 @@ async def stream_message(
                         full_content, UUID(str(project_id)), persist_db
                     )
 
+            # Track token usage and enqueue compaction if threshold exceeded
+            response_tokens = _token_counter.count_tokens(full_content)
+            final_token_count = total_tokens + response_tokens
+            context_window = _token_counter.estimate_model_context_window(resolved_model)
+            needs_compaction = await cm.track_token_usage(
+                chat_id, final_token_count, context_window
+            )
+
+            if needs_compaction:
+                try:
+                    from arq import create_pool
+                    from app.worker import get_redis_settings
+                    pool = await create_pool(get_redis_settings())
+                    await pool.enqueue_job(
+                        "compact_conversation_task", str(chat_id)
+                    )
+                    await pool.aclose()
+                    logger.info("SSE: enqueued compaction task for chat %s", chat_id)
+                except Exception as enqueue_exc:
+                    logger.warning(
+                        "SSE: failed to enqueue compaction for chat %s: %s",
+                        chat_id, enqueue_exc,
+                    )
+
             done_payload = {
                 "type": "done",
                 "message_id": assistant_msg_id,
                 "model": resolved_model,
                 "created_at": assistant_created,
+                "token_count": final_token_count,
+                "max_tokens": context_window,
+                "usage_ratio": (
+                    final_token_count / context_window
+                    if context_window > 0
+                    else 0.0
+                ),
             }
             if action_ids:
                 done_payload["action_ids"] = action_ids

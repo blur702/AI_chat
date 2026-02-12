@@ -1,9 +1,13 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn, useBreakpoint } from "@workstation/ui";
-import { Plus, MessageSquare, Settings } from "lucide-react";
+import { Plus, MessageSquare, Settings, Loader2 } from "lucide-react";
+import { getClient } from "@workstation/api";
+
+const PROJECT_ID_KEY = "workstation_chat_project_id";
 
 const LINK_ITEMS = [
   { href: "/chat", icon: MessageSquare, label: "Chats" },
@@ -12,13 +16,34 @@ const LINK_ITEMS = [
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isMobile } = useBreakpoint();
+  const [creating, setCreating] = useState(false);
+
+  const handleNewChat = useCallback(async () => {
+    if (creating) return;
+    let projectId: string | null = null;
+    try {
+      projectId = localStorage.getItem(PROJECT_ID_KEY);
+    } catch {
+      // localStorage may be unavailable
+    }
+    if (!projectId) return;
+
+    setCreating(true);
+    try {
+      const res = await getClient().createChat(projectId, "New Chat");
+      if (res.id) {
+        router.push(`/chat/${res.id}`);
+      }
+    } catch {
+      // Silently fail — sidebar will show the full error experience
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, router]);
 
   if (!isMobile) return null;
-
-  const handleNewChat = () => {
-    // TODO: Create new chat via API when backend supports POST /api/context/chats
-  };
 
   return (
     <nav
@@ -28,9 +53,14 @@ export function MobileBottomNav() {
     >
       <button
         onClick={handleNewChat}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors min-h-[56px] text-muted-foreground hover:text-foreground"
+        disabled={creating}
+        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors min-h-[56px] text-muted-foreground hover:text-foreground disabled:opacity-50"
       >
-        <Plus className="h-5 w-5" aria-hidden="true" />
+        {creating ? (
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+        ) : (
+          <Plus className="h-5 w-5" aria-hidden="true" />
+        )}
         <span>New Chat</span>
       </button>
 

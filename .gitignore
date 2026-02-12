@@ -112,3 +112,10 @@ tests/e2e/test-results/
 secrets/
 credentials/
 nul
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

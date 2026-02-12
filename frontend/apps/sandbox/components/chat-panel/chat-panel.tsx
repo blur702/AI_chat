@@ -4,6 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import { Button, ScrollArea, cn } from "@workstation/ui";
 import { X, Send, Bot, User, AlertCircle, ListChecks, Wrench, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useSandboxConversation } from "@workstation/api/hooks";
+import type { TokenUsage } from "@workstation/api/hooks/use-token-usage";
 import type { FileNode, ToolExecuteResponse } from "@workstation/api/types";
 import { ThinkingIndicator } from "./thinking-indicator";
 
@@ -29,7 +30,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { messages, loading, processing, progress, error, sendMessage } =
+  const { messages, loading, processing, progress, error, tokenUsage, sendMessage } =
     useSandboxConversation(projectId, {
       selectedFile,
       fileTree,
@@ -167,6 +168,11 @@ export function ChatPanel({
         </div>
       </ScrollArea>
 
+      {/* Token Usage */}
+      {tokenUsage && tokenUsage.max_tokens > 0 && (
+        <SandboxTokenBar tokenUsage={tokenUsage} />
+      )}
+
       {/* Input */}
       <div className="border-t p-2">
         <div className="flex items-center gap-1.5">
@@ -187,6 +193,35 @@ export function ChatPanel({
             <Send className="h-3.5 w-3.5" />
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SandboxTokenBar({ tokenUsage }: { tokenUsage: TokenUsage }) {
+  const percentage = Math.round(tokenUsage.usage_ratio * 100);
+  const barColor =
+    percentage > 80
+      ? "bg-red-500"
+      : percentage > 60
+        ? "bg-yellow-500"
+        : "bg-green-500";
+
+  return (
+    <div className="px-2 pb-1">
+      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full transition-all duration-300", barColor)}
+          style={{ width: `${Math.min(percentage, 100)}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-0.5">
+        <span className="text-[10px] text-muted-foreground">
+          {tokenUsage.current_tokens.toLocaleString()} / {tokenUsage.max_tokens.toLocaleString()} ({percentage}%)
+        </span>
+        {percentage > 80 && (
+          <span className="text-[10px] text-red-500">Context nearly full</span>
+        )}
       </div>
     </div>
   );

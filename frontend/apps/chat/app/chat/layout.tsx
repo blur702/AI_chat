@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button, useBreakpoint } from "@workstation/ui";
+import { useAuth, getClient } from "@workstation/api";
 import { Menu } from "lucide-react";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { SystemStatusBar } from "@/components/system-status-bar";
@@ -10,6 +11,7 @@ const PROJECT_ID_KEY = "workstation_chat_project_id";
 
 function useProjectId(): string | null {
   const [projectId, setProjectId] = useState<string | null>(null);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     let storedId: string | null = null;
@@ -27,8 +29,40 @@ function useProjectId(): string | null {
       } catch {
         // Ignore write failures
       }
+      return;
     }
-  }, []);
+
+    // Wait until authenticated before calling API
+    if (!isAuthenticated) return;
+
+    // No project ID found locally — fetch from API or create a default
+    (async () => {
+      try {
+        const client = getClient();
+        const res = await client.listProjects();
+        let pid: string | null = null;
+        if (res.projects && res.projects.length > 0) {
+          pid = res.projects[0].id;
+        } else {
+          const created = await client.createProject({
+            name: "Default Project",
+            path: "default",
+          });
+          pid = created.id;
+        }
+        if (pid) {
+          setProjectId(pid);
+          try {
+            localStorage.setItem(PROJECT_ID_KEY, pid);
+          } catch {
+            // Ignore write failures
+          }
+        }
+      } catch {
+        // API unavailable — will retry on next mount
+      }
+    })();
+  }, [isAuthenticated]);
 
   return projectId;
 }

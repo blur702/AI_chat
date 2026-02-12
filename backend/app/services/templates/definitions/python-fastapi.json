@@ -1,0 +1,26 @@
+{
+  "id": "python-fastapi",
+  "name": "Python FastAPI",
+  "description": "FastAPI web application with uvicorn, async support, and hot reload.",
+  "category": "python",
+  "docker_image": "python:3.12-slim",
+  "scaffold_files": {
+    "app/__init__.py": "",
+    "app/main.py": "\"\"\"FastAPI application.\"\"\"\n\nfrom fastapi import FastAPI\n\napp = FastAPI(title=\"My API\")\n\n\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Hello from FastAPI\"}\n\n\n@app.get(\"/health\")\nasync def health():\n    return {\"status\": \"ok\"}\n",
+    "requirements.txt": "fastapi>=0.110.0\nuvicorn[standard]>=0.29.0\npydantic>=2.6.0\n",
+    ".gitignore": "__pycache__/\n*.pyc\n.venv/\n*.egg-info/\ndist/\n"
+  },
+  "setup_commands": [
+    "python -m venv /workspace/.venv",
+    "/workspace/.venv/bin/pip install --upgrade pip",
+    "/workspace/.venv/bin/pip install -r /workspace/requirements.txt"
+  ],
+  "exposed_ports": [8000],
+  "environment": {
+    "VIRTUAL_ENV": "/workspace/.venv",
+    "PATH": "/workspace/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "sidecar_services": [],
+  "memory_limit": "512m",
+  "cpu_quota": 50000
+}

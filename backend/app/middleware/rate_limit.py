@@ -403,8 +403,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Endpoint-specific rate limits are also applied via decorators.
     """
 
-    GLOBAL_MAX_REQUESTS = int(os.getenv("GLOBAL_MAX_REQUESTS", "100"))
-    GLOBAL_WINDOW_SECONDS = int(os.getenv("GLOBAL_WINDOW_SECONDS", "900"))
+    GLOBAL_MAX_REQUESTS = int(os.getenv("GLOBAL_MAX_REQUESTS", "600"))
+    GLOBAL_WINDOW_SECONDS = int(os.getenv("GLOBAL_WINDOW_SECONDS", "60"))
 
     # Stricter limits for authentication-related endpoints
     AUTH_ENDPOINT_LIMITS: dict[str, tuple[int, int]] = {

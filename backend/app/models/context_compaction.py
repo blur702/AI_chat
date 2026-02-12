@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -41,6 +41,9 @@ class ContextCompaction(UUIDMixin, TimestampMixin, Base):
     original_message_count: Mapped[int] = mapped_column(Integer, nullable=False)
     compacted_message_count: Mapped[int] = mapped_column(Integer, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="pending"
+    )
 
     # Relationships
     chat: Mapped["Chat"] = relationship("Chat", back_populates="context_compactions")

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.database import engine, close_db, AsyncSessionLocal
-from app.kernel import WorkstationKernel, ResourceManager, EventBus, ToolRegistry, ContextManager
+from app.kernel import WorkstationKernel, ResourceManager, EventBus, ToolRegistry, ContextManager, TokenCounter
 from app.services.ollama_client import OllamaClient
 from app.services.kb_ingestion import KBIngestionService
 from app.services.embedding_service import EmbeddingService
@@ -30,6 +30,8 @@ from app.api.image import router as image_router
 from app.api.sandbox import router as sandbox_router
 from app.api.automation import router as automation_router
 from app.api.yolo import router as yolo_router
+from app.api.templates import router as templates_router
+from app.api.project_import import router as project_import_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -81,6 +83,11 @@ async def lifespan(app: FastAPI):
     context_manager = ContextManager(session_factory=AsyncSessionLocal)
     kernel.register_service(context_manager)
     logger.info("ContextManager registered with kernel")
+
+    # Register TokenCounter for accurate token counting
+    token_counter = TokenCounter()
+    kernel.register_service(token_counter)
+    logger.info("TokenCounter registered with kernel")
 
     # Register OllamaClient for LLM chat completion
     ollama_client = OllamaClient(
@@ -268,6 +275,8 @@ app.include_router(image_router, prefix="/api", tags=["image"])
 app.include_router(sandbox_router, prefix="/api", tags=["sandbox"])
 app.include_router(automation_router, prefix="/api", tags=["automation"])
 app.include_router(yolo_router, prefix="/api", tags=["yolo"])
+app.include_router(templates_router, prefix="/api", tags=["templates"])
+app.include_router(project_import_router, prefix="/api", tags=["projects"])
 
 
 async def check_postgres() -> tuple[bool, str]:

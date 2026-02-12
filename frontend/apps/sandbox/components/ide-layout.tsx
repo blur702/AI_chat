@@ -189,7 +189,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   }, [lastToolExecution]);
 
   const handleSettingsClick = useCallback(() => {
-    // Settings panel placeholder - can be expanded later
+    window.location.href = "/settings";
   }, []);
 
   // Keyboard shortcuts

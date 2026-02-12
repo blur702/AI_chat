@@ -151,7 +151,7 @@ async def list_models(
 # -------------------------------------------------------------------------
 
 
-@router.post("/conversation/{chat_id}/tokens", response_model=TokenUsageResponse)
+@router.post("/conversations/{chat_id}/tokens", response_model=TokenUsageResponse)
 async def track_token_usage(
     chat_id: UUID,
     body: TokenUsageRequest,
@@ -181,7 +181,7 @@ async def track_token_usage(
     )
 
 
-@router.get("/conversation/{chat_id}/tokens", response_model=TokenUsageResponse)
+@router.get("/conversations/{chat_id}/tokens", response_model=TokenUsageResponse)
 async def get_token_usage(
     chat_id: UUID,
     cm: ContextManager = Depends(get_context_manager),

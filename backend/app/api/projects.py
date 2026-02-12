@@ -2,6 +2,7 @@
 
 import logging
 import os
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,7 @@ from app.api.context_deps import (
     get_context_manager,
     get_current_user_payload,
     get_db_session,
+    get_sandbox_manager,
     validate_project_access,
 )
 from app.kernel.context_manager import ContextManager
@@ -25,6 +27,7 @@ from app.schemas.context import (
     ProjectUpdateRequest,
     ProjectUpdateResponse,
 )
+from app.services.sandbox_manager import SandboxManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +80,7 @@ async def _create_project_handler(
     body: ProjectCreateRequest,
     payload: dict,
     db: AsyncSession,
+    sandbox_manager: Optional[SandboxManager] = None,
 ) -> ProjectCreateResponse:
     user_id = payload.get("user_id", "")
     try:
@@ -101,6 +105,22 @@ async def _create_project_handler(
     db.add(project)
     await db.commit()
     await db.refresh(project)
+
+    # Provision a sandbox container with the selected template
+    if body.template_id and sandbox_manager and sandbox_manager.is_running:
+        try:
+            await sandbox_manager.get_or_create_container(
+                project.id, template_id=body.template_id
+            )
+            logger.info(
+                "Provisioned sandbox with template '%s' for project %s",
+                body.template_id, str(project.id)[:12],
+            )
+        except Exception:
+            logger.exception(
+                "Failed to provision sandbox for project %s with template '%s'",
+                str(project.id)[:12], body.template_id,
+            )
 
     return ProjectCreateResponse(
         id=str(project.id),
@@ -232,9 +252,10 @@ async def create_project(
     body: ProjectCreateRequest,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
+    sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> ProjectCreateResponse:
     """Create a new project for the authenticated user."""
-    return await _create_project_handler(body, payload, db)
+    return await _create_project_handler(body, payload, db, sandbox_manager)
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -279,8 +300,9 @@ async def create_project_alias(
     body: ProjectCreateRequest,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
+    sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> ProjectCreateResponse:
-    return await _create_project_handler(body, payload, db)
+    return await _create_project_handler(body, payload, db, sandbox_manager)
 
 
 @context_projects_router.get("/projects", response_model=ProjectListResponse, include_in_schema=False)

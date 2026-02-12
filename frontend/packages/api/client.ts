@@ -73,6 +73,19 @@ import type {
   ImageGenerationResponse,
   ImageGenerationListResponse,
   KBChunk,
+  TemplateInfo,
+  TemplateListResponse,
+  GitImportRequest,
+  GitImportResponse,
+  ArchiveUploadResponse,
+  ImportStatusResponse,
+  DetectionResultResponse,
+  CloneProjectRequest,
+  CloneProjectResponse,
+  SnapshotCreateRequest,
+  SnapshotInfo,
+  SnapshotListResponse,
+  SnapshotRestoreResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -125,6 +138,15 @@ export class WorkstationClient {
         if (!response.ok) {
           const body = await response.text().catch(() => undefined);
           const err = new ApiError(response.status, response.statusText, body);
+
+          // On 401, clear token and redirect to login
+          if (response.status === 401 && typeof window !== "undefined") {
+            localStorage.removeItem("workstation_token");
+            this.token = null;
+            window.location.href = "/login";
+            throw err;
+          }
+
           // Only retry on server errors (5xx), not client errors (4xx)
           if (response.status >= 500 && attempt < this.maxRetries) {
             lastError = err;
@@ -461,12 +483,23 @@ export class WorkstationClient {
     });
   }
 
+  async getTokenUsage(chatId: string): Promise<TokenUsageResponse> {
+    return this.request(`/api/context/conversations/${chatId}/tokens`);
+  }
+
   // Streaming
   streamMessage(
     chatId: string,
     content: string,
     onToken: (token: string) => void,
-    onDone: (data: { message_id: string; model: string; created_at?: string }) => void,
+    onDone: (data: {
+      message_id: string;
+      model: string;
+      created_at?: string;
+      token_count?: number;
+      max_tokens?: number;
+      usage_ratio?: number;
+    }) => void,
     onError: (error: string) => void,
     model?: string
   ): () => void {
@@ -519,6 +552,9 @@ export class WorkstationClient {
                   message_id: event.message_id,
                   model: event.model,
                   created_at: event.created_at,
+                  token_count: event.token_count,
+                  max_tokens: event.max_tokens,
+                  usage_ratio: event.usage_ratio,
                 });
               } else if (event.type === "error") {
                 onError(event.message);
@@ -748,6 +784,132 @@ export class WorkstationClient {
     return this.request(`/api/image/generations/${encodeURIComponent(jobId)}`, {
       method: "DELETE",
     });
+  }
+
+  // Templates
+  async getTemplates(category?: string): Promise<TemplateListResponse> {
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    const query = params.toString();
+    return this.request(`/api/templates${query ? `?${query}` : ""}`);
+  }
+
+  async getTemplate(templateId: string): Promise<TemplateInfo> {
+    return this.request(`/api/templates/${encodeURIComponent(templateId)}`);
+  }
+
+  // Project Import / Export / Snapshots
+  async importFromGit(data: GitImportRequest): Promise<GitImportResponse> {
+    return this.request("/api/projects/import/git", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async importFromArchive(
+    name: string,
+    file: File,
+    installDeps?: boolean,
+    path?: string
+  ): Promise<ArchiveUploadResponse> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("file", file);
+    if (installDeps !== undefined)
+      formData.append("install_deps", String(installDeps));
+    if (path) formData.append("path", path);
+
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/projects/import/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response.json();
+  }
+
+  async getImportStatus(importId: string): Promise<ImportStatusResponse> {
+    return this.request(
+      `/api/projects/import/${encodeURIComponent(importId)}/status`
+    );
+  }
+
+  async detectProjectType(projectId: string): Promise<DetectionResultResponse> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/detect-type`, {
+      method: "POST",
+    });
+  }
+
+  async exportProject(projectId: string): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/export`,
+      { method: "POST", headers }
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response.blob();
+  }
+
+  async cloneProject(
+    projectId: string,
+    data: CloneProjectRequest
+  ): Promise<CloneProjectResponse> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/clone`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createSnapshot(
+    projectId: string,
+    data: SnapshotCreateRequest
+  ): Promise<SnapshotInfo> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/snapshots`,
+      { method: "POST", body: JSON.stringify(data) }
+    );
+  }
+
+  async listSnapshots(projectId: string): Promise<SnapshotListResponse> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/snapshots`
+    );
+  }
+
+  async restoreSnapshot(
+    projectId: string,
+    name: string
+  ): Promise<SnapshotRestoreResponse> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(name)}/restore`,
+      { method: "POST" }
+    );
+  }
+
+  async deleteSnapshot(projectId: string, name: string): Promise<void> {
+    return this.request(
+      `/api/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(name)}`,
+      { method: "DELETE" }
+    );
   }
 
   // Knowledge Base

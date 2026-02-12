@@ -8,13 +8,14 @@ import os
 import shlex
 import tarfile
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 import docker
 from docker.errors import DockerException, NotFound
 
 from app.kernel.base import BaseKernelService
+from app.services.templates import TemplateDefinition, TemplateRegistry
 
 logger = logging.getLogger("workstation.sandbox")
 
@@ -42,6 +43,9 @@ class SandboxManager(BaseKernelService):
         # container_id -> last_activity timestamp
         self._last_activity: Dict[str, float] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
+        # project_id -> list of sidecar container IDs
+        self._sidecars: Dict[str, List[str]] = {}
+        self._template_registry = TemplateRegistry()
 
     @property
     def name(self) -> str:
@@ -74,6 +78,7 @@ class SandboxManager(BaseKernelService):
             self._client = None
         self._containers.clear()
         self._last_activity.clear()
+        self._sidecars.clear()
         self._running = False
         logger.info("SandboxManager stopped")
 
@@ -86,10 +91,25 @@ class SandboxManager(BaseKernelService):
         except DockerException as e:
             return False, f"docker error: {e}"
 
+    @property
+    def template_registry(self) -> TemplateRegistry:
+        """Expose the template registry for use by API endpoints."""
+        return self._template_registry
+
     # -- Container lifecycle --------------------------------------------------
 
-    async def get_or_create_container(self, project_id: UUID) -> str:
+    async def get_or_create_container(
+        self,
+        project_id: UUID,
+        template_id: Optional[str] = None,
+        custom_image: Optional[str] = None,
+    ) -> str:
         """Get existing or create new container for a project.
+
+        Args:
+            project_id: The project UUID.
+            template_id: Optional template ID to resolve image/config from registry.
+            custom_image: Optional Docker image override (takes precedence over template).
 
         Returns the container ID.
         """
@@ -115,10 +135,32 @@ class SandboxManager(BaseKernelService):
                 if container_id in self._last_activity:
                     del self._last_activity[container_id]
 
-        # Create a new container
+        # Resolve template configuration
+        template: Optional[TemplateDefinition] = None
+        if template_id:
+            template = self._template_registry.get(template_id)
+            if template is None:
+                logger.warning("Template '%s' not found, using default image", template_id)
+
+        # Determine image, memory, cpu, environment
+        image = custom_image or SANDBOX_IMAGE
+        mem_limit = SANDBOX_MEMORY_LIMIT
+        cpu_quota = SANDBOX_CPU_QUOTA
+        env_vars: Dict[str, str] = {}
+
+        if template:
+            if template.dockerfile:
+                image = await self._build_template_image(template)
+            elif template.docker_image:
+                image = template.docker_image
+            mem_limit = template.memory_limit
+            cpu_quota = template.cpu_quota
+            env_vars = dict(template.environment)
+
+        # Create the main container
         container = await asyncio.to_thread(
             self._client.containers.run,
-            SANDBOX_IMAGE,
+            image,
             command="sleep infinity",
             detach=True,
             name=f"sandbox-{pid[:12]}",
@@ -131,8 +173,9 @@ class SandboxManager(BaseKernelService):
             volumes={
                 f"sandbox-{pid}": {"bind": "/workspace", "mode": "rw"},
             },
-            mem_limit=SANDBOX_MEMORY_LIMIT,
-            cpu_quota=SANDBOX_CPU_QUOTA,
+            environment=env_vars or None,
+            mem_limit=mem_limit,
+            cpu_quota=cpu_quota,
             read_only=False,
             security_opt=["no-new-privileges"],
             cap_drop=["ALL"],
@@ -143,6 +186,11 @@ class SandboxManager(BaseKernelService):
         self._containers[pid] = container_id
         self._last_activity[container_id] = time.time()
         logger.info("Created sandbox container %s for project %s", container_id[:12], pid[:12])
+
+        # Apply template scaffolding if provided
+        if template:
+            await self._apply_template(container_id, pid, template)
+
         return container_id
 
     async def execute_command(self, container_id: str, command: str) -> dict:
@@ -214,13 +262,26 @@ class SandboxManager(BaseKernelService):
         return info.get("ExitCode", -1)
 
     async def stop_container(self, project_id: UUID) -> bool:
-        """Stop and remove a container for a project."""
+        """Stop and remove a container and its sidecars for a project."""
         pid = str(project_id)
         container_id = self._containers.pop(pid, None)
         if not container_id:
             return False
 
         self._last_activity.pop(container_id, None)
+
+        # Clean up sidecar containers first
+        sidecar_ids = self._sidecars.pop(pid, [])
+        for sc_id in sidecar_ids:
+            try:
+                sc = await asyncio.to_thread(self._client.containers.get, sc_id)
+                await asyncio.to_thread(sc.stop, timeout=10)
+                await asyncio.to_thread(sc.remove, force=True)
+                logger.info("Stopped sidecar container %s for project %s", sc_id[:12], pid[:12])
+            except NotFound:
+                pass
+            except DockerException as e:
+                logger.warning("Failed to stop sidecar %s: %s", sc_id[:12], e)
 
         try:
             container = await asyncio.to_thread(
@@ -429,6 +490,280 @@ class SandboxManager(BaseKernelService):
         if exit_code != 0:
             raise RuntimeError(stderr.strip() or f"Command failed with exit code {exit_code}")
         return output
+
+    # -- Template helpers -----------------------------------------------------
+
+    async def _build_template_image(self, template: TemplateDefinition) -> str:
+        """Build a Docker image from a template's Dockerfile.
+
+        Returns the image tag.
+        """
+        from pathlib import Path as _Path
+
+        definitions_dir = self._template_registry._definitions_dir
+        dockerfile_path = definitions_dir / template.dockerfile
+        if not dockerfile_path.exists():
+            logger.error("Dockerfile not found for template %s: %s", template.id, dockerfile_path)
+            # Fall back to default image
+            return template.docker_image or SANDBOX_IMAGE
+
+        tag = f"workstation-template-{template.id}:latest"
+        build_context = str(dockerfile_path.parent)
+
+        try:
+            _image, _logs = await asyncio.to_thread(
+                self._client.images.build,
+                path=build_context,
+                tag=tag,
+                rm=True,
+            )
+            logger.info("Built template image %s for %s", tag, template.id)
+            return tag
+        except DockerException as e:
+            logger.error("Failed to build image for template %s: %s", template.id, e)
+            return template.docker_image or SANDBOX_IMAGE
+
+    async def _apply_template(
+        self, container_id: str, project_id: str, template: TemplateDefinition
+    ) -> None:
+        """Scaffold files, run setup commands, and create sidecars for a template."""
+        # Scaffold files into the container
+        for file_path, content in template.scaffold_files.items():
+            abs_path = f"/workspace/{file_path}"
+            try:
+                await self.write_file(container_id, abs_path, content)
+            except Exception:
+                logger.exception("Failed to scaffold %s in container %s", file_path, container_id[:12])
+
+        # Run setup commands
+        for cmd in template.setup_commands:
+            try:
+                exec_info = await self.execute_command(container_id, cmd)
+                stderr = ""
+                async for stream_type, chunk in self.stream_exec_output(exec_info["exec_id"]):
+                    if stream_type == "stderr":
+                        stderr += chunk
+                exit_code = await self.get_exec_exit_code(exec_info["exec_id"])
+                if exit_code != 0:
+                    logger.warning(
+                        "Setup command failed (exit %d) in %s: %s — %s",
+                        exit_code, container_id[:12], cmd, stderr[:200],
+                    )
+            except Exception:
+                logger.exception("Setup command error in %s: %s", container_id[:12], cmd)
+
+        # Create sidecar containers
+        if template.sidecar_services:
+            await self._create_sidecars(project_id, template)
+
+    async def _create_sidecars(
+        self, project_id: str, template: TemplateDefinition
+    ) -> None:
+        """Create sidecar containers defined in a template."""
+        sidecar_ids: List[str] = []
+        for sidecar in template.sidecar_services:
+            try:
+                sc = await asyncio.to_thread(
+                    self._client.containers.run,
+                    sidecar.image,
+                    detach=True,
+                    name=f"sandbox-{project_id[:12]}-{sidecar.name}",
+                    labels={
+                        "project_id": project_id,
+                        "managed_by": "workstation",
+                        "sidecar_of": project_id,
+                    },
+                    network=SANDBOX_NETWORK,
+                    environment=sidecar.environment or None,
+                    command=sidecar.command,
+                    mem_limit=sidecar.memory_limit or "512m",
+                )
+                sidecar_ids.append(sc.id)
+                logger.info(
+                    "Created sidecar '%s' (%s) for project %s",
+                    sidecar.name, sc.id[:12], project_id[:12],
+                )
+            except DockerException as e:
+                logger.error(
+                    "Failed to create sidecar '%s' for project %s: %s",
+                    sidecar.name, project_id[:12], e,
+                )
+        if sidecar_ids:
+            self._sidecars[project_id] = sidecar_ids
+
+    # -- Portability: export, clone, snapshots --------------------------------
+
+    async def export_workspace_streaming(self, project_id: UUID):
+        """Async generator yielding tar chunks of /workspace.
+
+        Returns chunks of bytes for streaming download.
+        """
+        pid = str(project_id)
+        container_id = self._containers.get(pid)
+        if not container_id:
+            raise RuntimeError(f"No container for project {pid}")
+
+        queue: asyncio.Queue = asyncio.Queue()
+        _SENTINEL = None
+        loop = asyncio.get_running_loop()
+
+        def _reader():
+            try:
+                stream, _stat = self._client.api.get_archive(container_id, "/workspace")
+                for chunk in stream:
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            except Exception:
+                logger.exception("export_workspace_streaming reader error")
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, _SENTINEL)
+
+        loop.run_in_executor(None, _reader)
+
+        while True:
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+            yield item
+
+    # Maximum workspace size for clone operations (default 2GB)
+    CLONE_MAX_SIZE = int(os.getenv("SANDBOX_CLONE_MAX_SIZE", str(2 * 1024 * 1024 * 1024)))
+
+    async def clone_volume(self, source_project_id: UUID, dest_project_id: UUID) -> None:
+        """Copy workspace data from one container to another via get_archive/put_archive.
+
+        Streams the archive through a temporary file to avoid OOM on large workspaces.
+        Aborts if the archive exceeds CLONE_MAX_SIZE.
+        """
+        import tempfile as _tempfile
+
+        src_pid = str(source_project_id)
+        src_container_id = self._containers.get(src_pid)
+        if not src_container_id:
+            raise RuntimeError(f"No container for source project {src_pid}")
+
+        # Ensure destination container exists
+        dest_container_id = await self.get_or_create_container(dest_project_id)
+
+        # Stream archive from source into a temporary file
+        tmp = _tempfile.NamedTemporaryFile(delete=False, suffix=".tar")
+        tmp_path = tmp.name
+        max_size = self.CLONE_MAX_SIZE
+
+        def _stream_to_file() -> int:
+            """Download Docker archive to temp file (runs in thread)."""
+            stream, _stat = self._client.api.get_archive(
+                src_container_id, "/workspace"
+            )
+            written = 0
+            for chunk in stream:
+                written += len(chunk)
+                if written > max_size:
+                    tmp.close()
+                    raise RuntimeError(
+                        f"Workspace archive exceeds size limit "
+                        f"({written} > {max_size} bytes)"
+                    )
+                tmp.write(chunk)
+            tmp.close()
+            return written
+
+        def _put_from_file() -> None:
+            """Upload temp file into destination container (runs in thread)."""
+            with open(tmp_path, "rb") as f:
+                self._client.api.put_archive(dest_container_id, "/", f)
+
+        try:
+            written = await asyncio.to_thread(_stream_to_file)
+            await asyncio.to_thread(_put_from_file)
+            logger.info(
+                "Cloned workspace from %s to %s (%d bytes)",
+                src_pid[:12], str(dest_project_id)[:12], written,
+            )
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    async def create_snapshot(self, project_id: UUID, snapshot_name: str) -> str:
+        """Save a container as a Docker image. Returns the image tag."""
+        pid = str(project_id)
+        container_id = self._containers.get(pid)
+        if not container_id:
+            raise RuntimeError(f"No container for project {pid}")
+
+        repo = f"workstation-snapshot-{pid[:12]}/{snapshot_name}"
+        tag = "latest"
+
+        result = await asyncio.to_thread(
+            self._client.api.commit, container_id, repo, tag
+        )
+        image_id = result.get("Id", "")
+        logger.info("Created snapshot %s:%s for project %s", repo, tag, pid[:12])
+        return image_id
+
+    async def list_snapshots(self, project_id: UUID) -> list[dict]:
+        """List snapshot images for a project."""
+        pid = str(project_id)
+        repo_prefix = f"workstation-snapshot-{pid[:12]}"
+
+        images = await asyncio.to_thread(
+            self._client.images.list, name=f"{repo_prefix}/*"
+        )
+
+        snapshots = []
+        for img in images:
+            for tag in img.tags:
+                # tag format: "workstation-snapshot-xxxx/name:latest"
+                parts = tag.split("/", 1)
+                if len(parts) == 2:
+                    name_tag = parts[1]
+                    name = name_tag.rsplit(":", 1)[0] if ":" in name_tag else name_tag
+                    created = img.attrs.get("Created", "")
+                    size = img.attrs.get("Size", 0)
+                    snapshots.append({
+                        "name": name,
+                        "image_id": img.short_id,
+                        "created_at": created,
+                        "size": size,
+                    })
+        return snapshots
+
+    async def restore_snapshot(self, project_id: UUID, snapshot_name: str) -> str:
+        """Recreate a container from a snapshot image. Returns new container ID."""
+        pid = str(project_id)
+        repo = f"workstation-snapshot-{pid[:12]}/{snapshot_name}"
+        tag = "latest"
+        image_ref = f"{repo}:{tag}"
+
+        # Verify snapshot image exists
+        try:
+            await asyncio.to_thread(self._client.images.get, image_ref)
+        except NotFound:
+            raise RuntimeError(f"Snapshot '{snapshot_name}' not found for project {pid[:12]}")
+
+        # Stop current container if running
+        await self.stop_container(project_id)
+
+        # Create new container from snapshot image
+        container_id = await self.get_or_create_container(
+            project_id, custom_image=image_ref
+        )
+        logger.info("Restored snapshot %s for project %s", snapshot_name, pid[:12])
+        return container_id
+
+    async def delete_snapshot(self, project_id: UUID, snapshot_name: str) -> None:
+        """Remove a snapshot image."""
+        pid = str(project_id)
+        repo = f"workstation-snapshot-{pid[:12]}/{snapshot_name}"
+        tag = "latest"
+        image_ref = f"{repo}:{tag}"
+
+        try:
+            await asyncio.to_thread(self._client.images.remove, image_ref)
+            logger.info("Deleted snapshot %s for project %s", snapshot_name, pid[:12])
+        except NotFound:
+            raise RuntimeError(f"Snapshot '{snapshot_name}' not found")
 
     # -- Internal helpers -----------------------------------------------------
 

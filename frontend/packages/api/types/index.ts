@@ -10,3 +10,4 @@ export * from "./automation";
 export * from "./yolo";
 export * from "./image";
 export * from "./kb";
+export * from "./project-import";

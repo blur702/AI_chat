@@ -433,10 +433,14 @@ class TestCompactionTriggering:
         """trigger_compaction creates ContextCompaction record."""
         chat_id = uuid.uuid4()
 
-        # Mock count query returning 50 messages
-        mock_count_result = MagicMock()
-        mock_count_result.scalar_one.return_value = 50
-        mock_db_session.execute.return_value = mock_count_result
+        # First execute: active message count; second execute: pending compaction count
+        mock_active_count = MagicMock()
+        mock_active_count.scalar_one.return_value = 50
+        mock_pending_count = MagicMock()
+        mock_pending_count.scalar_one.return_value = 0
+        mock_db_session.execute = AsyncMock(
+            side_effect=[mock_active_count, mock_pending_count]
+        )
 
         # Mock refresh to set id
         compaction_id_val = uuid.uuid4()
@@ -468,40 +472,35 @@ class TestCompactionTriggering:
         assert result is None
 
     @pytest.mark.unit
-    async def test_trigger_compaction_invalidates_cache(self, cm, mock_db_session):
-        """Compaction invalidates conversation cache."""
+    async def test_trigger_compaction_skips_when_pending_exists(self, cm, mock_db_session):
+        """Returns None when a pending compaction already exists."""
         chat_id = uuid.uuid4()
 
-        # Pre-populate cache
-        cache_key = cm.CONVERSATION_CONTEXT_PREFIX + str(chat_id)
-        await cm._redis.setex(cache_key, 3600, json.dumps({"old": True}))
+        # First execute: active message count; second execute: pending compaction count > 0
+        mock_active_count = MagicMock()
+        mock_active_count.scalar_one.return_value = 20
+        mock_pending_count = MagicMock()
+        mock_pending_count.scalar_one.return_value = 1
+        mock_db_session.execute = AsyncMock(
+            side_effect=[mock_active_count, mock_pending_count]
+        )
 
-        mock_count_result = MagicMock()
-        mock_count_result.scalar_one.return_value = 20
-        mock_db_session.execute.return_value = mock_count_result
-
-        compaction_id_val = uuid.uuid4()
-        async def refresh_effect(obj):
-            obj.id = compaction_id_val
-        mock_db_session.refresh = AsyncMock(side_effect=refresh_effect)
-
-        with patch("app.kernel.WorkstationKernel") as mock_kernel_cls:
-            mock_kernel = MagicMock()
-            mock_kernel.get_service.return_value = None
-            mock_kernel_cls.return_value = mock_kernel
-
-            await cm.trigger_compaction(chat_id)
-
-        await assert_redis_key_absent(cm._redis, cache_key)
+        result = await cm.trigger_compaction(chat_id)
+        assert result is None
 
     @pytest.mark.unit
     async def test_trigger_compaction_publishes_event(self, cm, mock_db_session):
-        """Compaction publishes context_compacted event via EventBus."""
+        """trigger_compaction publishes compaction_triggered event via EventBus."""
         chat_id = uuid.uuid4()
 
-        mock_count_result = MagicMock()
-        mock_count_result.scalar_one.return_value = 30
-        mock_db_session.execute.return_value = mock_count_result
+        # First execute: active message count; second execute: pending compaction count
+        mock_active_count = MagicMock()
+        mock_active_count.scalar_one.return_value = 30
+        mock_pending_count = MagicMock()
+        mock_pending_count.scalar_one.return_value = 0
+        mock_db_session.execute = AsyncMock(
+            side_effect=[mock_active_count, mock_pending_count]
+        )
 
         compaction_id_val = uuid.uuid4()
         async def refresh_effect(obj):
@@ -519,8 +518,13 @@ class TestCompactionTriggering:
 
         mock_event_bus.publish_event.assert_awaited_once()
         call_kwargs = mock_event_bus.publish_event.call_args[1]
-        assert call_kwargs["event_type"] == "context_compacted"
+        assert call_kwargs["event_type"] == "compaction_triggered"
+        assert call_kwargs["severity"] == "info"
+        assert call_kwargs["source"] == "context_manager"
+        assert call_kwargs["persist"] is True
         assert call_kwargs["event_data"]["chat_id"] == str(chat_id)
+        assert call_kwargs["event_data"]["compaction_id"] == str(compaction_id_val)
+        assert call_kwargs["event_data"]["original_message_count"] == 30
 
 
 # =========================================================================

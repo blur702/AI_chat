@@ -14,6 +14,7 @@ from app.kernel.context_manager import ContextManager
 from app.models.chat import Chat
 from app.models.project import Project
 from app.services.ollama_client import OllamaClient
+from app.services.sandbox_manager import SandboxManager
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,25 @@ def get_context_manager(request: Request) -> ContextManager:
         )
 
     return cm
+
+
+def get_sandbox_manager(request: Request) -> SandboxManager:
+    """Dependency to get SandboxManager from kernel."""
+    kernel = getattr(request.app.state, "kernel", None)
+    if kernel is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kernel not initialized",
+        )
+
+    sm = kernel.get_service("sandbox_manager")
+    if sm is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SandboxManager service not available",
+        )
+
+    return sm
 
 
 def get_ollama_client(request: Request) -> OllamaClient:

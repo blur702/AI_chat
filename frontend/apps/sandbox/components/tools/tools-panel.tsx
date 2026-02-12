@@ -287,6 +287,10 @@ export function ToolsPanel({
         conversation_context: null,
       };
       setLastResult(failResult);
+      setRecentExecutions((prev) => [
+        { tool: selectedTool.name, timestamp: Date.now(), result: failResult, parameters: { ...paramValues } },
+        ...prev.slice(0, 19),
+      ]);
       onToolExecuted?.(failResult, selectedTool.name, paramValues);
     } finally {
       setExecuting(false);
