@@ -30,6 +30,7 @@ export interface DrupalSiteConfig {
   modules: string[];
   themes: string[];
   site_name?: string;
+  error?: string;
 }
 
 export interface DrushCommandRequest {

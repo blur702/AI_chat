@@ -104,7 +104,6 @@ export function DrupalPanel({ projectId, onClose }: DrupalPanelProps) {
         siteName={site.site_name ?? site.site_url}
         onDisconnect={disconnect}
         disconnecting={disconnecting}
-        onReconnect={() => setShowConnect(true)}
       />
 
       <Tabs defaultValue="config" className="flex flex-1 flex-col overflow-hidden">
@@ -189,6 +188,11 @@ export function DrupalPanel({ projectId, onClose }: DrupalPanelProps) {
                   Could not load remote site config.
                 </div>
               )}
+              {config?.error && (
+                <div className="rounded-md border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs text-yellow-600 dark:text-yellow-400">
+                  Config fetch error: {config.error}
+                </div>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
@@ -234,7 +238,6 @@ function PanelHeader({
   siteName,
   onDisconnect,
   disconnecting,
-  onReconnect,
 }: {
   onClose: () => void;
   onRefresh: () => Promise<void>;
@@ -242,7 +245,6 @@ function PanelHeader({
   siteName?: string;
   onDisconnect?: () => Promise<void>;
   disconnecting?: boolean;
-  onReconnect?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between border-b px-3 py-2">
@@ -283,6 +285,8 @@ function PanelHeader({
           size="icon"
           className="h-6 w-6"
           onClick={onClose}
+          title="Close panel"
+          aria-label="Close Drupal panel"
         >
           <X className="h-3.5 w-3.5" />
         </Button>

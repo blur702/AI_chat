@@ -57,7 +57,7 @@ class DrupalSite(UUIDMixin, TimestampMixin, Base):
     # Relationships
     project: Mapped["Project"] = relationship(
         "Project",
-        backref="drupal_site",
+        back_populates="drupal_site",
     )
 
     def __repr__(self) -> str:

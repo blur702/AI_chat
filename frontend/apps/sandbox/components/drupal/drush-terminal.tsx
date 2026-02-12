@@ -6,12 +6,14 @@ import { Loader2, Terminal } from "lucide-react";
 import type { DrushCommandResponse } from "@workstation/api/types";
 
 interface DrushEntry {
+  id: number;
   command: string;
   output: string;
   exitCode: number;
   error?: string;
-  timestamp: number;
 }
+
+let entryIdCounter = 0;
 
 interface DrushTerminalProps {
   onRunDrush: (command: string) => Promise<void>;
@@ -29,19 +31,22 @@ export function DrushTerminal({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Append output to history when a new result arrives
+  // Append output to history when a new result arrives (capped at 100 entries)
   useEffect(() => {
     if (drushOutput) {
-      setHistory((prev) => [
-        ...prev,
-        {
-          command: drushOutput.command,
-          output: drushOutput.output,
-          exitCode: drushOutput.exit_code,
-          error: drushOutput.error ?? undefined,
-          timestamp: Date.now(),
-        },
-      ]);
+      setHistory((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: ++entryIdCounter,
+            command: drushOutput.command,
+            output: drushOutput.output,
+            exitCode: drushOutput.exit_code,
+            error: drushOutput.error ?? undefined,
+          },
+        ];
+        return next.length > 100 ? next.slice(-100) : next;
+      });
     }
   }, [drushOutput]);
 
@@ -96,8 +101,8 @@ export function DrushTerminal({
               <span>Enter a Drush command below</span>
             </div>
           )}
-          {history.map((entry, i) => (
-            <div key={i} className="space-y-1">
+          {history.map((entry) => (
+            <div key={entry.id} className="space-y-1">
               <div className="flex items-center gap-1 text-primary">
                 <span className="text-muted-foreground">$</span>
                 <span>drush {entry.command}</span>

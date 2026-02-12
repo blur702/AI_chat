@@ -34,11 +34,19 @@ export function ConnectDialog({
   const [success, setSuccess] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clear form when dialog closes
   useEffect(() => {
+    if (!open) {
+      setSiteUrl("");
+      setApiKey("");
+      setSiteName("");
+      setError(null);
+      setSuccess(false);
+    }
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, []);
+  }, [open]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -61,10 +69,6 @@ export function ConnectDialog({
         timeoutRef.current = setTimeout(() => {
           timeoutRef.current = null;
           onOpenChange(false);
-          setSiteUrl("");
-          setApiKey("");
-          setSiteName("");
-          setSuccess(false);
         }, 1000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Connection failed");
@@ -100,6 +104,7 @@ export function ConnectDialog({
             <Input
               id="api-key"
               type="password"
+              autoComplete="off"
               placeholder="Enter API key"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}

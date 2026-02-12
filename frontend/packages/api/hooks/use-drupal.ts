@@ -126,11 +126,12 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   }, [projectId]);
 
   // Auto-fetch config when site is connected
+  const siteConnected = !!site;
   useEffect(() => {
-    if (site) {
+    if (siteConnected) {
       fetchConfig();
     }
-  }, [site, fetchConfig]);
+  }, [siteConnected, fetchConfig]);
 
   const runDrush = useCallback(
     async (command: string) => {

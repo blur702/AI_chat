@@ -1,17 +1,44 @@
 """Pydantic schemas for Drupal MCP site management."""
 
+import ipaddress
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DrupalConnectRequest(BaseModel):
     """Request to connect a Drupal site to a project."""
 
-    site_url: str = Field(..., min_length=1, description="Remote Drupal site URL")
-    api_key: str = Field(..., min_length=1, description="API key for the remote site")
-    site_name: Optional[str] = Field(None, description="Friendly name for the site")
+    site_url: str = Field(..., min_length=1, max_length=2048, description="Remote Drupal site URL")
+    api_key: str = Field(..., min_length=1, max_length=4096, description="API key for the remote site")
+    site_name: Optional[str] = Field(None, max_length=255, description="Friendly name for the site")
+
+    @field_validator("site_url")
+    @classmethod
+    def validate_site_url(cls, v: str) -> str:
+        """Validate URL scheme and block private/internal addresses (SSRF protection)."""
+        parsed = urlparse(v.strip())
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Site URL must use http or https scheme")
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Site URL must include a hostname")
+        # Block localhost and common internal hostnames
+        blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]"}
+        if hostname.lower() in blocked_hosts:
+            raise ValueError("Site URL must not point to localhost or loopback addresses")
+        # Block private IP ranges
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                raise ValueError("Site URL must not point to private or reserved IP addresses")
+        except ValueError as exc:
+            # Not a raw IP — that's fine (it's a hostname)
+            if "must not" in str(exc):
+                raise
+        return v.strip()
 
 
 class DrupalConnectResponse(BaseModel):
@@ -41,17 +68,20 @@ class DrupalSiteResponse(BaseModel):
 class DrupalSiteConfig(BaseModel):
     """Remote Drupal site configuration snapshot."""
 
+    model_config = ConfigDict(extra="ignore")
+
     drupal_version: Optional[str] = None
     content_types: List[str] = Field(default_factory=list)
     modules: List[str] = Field(default_factory=list)
     themes: List[str] = Field(default_factory=list)
     site_name: Optional[str] = None
+    error: Optional[str] = None
 
 
 class DrushCommandRequest(BaseModel):
     """Request to execute a Drush command remotely."""
 
-    command: str = Field(..., min_length=1, description="Drush command to run")
+    command: str = Field(..., min_length=1, max_length=1024, description="Drush command to run")
 
 
 class DrushCommandResponse(BaseModel):

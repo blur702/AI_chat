@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from app.models.archive import Archive
     from app.models.automation_action import AutomationAction
     from app.models.chat import Chat
+    from app.models.drupal_site import DrupalSite
     from app.models.kb_source import KBSource
     from app.models.user import User
     from app.models.yolo_edit import YoloEdit
@@ -110,6 +111,12 @@ class Project(UUIDMixin, TimestampMixin, Base):
         "Archive",
         back_populates="project",
         cascade="all, delete-orphan",
+    )
+    drupal_site: Mapped[Optional["DrupalSite"]] = relationship(
+        "DrupalSite",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     # Indexes

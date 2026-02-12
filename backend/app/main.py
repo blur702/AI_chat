@@ -123,9 +123,12 @@ async def lifespan(app: FastAPI):
     logger.info("SandboxManager registered with kernel")
 
     # Register DrupalMCPService for remote Drupal site management
-    drupal_mcp = DrupalMCPService()
-    kernel.register_service(drupal_mcp)
-    logger.info("DrupalMCPService registered with kernel")
+    try:
+        drupal_mcp = DrupalMCPService()
+        kernel.register_service(drupal_mcp)
+        logger.info("DrupalMCPService registered with kernel")
+    except Exception as e:
+        logger.warning("DrupalMCPService not available: %s", e)
 
     try:
         await kernel.startup()

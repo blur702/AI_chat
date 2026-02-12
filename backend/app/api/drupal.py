@@ -34,6 +34,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/drupal")
 
+# Dangerous Drush commands that should not be executed remotely
+BLOCKED_DRUSH_COMMANDS = frozenset({
+    "php:eval", "php-eval", "eval",
+    "php:script", "php-script", "scr",
+    "sql-drop", "sql:drop",
+    "sql-cli", "sql:cli", "sqlc",
+    "site-install", "site:install", "si",
+    "core:rsync", "core-rsync", "rsync",
+    "ssh",
+})
+
 
 async def _get_drupal_site(
     project_id: UUID, db: AsyncSession
@@ -176,6 +187,14 @@ async def run_drush(
     """Execute a Drush command on the remote Drupal site."""
     user_id = get_user_id_from_token(payload)
     await validate_project_access(project_id, str(user_id), db)
+
+    # Validate command against blocklist
+    base_command = body.command.strip().split()[0] if body.command.strip() else ""
+    if base_command.lower() in BLOCKED_DRUSH_COMMANDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Command '{base_command}' is blocked for security reasons",
+        )
 
     site = await _get_drupal_site(project_id, db)
     api_key = drupal.decrypt_api_key(site.api_key_encrypted)
