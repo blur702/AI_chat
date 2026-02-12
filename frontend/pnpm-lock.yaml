@@ -131,7 +131,7 @@ importers:
         specifier: ^8.55.0
         version: 8.55.0(eslint@8.57.1)(typescript@5.9.3)
       eslint:
-        specifier: ^8.56.0
+        specifier: ^8.57.0
         version: 8.57.1
       typescript:
         specifier: ^5.3.0
