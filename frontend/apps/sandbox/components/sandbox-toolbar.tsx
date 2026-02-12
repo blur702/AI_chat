@@ -27,6 +27,7 @@ import {
   Star,
   ChevronDown,
   Zap,
+  Globe,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 
@@ -40,6 +41,7 @@ interface SandboxToolbarProps {
   onResourcesClick?: () => void;
   onToolsClick?: () => void;
   onEventsClick?: () => void;
+  onDrupalClick?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
   toolsCount?: number;
@@ -57,6 +59,7 @@ export function SandboxToolbar({
   onResourcesClick,
   onToolsClick,
   onEventsClick,
+  onDrupalClick,
   onSettingsClick,
   pendingActionsCount = 0,
   toolsCount = 0,
@@ -114,6 +117,11 @@ export function SandboxToolbar({
       <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onEventsClick} title="Events">
         <Zap className="h-4 w-4" />
         {!isMobile && "Events"}
+      </Button>
+
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onDrupalClick} title="Drupal">
+        <Globe className="h-4 w-4" />
+        {!isMobile && "Drupal"}
       </Button>
 
       {/* Tools dropdown with count badge */}

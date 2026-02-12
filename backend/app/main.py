@@ -16,6 +16,7 @@ from app.services.ollama_client import OllamaClient
 from app.services.kb_ingestion import KBIngestionService
 from app.services.embedding_service import EmbeddingService
 from app.services.comfyui_client import ComfyUIClient
+from app.services.drupal_mcp import DrupalMCPService
 from app.services.sandbox_manager import SandboxManager
 from app.api.auth import router as auth_router, users_router
 from app.api.resources import router as resources_router
@@ -32,6 +33,7 @@ from app.api.automation import router as automation_router
 from app.api.yolo import router as yolo_router
 from app.api.templates import router as templates_router
 from app.api.project_import import router as project_import_router
+from app.api.drupal import router as drupal_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -119,6 +121,11 @@ async def lifespan(app: FastAPI):
     sandbox_manager = SandboxManager()
     kernel.register_service(sandbox_manager)
     logger.info("SandboxManager registered with kernel")
+
+    # Register DrupalMCPService for remote Drupal site management
+    drupal_mcp = DrupalMCPService()
+    kernel.register_service(drupal_mcp)
+    logger.info("DrupalMCPService registered with kernel")
 
     try:
         await kernel.startup()
@@ -277,6 +284,7 @@ app.include_router(automation_router, prefix="/api", tags=["automation"])
 app.include_router(yolo_router, prefix="/api", tags=["yolo"])
 app.include_router(templates_router, prefix="/api", tags=["templates"])
 app.include_router(project_import_router, prefix="/api", tags=["projects"])
+app.include_router(drupal_router, prefix="/api", tags=["drupal"])
 
 
 async def check_postgres() -> tuple[bool, str]:

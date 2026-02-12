@@ -16,6 +16,7 @@ import { ImageGenPanel } from "./image-gen/image-gen-panel";
 import { ToolsPanel } from "./tools/tools-panel";
 import { ResourcesPanel } from "./resources/resources-panel";
 import { EventsPanel } from "./events/events-panel";
+import { DrupalPanel } from "./drupal/drupal-panel";
 import { SandboxToolbar } from "./sandbox-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
 
@@ -36,6 +37,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showTools, setShowTools] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [showDrupal, setShowDrupal] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
   const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
   const [lastToolExecution, setLastToolExecution] = useState<{
@@ -131,6 +133,14 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       setMobileTab("events");
     } else {
       setShowEvents((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleDrupalClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("drupal");
+    } else {
+      setShowDrupal((prev) => !prev);
     }
   }, [isMobile]);
 
@@ -278,6 +288,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onImageGenClick={handleImageGenClick}
           onResourcesClick={handleResourcesClick}
           onEventsClick={handleEventsClick}
+          onDrupalClick={handleDrupalClick}
           onToolsClick={handleToolsClick}
           onSettingsClick={handleSettingsClick}
           pendingActionsCount={pendingCount}
@@ -338,6 +349,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           {mobileTab === "resources" && (
             <ResourcesPanel onClose={() => setMobileTab("editor")} />
           )}
+          {mobileTab === "drupal" && (
+            <DrupalPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
       </div>
@@ -355,6 +372,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onImageGenClick={handleImageGenClick}
         onResourcesClick={handleResourcesClick}
         onEventsClick={handleEventsClick}
+        onDrupalClick={handleDrupalClick}
         onToolsClick={handleToolsClick}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
@@ -380,7 +398,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
-        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources ? 55 : 85} minSize={30}>
+        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources || showDrupal ? 55 : 85} minSize={30}>
           <PanelGroup direction="vertical">
             {/* Editor Area */}
             <Panel defaultSize={65} minSize={30}>
@@ -498,6 +516,19 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
               <ResourcesPanel onClose={() => setShowResources(false)} />
+            </Panel>
+          </>
+        )}
+
+        {/* Drupal Panel (collapsible) */}
+        {showDrupal && (
+          <>
+            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={30} minSize={20} maxSize={40}>
+              <DrupalPanel
+                projectId={projectId}
+                onClose={() => setShowDrupal(false)}
+              />
             </Panel>
           </>
         )}

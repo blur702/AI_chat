@@ -14,6 +14,7 @@ from app.kernel.context_manager import ContextManager
 from app.models.chat import Chat
 from app.models.project import Project
 from app.services.ollama_client import OllamaClient
+from app.services.drupal_mcp import DrupalMCPService
 from app.services.sandbox_manager import SandboxManager
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,25 @@ def get_sandbox_manager(request: Request) -> SandboxManager:
         )
 
     return sm
+
+
+def get_drupal_mcp(request: Request) -> DrupalMCPService:
+    """Dependency to get DrupalMCPService from kernel."""
+    kernel = getattr(request.app.state, "kernel", None)
+    if kernel is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kernel not initialized",
+        )
+
+    svc = kernel.get_service("drupal_mcp")
+    if svc is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="DrupalMCPService not available",
+        )
+
+    return svc
 
 
 def get_ollama_client(request: Request) -> OllamaClient:

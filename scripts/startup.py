@@ -4,20 +4,24 @@ Usage:
     python scripts/startup.py [OPTIONS]
 
 Options:
-    --interactive    Prompt before terminating each conflicting process
-    --skip-cleanup   Detect conflicts but do not terminate anything
-    --env-file PATH  Path to .env file (default: .env in project root)
-    --verbose        Enable debug-level logging
+    --interactive      Prompt before terminating each conflicting process
+    --skip-cleanup     Detect conflicts but do not terminate anything
+    --skip-services    Skip auto-starting external services (Ollama, ComfyUI)
+    --env-file PATH    Path to .env file (default: .env in project root)
+    --verbose          Enable debug-level logging
 """
 
 import argparse
 import json
 import logging
 import os
+import shutil
+import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -122,6 +126,111 @@ def run_docker_compose() -> int:
             return 1
 
 
+def find_ollama_executable() -> Optional[str]:
+    """Locate the Ollama executable on this system."""
+    path = shutil.which("ollama")
+    if path:
+        return path
+    # Common Windows install location
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    if local_app:
+        candidate = Path(local_app) / "Programs" / "Ollama" / "ollama.exe"
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _is_port_open(port: int) -> bool:
+    """Return True if something is listening on localhost:port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def start_host_service(
+    name: str,
+    port: int,
+    cmd: List[str],
+    cwd: Optional[str] = None,
+    timeout: int = 60,
+) -> bool:
+    """Start a host service if not already running. Returns True on success."""
+    if _is_port_open(port):
+        print(f"  {name} (port {port}): already running ✓")
+        return True
+
+    print(f"  {name} (port {port}): starting ", end="", flush=True)
+    try:
+        # Launch detached — don't capture stdout/stderr
+        kwargs: Dict = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if sys.platform == "win32":
+            kwargs["creationflags"] = (
+                subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            kwargs["start_new_session"] = True
+
+        subprocess.Popen(cmd, cwd=cwd, **kwargs)
+    except FileNotFoundError:
+        print(f"FAILED (executable not found: {cmd[0]})")
+        return False
+    except OSError as exc:
+        print(f"FAILED ({exc})")
+        return False
+
+    # Poll until port opens
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        time.sleep(2)
+        print(".", end="", flush=True)
+        if _is_port_open(port):
+            elapsed = int(time.monotonic() - start)
+            print(f" ready ({elapsed}s) ✓")
+            return True
+
+    print(f" TIMEOUT ({timeout}s)")
+    return False
+
+
+def start_external_services(env_file: str) -> None:
+    """Auto-start Ollama and/or ComfyUI based on env config."""
+    load_dotenv(env_file, override=True)
+
+    ollama_auto = os.getenv("OLLAMA_AUTO_START", "false").lower() in ("true", "1", "yes")
+    comfyui_auto = os.getenv("COMFYUI_AUTO_START", "false").lower() in ("true", "1", "yes")
+
+    if not ollama_auto and not comfyui_auto:
+        logger.debug("No external services configured for auto-start")
+        return
+
+    print("\nStarting external services ...")
+
+    if ollama_auto:
+        ollama_exe = find_ollama_executable()
+        if ollama_exe:
+            start_host_service("Ollama", 11434, [ollama_exe, "serve"])
+        else:
+            print("  Ollama: executable not found (install Ollama or set PATH)")
+
+    if comfyui_auto:
+        comfyui_dir = os.getenv("COMFYUI_DIR")
+        comfyui_python = os.getenv("COMFYUI_PYTHON", "python")
+        if comfyui_dir and Path(comfyui_dir).is_dir():
+            start_host_service(
+                "ComfyUI",
+                8188,
+                [comfyui_python, "main.py", "--listen", "0.0.0.0"],
+                cwd=comfyui_dir,
+            )
+        else:
+            print("  ComfyUI: COMFYUI_DIR not set or directory not found")
+
+    print()
+
+
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="AI Workstation startup with port conflict detection",
@@ -145,6 +254,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="Enable debug-level logging output",
+    )
+    parser.add_argument(
+        "--skip-services",
+        action="store_true",
+        help="Skip auto-starting external services (Ollama, ComfyUI)",
     )
     return parser.parse_args(argv)
 
@@ -173,56 +287,58 @@ def main(argv: List[str] | None = None) -> int:
 
     if not conflicts:
         print("No port conflicts found.")
-        return run_docker_compose()
-
-    display_conflicts(conflicts)
-
-    if args.skip_cleanup:
-        print("--skip-cleanup specified; skipping process termination.")
-        print("Attempting docker-compose up despite conflicts …\n")
-        return run_docker_compose()
-
-    # Determine which ports to free
-    excluded = config.get("excluded_processes", [])
-    timeout = config.get("timeout_seconds", 10)
-    retries = config.get("retry_attempts", 3)
-
-    if args.interactive or config.get("require_confirmation", True):
-        ports_to_clean = confirm_termination(conflicts)
-        if not ports_to_clean:
-            print("No processes selected for termination.")
-            print("Attempting docker-compose up despite conflicts …\n")
-            return run_docker_compose()
-    elif config.get("auto_kill", False):
-        ports_to_clean = list(conflicts.keys())
     else:
-        print("auto_kill is disabled and require_confirmation is off. Skipping cleanup.")
-        return run_docker_compose()
+        display_conflicts(conflicts)
 
-    # Terminate conflicting processes
-    print("Terminating conflicting processes …")
-    results = terminate_processes_on_ports(
-        ports_to_clean,
-        excluded_processes=excluded,
-        timeout_seconds=timeout,
-        retry_attempts=retries,
-    )
+        if args.skip_cleanup:
+            print("--skip-cleanup specified; skipping process termination.")
+            print("Attempting docker-compose up despite conflicts …\n")
+        else:
+            # Determine which ports to free
+            excluded = config.get("excluded_processes", [])
+            timeout = config.get("timeout_seconds", 10)
+            retries = config.get("retry_attempts", 3)
 
-    # Report results
-    failed_ports = [p for p, ok in results.items() if not ok]
-    freed_ports = [p for p, ok in results.items() if ok]
+            ports_to_clean: List[int] = []
+            if args.interactive or config.get("require_confirmation", True):
+                ports_to_clean = confirm_termination(conflicts)
+                if not ports_to_clean:
+                    print("No processes selected for termination.")
+                    print("Attempting docker-compose up despite conflicts …\n")
+            elif config.get("auto_kill", False):
+                ports_to_clean = list(conflicts.keys())
+            else:
+                print("auto_kill is disabled and require_confirmation is off. Skipping cleanup.")
 
-    if freed_ports:
-        print(f"  Freed ports: {', '.join(str(p) for p in freed_ports)}")
-    if failed_ports:
-        print(f"  Failed to free ports: {', '.join(str(p) for p in failed_ports)}")
+            if ports_to_clean:
+                # Terminate conflicting processes
+                print("Terminating conflicting processes …")
+                results = terminate_processes_on_ports(
+                    ports_to_clean,
+                    excluded_processes=excluded,
+                    timeout_seconds=timeout,
+                    retry_attempts=retries,
+                )
 
-    # Verify clearance
-    still_blocked = [p for p in ports_to_clean if is_port_in_use(p)]
-    if still_blocked:
-        logger.warning("Ports still in use after cleanup: %s", still_blocked)
-        print(f"\n  WARNING: ports {still_blocked} are still occupied.")
-        print("  docker-compose may fail to bind these ports.\n")
+                # Report results
+                failed_ports = [p for p, ok in results.items() if not ok]
+                freed_ports = [p for p, ok in results.items() if ok]
+
+                if freed_ports:
+                    print(f"  Freed ports: {', '.join(str(p) for p in freed_ports)}")
+                if failed_ports:
+                    print(f"  Failed to free ports: {', '.join(str(p) for p in failed_ports)}")
+
+                # Verify clearance
+                still_blocked = [p for p in ports_to_clean if is_port_in_use(p)]
+                if still_blocked:
+                    logger.warning("Ports still in use after cleanup: %s", still_blocked)
+                    print(f"\n  WARNING: ports {still_blocked} are still occupied.")
+                    print("  docker-compose may fail to bind these ports.\n")
+
+    # Start external services (Ollama, ComfyUI) before Docker Compose
+    if not args.skip_services:
+        start_external_services(args.env_file)
 
     return run_docker_compose()
 

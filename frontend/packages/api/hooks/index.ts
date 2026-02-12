@@ -28,3 +28,7 @@ export { useTokenUsage } from "./use-token-usage";
 export type { TokenUsage } from "./use-token-usage";
 export { useProjectImport } from "./use-project-import";
 export type { UseProjectImportReturn } from "./use-project-import";
+export { useDrupal } from "./use-drupal";
+export type { UseDrupalReturn } from "./use-drupal";
+export { useServiceStatus } from "./use-service-status";
+export type { UseServiceStatusReturn, ServiceStatus, TrackedService } from "./use-service-status";

@@ -101,6 +101,21 @@ export interface ResourceStatusResponse {
   timestamp: string;
 }
 
+export interface ServiceDetail {
+  is_running: boolean;
+  healthy: boolean;
+  message: string;
+}
+
+export interface KernelStatusResponse {
+  timestamp: string;
+  kernel_attached: boolean;
+  initialized: boolean;
+  registered_services: string[];
+  service_details: Record<string, ServiceDetail>;
+  last_health_check: string | null;
+}
+
 export interface ActiveOperation {
   operation_id: string;
   operation_type: string | null;

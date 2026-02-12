@@ -20,6 +20,7 @@ import type {
   OperationStateRequest,
   OperationStateResponse,
   OperationListResponse,
+  KernelStatusResponse,
   EventCreate,
   EventResponse,
   EventBroadcastResponse,
@@ -86,6 +87,14 @@ import type {
   SnapshotInfo,
   SnapshotListResponse,
   SnapshotRestoreResponse,
+  DrupalConnectRequest,
+  DrupalConnectResponse,
+  DrupalSiteInfo,
+  DrupalSiteConfig,
+  DrushCommandRequest,
+  DrushCommandResponse,
+  SyncStatus,
+  SyncResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -190,7 +199,7 @@ export class WorkstationClient {
     return this.request("/api/kernel/health");
   }
 
-  async kernelStatus(): Promise<Record<string, unknown>> {
+  async kernelStatus(): Promise<KernelStatusResponse> {
     return this.request("/api/kernel/status");
   }
 
@@ -905,6 +914,59 @@ export class WorkstationClient {
     return this.request(
       `/api/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(name)}`,
       { method: "DELETE" }
+    );
+  }
+
+  // Drupal MCP
+  async connectDrupalSite(
+    projectId: string,
+    data: DrupalConnectRequest
+  ): Promise<DrupalConnectResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/connect`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDrupalSite(projectId: string): Promise<DrupalSiteInfo> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/site`);
+  }
+
+  async disconnectDrupalSite(projectId: string): Promise<void> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/site`, {
+      method: "DELETE",
+    });
+  }
+
+  async getDrupalConfig(projectId: string): Promise<DrupalSiteConfig> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/config`);
+  }
+
+  async runDrush(
+    projectId: string,
+    command: string
+  ): Promise<DrushCommandResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/drush`, {
+      method: "POST",
+      body: JSON.stringify({ command } satisfies DrushCommandRequest),
+    });
+  }
+
+  async pullDrupalSite(projectId: string): Promise<SyncResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/pull`, {
+      method: "POST",
+    });
+  }
+
+  async pushDrupalConfig(projectId: string): Promise<SyncResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/push`, {
+      method: "POST",
+    });
+  }
+
+  async getDrupalSyncStatus(projectId: string): Promise<SyncStatus> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/sync-status`
     );
   }
 

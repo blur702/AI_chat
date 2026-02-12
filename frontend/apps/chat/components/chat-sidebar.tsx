@@ -21,8 +21,8 @@ import {
   useBreakpoint,
   useSwipe,
 } from "@workstation/ui";
-import { useChats } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2 } from "lucide-react";
+import { useChats, useAuth } from "@workstation/api";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut } from "lucide-react";
 
 interface ChatSidebarProps {
   projectId: string | null;
@@ -33,6 +33,7 @@ interface ChatSidebarProps {
 export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClose: onMobileCloseProp }: ChatSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
   const { chats, loading, error, createChat, updateChat, deleteChat } = useChats(projectId);
   const { isMobile } = useBreakpoint();
   const sidebarRef = useRef<HTMLElement>(null);
@@ -58,6 +59,11 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
   const handleChatSelect = () => {
     if (isMobile) onMobileClose();
   };
+
+  const handleLogout = useCallback(() => {
+    logout();
+    router.push("/login");
+  }, [logout, router]);
 
   const handleNewChat = useCallback(async () => {
     if (!projectId || creating) return;
@@ -146,6 +152,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       operationError={operationError}
       onChatSelect={handleChatSelect}
       onNewChat={handleNewChat}
+      onLogout={handleLogout}
       onRename={(id, title) => {
         setRenameTarget({ id, title });
         setRenameValue(title);
@@ -258,6 +265,7 @@ interface SidebarContentProps {
   operationError: string | null;
   onChatSelect?: () => void;
   onNewChat: () => void;
+  onLogout: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string, title: string) => void;
   onTogglePin: (id: string, currentlyPinned: boolean) => void;
@@ -273,6 +281,7 @@ function SidebarContent({
   operationError,
   onChatSelect,
   onNewChat,
+  onLogout,
   onRename,
   onDelete,
   onTogglePin,
@@ -371,7 +380,7 @@ function SidebarContent({
         )}
       </ScrollArea>
 
-      <div className="border-t p-2 mt-2">
+      <div className="border-t p-2 mt-2 space-y-1">
         <Link
           href="/settings"
           onClick={onChatSelect}
@@ -380,6 +389,13 @@ function SidebarContent({
           <Settings className="h-4 w-4" aria-hidden="true" />
           <span className="text-sm">Settings</span>
         </Link>
+        <button
+          onClick={onLogout}
+          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          <span className="text-sm">Log out</span>
+        </button>
       </div>
     </>
   );

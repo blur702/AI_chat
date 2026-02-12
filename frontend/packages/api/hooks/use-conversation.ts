@@ -16,6 +16,7 @@ interface UseConversationReturn {
   tokenUsage: TokenUsage | null;
   refresh: () => Promise<void>;
   sendMessage: (content: string, role?: string) => Promise<boolean>;
+  cancelStream: () => void;
 }
 
 export function useConversation(chatId: string | null): UseConversationReturn {
@@ -100,6 +101,15 @@ export function useConversation(chatId: string | null): UseConversationReturn {
       setProgress(0);
       finishTimerRef.current = null;
     }, 400);
+  }, [clearProgress]);
+
+  const cancelStream = useCallback(() => {
+    if (!abortRef.current) return;
+    abortRef.current();
+    abortRef.current = null;
+    clearProgress();
+    setProcessing(false);
+    setProgress(0);
   }, [clearProgress]);
 
   const sendMessage = useCallback(
@@ -201,5 +211,6 @@ export function useConversation(chatId: string | null): UseConversationReturn {
     tokenUsage,
     refresh,
     sendMessage,
+    cancelStream,
   };
 }

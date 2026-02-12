@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button, useBreakpoint } from "@workstation/ui";
 import { useAuth, getClient } from "@workstation/api";
 import { Menu } from "lucide-react";
 import { ChatSidebar } from "@/components/chat-sidebar";
+import { ServiceStatusBanner } from "@/components/service-status-banner";
 import { SystemStatusBar } from "@/components/system-status-bar";
 
 const PROJECT_ID_KEY = "workstation_chat_project_id";
@@ -74,7 +76,18 @@ export default function ChatLayout({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isMobile } = useBreakpoint();
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
   const projectId = useProjectId();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) return null;
 
   return (
     <div className="flex h-screen flex-col">
@@ -92,6 +105,8 @@ export default function ChatLayout({
           <span className="ml-2 text-sm font-semibold">AI Chat</span>
         </div>
       )}
+
+      <ServiceStatusBanner />
 
       <div className="flex flex-1 overflow-hidden">
         <ChatSidebar

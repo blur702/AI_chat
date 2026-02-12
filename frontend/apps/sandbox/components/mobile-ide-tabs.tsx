@@ -11,6 +11,7 @@ import {
   Wrench,
   HardDrive,
   Zap,
+  Globe,
 } from "lucide-react";
 
 export type MobileIdeTab =
@@ -22,7 +23,8 @@ export type MobileIdeTab =
   | "image-gen"
   | "tools"
   | "events"
-  | "resources";
+  | "resources"
+  | "drupal";
 
 const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "files", label: "Files", icon: FolderOpen },
@@ -34,6 +36,7 @@ const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "tools", label: "Tools", icon: Wrench },
   { id: "events", label: "Events", icon: Zap },
   { id: "resources", label: "GPU", icon: HardDrive },
+  { id: "drupal", label: "Drupal", icon: Globe },
 ];
 
 interface MobileIdeTabsProps {
