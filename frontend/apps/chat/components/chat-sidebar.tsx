@@ -22,7 +22,7 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2 } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor } from "lucide-react";
 
 interface ChatSidebarProps {
   projectId: string | null;
@@ -144,6 +144,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
 
   const sidebarContent = (
     <SidebarContent
+      projectId={projectId}
       chats={chats}
       pathname={pathname}
       loading={loading}
@@ -257,6 +258,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
 }
 
 interface SidebarContentProps {
+  projectId: string | null;
   chats: { id: string; title: string; is_pinned?: boolean; is_archived?: boolean; created_at?: string; updated_at?: string }[];
   pathname: string;
   loading: boolean;
@@ -273,6 +275,7 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({
+  projectId,
   chats,
   pathname,
   loading,
@@ -389,6 +392,16 @@ function SidebarContent({
           <Code2 className="h-4 w-4" aria-hidden="true" />
           <span className="text-sm">Projects</span>
         </Link>
+        {projectId && (
+          <Link
+            href={`/workspace/${projectId}`}
+            onClick={onChatSelect}
+            className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Monitor className="h-4 w-4" aria-hidden="true" />
+            <span className="text-sm">Open IDE</span>
+          </Link>
+        )}
         <Link
           href="/settings"
           onClick={onChatSelect}

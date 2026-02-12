@@ -21,8 +21,15 @@ function LoginForm() {
     try {
       const success = await loginWithCredentials(identifier.trim(), password);
       if (success) {
-        const returnTo = searchParams.get("returnTo") || "/chat";
-        router.push(returnTo);
+        const returnTo = searchParams.get("returnTo")?.trim() || "/chat";
+        const safeReturnTo =
+          returnTo.startsWith("/") &&
+          !returnTo.startsWith("//") &&
+          !returnTo.includes("://") &&
+          !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(returnTo)
+            ? encodeURI(returnTo)
+            : "/chat";
+        router.push(safeReturnTo);
       } else {
         setError("Invalid username/email or password.");
       }

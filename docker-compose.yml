@@ -2,6 +2,7 @@ networks:
   workstation-network:
     driver: bridge
   workstation-preview-network:
+    name: workstation-preview-network
     driver: bridge
     external: false
 

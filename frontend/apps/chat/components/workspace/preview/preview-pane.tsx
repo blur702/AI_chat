@@ -16,6 +16,7 @@ function isSafeUrl(urlString: string): boolean {
 export function PreviewPane() {
   const [url, setUrl] = useState("http://localhost:3000");
   const [key, setKey] = useState(0);
+  const safePreviewUrl = isSafeUrl(url) ? url : "about:blank";
 
   const handleOpenExternal = () => {
     if (isSafeUrl(url)) {
@@ -54,9 +55,14 @@ export function PreviewPane() {
 
       {/* Preview content */}
       <div className="flex-1 bg-white">
+        {!isSafeUrl(url) && (
+          <div className="border-b bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+            Unsafe URL blocked. Only HTTP(S) URLs are allowed in preview.
+          </div>
+        )}
         <iframe
           key={key}
-          src={url}
+          src={safePreviewUrl}
           className="h-full w-full border-0"
           title="Preview"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"

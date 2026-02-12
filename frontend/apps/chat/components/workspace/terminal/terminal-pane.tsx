@@ -175,14 +175,14 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
   };
 
   const closeTab = (id: string) => {
-    setTabs((prev) => {
-      if (prev.length === 1) return prev;
-      const remaining = prev.filter((t) => t.id !== id);
-      if (activeTab === id && remaining.length > 0) {
-        setActiveTab(remaining[0].id);
-      }
-      return remaining;
-    });
+    if (tabs.length === 1) return;
+    const remaining = tabs.filter((t) => t.id !== id);
+    const nextActiveTab =
+      activeTab === id && remaining.length > 0 ? remaining[0].id : activeTab;
+    setTabs(remaining);
+    if (nextActiveTab !== activeTab) {
+      setActiveTab(nextActiveTab);
+    }
   };
 
   return (

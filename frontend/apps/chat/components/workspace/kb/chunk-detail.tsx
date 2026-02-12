@@ -39,11 +39,19 @@ export function ChunkDetail({
       const textarea = document.createElement("textarea");
       textarea.value = chunk.content;
       document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      let copiedWithFallback = false;
+      try {
+        textarea.select();
+        copiedWithFallback = document.execCommand("copy");
+      } catch {
+        copiedWithFallback = false;
+      } finally {
+        document.body.removeChild(textarea);
+      }
+      if (copiedWithFallback) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     }
   }, [chunk.content]);
 

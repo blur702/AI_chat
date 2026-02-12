@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Dialog,
@@ -27,6 +27,12 @@ export function OffloadDialog({
   loading,
 }: OffloadDialogProps) {
   const [remember, setRemember] = useState(false);
+
+  useEffect(() => {
+    if (open && resourceId) {
+      setRemember(false);
+    }
+  }, [resourceId, open]);
 
   if (!resourceId) return null;
 

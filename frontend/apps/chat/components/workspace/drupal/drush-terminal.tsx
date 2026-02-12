@@ -13,8 +13,6 @@ interface DrushEntry {
   error?: string;
 }
 
-let entryIdCounter = 0;
-
 interface DrushTerminalProps {
   onRunDrush: (command: string) => Promise<void>;
   drushOutput: DrushCommandResponse | null;
@@ -30,6 +28,7 @@ export function DrushTerminal({
   const [history, setHistory] = useState<DrushEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const entryIdRef = useRef(0);
 
   // Append output to history when a new result arrives (capped at 100 entries)
   useEffect(() => {
@@ -38,7 +37,7 @@ export function DrushTerminal({
         const next = [
           ...prev,
           {
-            id: ++entryIdCounter,
+            id: ++entryIdRef.current,
             command: drushOutput.command,
             output: drushOutput.output,
             exitCode: drushOutput.exit_code,

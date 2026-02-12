@@ -139,7 +139,10 @@ export function ImageCard({
               variant="ghost"
               size="sm"
               className="text-xs text-destructive"
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1" />
               Remove

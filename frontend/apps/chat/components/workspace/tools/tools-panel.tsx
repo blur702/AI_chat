@@ -65,7 +65,11 @@ function loadStringSet(key: string): Set<string> {
 }
 
 function saveStringSet(key: string, set: Set<string>) {
-  localStorage.setItem(key, JSON.stringify([...set]));
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch (err) {
+    console.error(`Failed to save ${key} to localStorage`, err);
+  }
 }
 
 export function ToolsPanel({

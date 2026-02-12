@@ -31,25 +31,25 @@ interface YoloEditHistoryProps {
 }
 
 function formatTime(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
     return "";
   }
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
     return "";
   }
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function YoloEditHistory({
@@ -108,7 +108,7 @@ export function YoloEditHistory({
             </p>
           )}
 
-          {error && (
+          {!loading && error && (
             <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>{error}</span>

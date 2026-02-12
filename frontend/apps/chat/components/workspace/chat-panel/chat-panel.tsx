@@ -1,9 +1,19 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import { Button, ScrollArea, cn } from "@workstation/ui";
-import { X, Send, Bot, User, AlertCircle, ListChecks, Wrench, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { useSandboxConversation } from "@workstation/api/hooks";
+import { useRef, useEffect, useState, useCallback } from "react";
+import {
+  Button,
+  ScrollArea,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  cn,
+} from "@workstation/ui";
+import { X, Send, Bot, User, AlertCircle, ListChecks, Wrench, CheckCircle2, XCircle, Clock, Plus, ChevronDown, Loader2 } from "lucide-react";
+import { useWorkspaceConversation, useChats } from "@workstation/api/hooks";
 import type { TokenUsage } from "@workstation/api/hooks/use-token-usage";
 import type { FileNode, ToolExecuteResponse } from "@workstation/api/types";
 import { ThinkingIndicator } from "./thinking-indicator";
@@ -28,33 +38,113 @@ export function ChatPanel({
   toolResults = [],
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [creatingChat, setCreatingChat] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { messages, loading, processing, progress, error, tokenUsage, sendMessage } =
-    useSandboxConversation(projectId, {
+  const { chats, loading: chatsLoading, createChat } = useChats(projectId);
+
+  const { chatId: activeChatId, messages, loading, processing, progress, error, tokenUsage, sendMessage } =
+    useWorkspaceConversation(projectId, {
       selectedFile,
       fileTree,
       terminalHistory,
-    });
+    }, selectedChatId);
+
+  // When the hook resolves the default chat, use it for display
+  const resolvedChatId = selectedChatId ?? activeChatId;
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, processing]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const content = input.trim();
     if (!content || processing) return;
     setInput("");
-    await sendMessage(content);
-  };
+    try {
+      await sendMessage(content);
+    } catch {
+      // sendMessage handles errors internally via setError
+    }
+  }, [input, processing, sendMessage]);
+
+  const handleNewChat = useCallback(async () => {
+    if (creatingChat) return;
+    setCreatingChat(true);
+    try {
+      const newId = await createChat("New Chat");
+      if (newId) {
+        setSelectedChatId(newId);
+      }
+    } finally {
+      setCreatingChat(false);
+    }
+  }, [creatingChat, createChat]);
+
+  const handleSelectChat = useCallback((id: string) => {
+    setSelectedChatId(id);
+  }, []);
+
+  // Find the title of the active chat
+  const activeChatTitle = chats.find((c) => c.id === resolvedChatId)?.title ?? "AI Chat";
+  const visibleChats = chats.filter((c) => !c.is_archived);
 
   return (
     <div className="flex h-full flex-col border-l">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-xs font-semibold uppercase">AI Chat</span>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+      {/* Header with chat selector */}
+      <div className="flex items-center justify-between border-b px-2 py-1.5 gap-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex flex-1 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-accent transition-colors min-w-0"
+            >
+              <span className="truncate">{activeChatTitle}</span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {chatsLoading && visibleChats.length === 0 ? (
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : visibleChats.length === 0 ? (
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                No chats yet
+              </DropdownMenuLabel>
+            ) : (
+              visibleChats.map((chat) => (
+                <DropdownMenuItem
+                  key={chat.id}
+                  onSelect={() => handleSelectChat(chat.id)}
+                  className={cn(
+                    "text-xs",
+                    chat.id === resolvedChatId && "bg-accent font-medium"
+                  )}
+                >
+                  <span className="truncate">{chat.title}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={handleNewChat}
+              disabled={creatingChat}
+              className="text-xs"
+            >
+              {creatingChat ? (
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="mr-1.5 h-3 w-3" />
+              )}
+              New Chat
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -125,7 +215,7 @@ export function ChatPanel({
             </div>
           )}
 
-          {/* Tool Execution Results */}
+          {/* Tool Execution Results — workspace-scoped, not per-chat */}
           {toolResults.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -179,7 +269,12 @@ export function ChatPanel({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Ask about your code..."
             disabled={loading || processing}
             className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"

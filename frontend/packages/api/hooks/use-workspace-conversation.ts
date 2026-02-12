@@ -12,7 +12,8 @@ interface SandboxContext {
   terminalHistory: string[];
 }
 
-interface UseSandboxConversationReturn {
+interface UseWorkspaceConversationReturn {
+  chatId: string | null;
   messages: MessageSummary[];
   loading: boolean;
   processing: boolean;
@@ -21,6 +22,8 @@ interface UseSandboxConversationReturn {
   tokenUsage: TokenUsage | null;
   sendMessage: (content: string) => Promise<boolean>;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function summarizeFileTree(nodes: FileNode[]): string {
   let fileCount = 0;
@@ -46,10 +49,11 @@ function summarizeFileTree(nodes: FileNode[]): string {
   return summary;
 }
 
-export function useSandboxConversation(
+export function useWorkspaceConversation(
   projectId: string,
-  context: SandboxContext
-): UseSandboxConversationReturn {
+  context: SandboxContext,
+  externalChatId?: string | null
+): UseWorkspaceConversationReturn {
   const [chatId, setChatId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConversationState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,9 +84,14 @@ export function useSandboxConversation(
     };
   }, [clearProgress]);
 
-  // Initialize: get or create the default sandbox chat
+  // Initialize: load specified chat or get/create the default sandbox chat
   useEffect(() => {
     if (!projectId) return;
+
+    // Cancel any in-flight stream from previous chat
+    abortRef.current?.();
+    abortRef.current = null;
+    clearProgress();
 
     let cancelled = false;
     setChatId(null);
@@ -90,25 +99,56 @@ export function useSandboxConversation(
     setLoading(true);
     setError(null);
 
-    getClient()
-      .getOrCreateProjectChat(projectId)
-      .then((res) => {
-        if (cancelled) return;
-        setChatId(res.chat_id);
-        setConversation(res.conversation);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to initialize chat");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    if (externalChatId) {
+      // Validate UUID format before making API call
+      if (!UUID_RE.test(externalChatId)) {
+        setError("Invalid chat ID format");
+        setLoading(false);
+        return;
+      }
+
+      // Load a specific chat by ID
+      getClient()
+        .getConversationState(externalChatId)
+        .then((conv) => {
+          if (cancelled) return;
+          // Verify this chat belongs to the current project
+          if (conv.project_id !== projectId) {
+            setError("Chat does not belong to this project");
+            return;
+          }
+          setChatId(externalChatId);
+          setConversation(conv);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setError(err instanceof Error ? err.message : "Failed to load chat");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    } else {
+      // Default behavior: get or create the project's default chat
+      getClient()
+        .getOrCreateProjectChat(projectId)
+        .then((res) => {
+          if (cancelled) return;
+          setChatId(res.chat_id);
+          setConversation(res.conversation);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setError(err instanceof Error ? err.message : "Failed to initialize chat");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, externalChatId, clearProgress]);
 
   const startProgress = useCallback(() => {
     clearProgress();
@@ -137,6 +177,8 @@ export function useSandboxConversation(
     async (content: string): Promise<boolean> => {
       if (!chatId) return false;
 
+      setError(null);
+
       // Cancel any in-flight stream
       abortRef.current?.();
 
@@ -161,8 +203,9 @@ export function useSandboxConversation(
       }
 
       // Optimistically add user message (display original content, not enriched)
+      const tempId = crypto.randomUUID();
       const tempMessage: MessageSummary = {
-        id: `temp-${Date.now()}`,
+        id: `temp-user-${tempId}`,
         role: "user",
         content,
         is_pinned: false,
@@ -170,7 +213,7 @@ export function useSandboxConversation(
         created_at: new Date().toISOString(),
       };
 
-      const assistantTempId = `temp-assistant-${Date.now()}`;
+      const assistantTempId = `temp-assistant-${tempId}`;
       const assistantMessage: MessageSummary = {
         id: assistantTempId,
         role: "assistant",
@@ -245,6 +288,7 @@ export function useSandboxConversation(
   );
 
   return {
+    chatId,
     messages: conversation?.messages ?? [],
     loading,
     processing,
@@ -254,3 +298,6 @@ export function useSandboxConversation(
     sendMessage,
   };
 }
+
+/** @deprecated Use useWorkspaceConversation instead */
+export const useSandboxConversation = useWorkspaceConversation;

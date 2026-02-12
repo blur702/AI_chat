@@ -242,7 +242,7 @@ function EventCard({
   onToggle: () => void;
 }) {
   const severityClass = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS.info;
-  const hasData = Object.keys(event.event_data).length > 0;
+  const hasData = Object.keys(event.event_data ?? {}).length > 0;
 
   return (
     <div className="rounded-md border bg-card text-card-foreground">

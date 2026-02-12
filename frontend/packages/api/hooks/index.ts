@@ -9,7 +9,7 @@ export { useProjects } from "./use-projects";
 export { useEvents, useEventTypes, useCreateEvent } from "./use-events";
 export { useTools } from "./use-tools";
 export { useFileExplorer } from "./use-file-explorer";
-export { useSandboxConversation } from "./use-sandbox-conversation";
+export { useWorkspaceConversation, useSandboxConversation } from "./use-workspace-conversation";
 export { useAutomationActions } from "./use-automation-actions";
 export { useYoloEdits } from "./use-yolo-edits";
 export { useSettings } from "./use-settings";

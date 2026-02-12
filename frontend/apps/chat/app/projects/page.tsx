@@ -196,15 +196,38 @@ export default function ProjectsPage() {
       setGitError("Name and Git URL are required.");
       return;
     }
-    if (!gitUrl.trim().startsWith("https://")) {
-      setGitError("Only HTTPS Git URLs are allowed.");
+    const trimmedGitUrl = gitUrl.trim();
+    let parsedGitUrl: URL;
+    try {
+      parsedGitUrl = new URL(trimmedGitUrl);
+    } catch {
+      setGitError("Enter a valid HTTPS Git repository URL.");
+      return;
+    }
+    const hasSpaces =
+      /\s/.test(parsedGitUrl.hostname) || /\s/.test(parsedGitUrl.pathname);
+    const hasRepoPath =
+      parsedGitUrl.pathname.trim().length > 1 &&
+      parsedGitUrl.pathname.trim() !== "/";
+    const blockedHosts = ["localhost", "127.0.0.1", "[::1]", "0.0.0.0"];
+    const isPrivateHost =
+      blockedHosts.includes(parsedGitUrl.hostname) ||
+      /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(parsedGitUrl.hostname);
+    if (
+      parsedGitUrl.protocol !== "https:" ||
+      !parsedGitUrl.hostname ||
+      !hasRepoPath ||
+      hasSpaces ||
+      isPrivateHost
+    ) {
+      setGitError("Enter a valid HTTPS Git repository URL with a repository path.");
       return;
     }
     try {
       setGitError(null);
       await importFromGit({
         name: gitName.trim(),
-        git_url: gitUrl.trim(),
+        git_url: trimmedGitUrl,
         branch: gitBranch.trim() || undefined,
         install_deps: gitInstallDeps,
       });

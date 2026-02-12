@@ -36,7 +36,7 @@ export function PreemptionDialog({
 
   if (!resourceId) return null;
 
-  const deficit = requiredVramMb - freeVramMb;
+  const deficit = Math.max(0, requiredVramMb - freeVramMb);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>

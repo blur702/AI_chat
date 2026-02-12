@@ -2,8 +2,8 @@
 
 import {
   Panel,
-  PanelGroup,
-  PanelResizeHandle,
+  Group,
+  Separator,
 } from "react-resizable-panels";
 import { FileExplorer } from "./file-explorer/file-explorer";
 import { EditorPane } from "./editor/editor-pane";
@@ -42,6 +42,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showDrupal, setShowDrupal] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
   const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
+  const [initialTool, setInitialTool] = useState<string | null>(null);
   const [lastToolExecution, setLastToolExecution] = useState<{
     toolName: string;
     success: boolean;
@@ -149,6 +150,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const handleToolsClick = useCallback(() => {
     setToolsPrefillFile(null);
     setToolsFilterForFile(false);
+    setInitialTool(null);
     if (isMobile) {
       setMobileTab("tools");
     } else {
@@ -160,6 +162,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     (filePath: string) => {
       setToolsPrefillFile(filePath);
       setToolsFilterForFile(true);
+      setInitialTool(null);
       if (isMobile) {
         setMobileTab("tools");
       } else {
@@ -225,6 +228,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         e.preventDefault();
         setToolsPrefillFile(null);
         setToolsFilterForFile(false);
+        setInitialTool(null);
         if (isMobile) {
           setMobileTab("tools");
         } else {
@@ -304,6 +308,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onQuickExecuteTool={(toolName) => {
             setToolsPrefillFile(null);
             setToolsFilterForFile(false);
+            setInitialTool(toolName);
             setMobileTab("tools");
           }}
         />
@@ -343,6 +348,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               filterForFile={toolsFilterForFile}
               onToolExecuted={handleToolExecuted}
               rerunExecution={rerunExecution}
+              initialTool={initialTool}
             />
           )}
           {mobileTab === "events" && (
@@ -388,30 +394,31 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onQuickExecuteTool={(toolName) => {
           setToolsPrefillFile(null);
           setToolsFilterForFile(false);
+          setInitialTool(toolName);
           setShowTools(true);
         }}
       />
-      <PanelGroup direction="horizontal" className="flex-1">
+      <Group orientation="horizontal" className="flex-1">
         {/* File Explorer */}
         <Panel defaultSize={15} minSize={10} maxSize={30}>
           <FileExplorer {...fileExplorerProps} />
         </Panel>
 
-        <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+        <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
         <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources || showDrupal ? 55 : 85} minSize={30}>
-          <PanelGroup direction="vertical">
+          <Group orientation="vertical">
             {/* Editor Area */}
             <Panel defaultSize={65} minSize={30}>
               <EditorPane {...editorProps} />
             </Panel>
 
-            <PanelResizeHandle className="h-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors" />
 
             {/* Terminal + Preview */}
             <Panel defaultSize={35} minSize={15}>
-              <PanelGroup direction="horizontal">
+              <Group orientation="horizontal">
                 <Panel defaultSize={60} minSize={30}>
                   <TerminalPane
                     projectId={projectId}
@@ -419,19 +426,19 @@ export function IDELayout({ projectId }: IDELayoutProps) {
                     handleRef={terminalRef}
                   />
                 </Panel>
-                <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+                <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
                 <Panel defaultSize={40} minSize={20}>
                   <PreviewPane />
                 </Panel>
-              </PanelGroup>
+              </Group>
             </Panel>
-          </PanelGroup>
+          </Group>
         </Panel>
 
         {/* Chat Panel (collapsible) */}
         {showChat && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <ChatPanel
                 {...chatPanelProps}
@@ -445,7 +452,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Automation Actions Panel (collapsible) */}
         {showAutomations && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
               <AutomationActionsPanel
                 projectId={projectId}
@@ -458,7 +465,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Edit History Panel (collapsible) */}
         {showHistory && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
               <YoloEditHistory
                 projectId={projectId}
@@ -471,7 +478,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Image Generation Panel (collapsible) */}
         {showImageGen && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <ImageGenPanel
                 projectId={projectId}
@@ -484,7 +491,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Tools Panel (collapsible) */}
         {showTools && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <ToolsPanel
                 tools={tools}
@@ -497,6 +504,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
                 filterForFile={toolsFilterForFile}
                 onToolExecuted={handleToolExecuted}
                 rerunExecution={rerunExecution}
+                initialTool={initialTool}
               />
             </Panel>
           </>
@@ -505,7 +513,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Events Panel (collapsible) */}
         {showEvents && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
               <EventsPanel onClose={() => setShowEvents(false)} />
             </Panel>
@@ -515,7 +523,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Resources Panel (collapsible) */}
         {showResources && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
               <ResourcesPanel onClose={() => setShowResources(false)} />
             </Panel>
@@ -525,7 +533,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Drupal Panel (collapsible) */}
         {showDrupal && (
           <>
-            <PanelResizeHandle className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
               <DrupalPanel
                 projectId={projectId}
@@ -534,7 +542,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             </Panel>
           </>
         )}
-      </PanelGroup>
+      </Group>
     </div>
   );
 }

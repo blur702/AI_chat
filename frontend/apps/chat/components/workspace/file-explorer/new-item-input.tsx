@@ -21,6 +21,7 @@ export function NewItemInput({
 }: NewItemInputProps) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const justSubmittedRef = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -29,10 +30,19 @@ export function NewItemInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && value.trim()) {
       const fullPath = parentPath ? `${parentPath}/${value.trim()}` : value.trim();
+      justSubmittedRef.current = true;
       onSubmit(fullPath);
+      window.setTimeout(() => {
+        justSubmittedRef.current = false;
+      }, 0);
     } else if (e.key === "Escape") {
       onCancel();
     }
+  };
+
+  const handleBlur = () => {
+    if (justSubmittedRef.current) return;
+    onCancel();
   };
 
   return (
@@ -50,7 +60,7 @@ export function NewItemInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        onBlur={onCancel}
+        onBlur={handleBlur}
         className="h-6 text-xs px-1 py-0"
         placeholder={type === "file" ? "filename.ext" : "folder name"}
       />

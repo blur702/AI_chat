@@ -2,7 +2,7 @@
 
 import { useAuth } from "@workstation/api";
 import { Button } from "@workstation/ui";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, FolderOpen } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -18,9 +18,20 @@ export default function HomePage() {
         Your AI-powered development assistant
       </p>
       {isAuthenticated ? (
-        <Link href="/chat">
-          <Button size="lg">Open Chat</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/chat">
+            <Button size="lg">
+              <MessageSquare className="mr-2 h-5 w-5" />
+              Open Chat
+            </Button>
+          </Link>
+          <Link href="/projects">
+            <Button size="lg" variant="outline">
+              <FolderOpen className="mr-2 h-5 w-5" />
+              Projects
+            </Button>
+          </Link>
+        </div>
       ) : (
         <Link href="/login">
           <Button size="lg">Sign In</Button>

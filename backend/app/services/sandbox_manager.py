@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 import docker
-from docker.errors import DockerException, NotFound
+from docker.errors import APIError, DockerException, NotFound
 
 from app.kernel.base import BaseKernelService
 from app.services.templates import TemplateDefinition, TemplateRegistry
@@ -157,13 +157,13 @@ class SandboxManager(BaseKernelService):
             cpu_quota = template.cpu_quota
             env_vars = dict(template.environment)
 
-        # Create the main container
-        container = await asyncio.to_thread(
-            self._client.containers.run,
-            image,
+        # Create the main container (with conflict recovery)
+        container_name = f"sandbox-{pid[:12]}"
+        run_kwargs = dict(
+            image=image,
             command="sleep infinity",
             detach=True,
-            name=f"sandbox-{pid[:12]}",
+            name=container_name,
             labels={
                 "project_id": pid,
                 "managed_by": "workstation",
@@ -181,6 +181,36 @@ class SandboxManager(BaseKernelService):
             cap_drop=["ALL"],
             cap_add=["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"],
         )
+
+        try:
+            container = await asyncio.to_thread(
+                self._client.containers.run, **run_kwargs
+            )
+        except APIError as exc:
+            if exc.status_code == 409:
+                # Name conflict — stale container exists; remove it and retry
+                logger.warning(
+                    "Container name '%s' conflict (409), removing stale container",
+                    container_name,
+                )
+                try:
+                    stale = await asyncio.to_thread(
+                        self._client.containers.get, container_name
+                    )
+                    await asyncio.to_thread(stale.remove, force=True)
+                except (NotFound, APIError):
+                    pass  # Already gone or removal race
+                try:
+                    container = await asyncio.to_thread(
+                        self._client.containers.run, **run_kwargs
+                    )
+                except APIError as retry_exc:
+                    raise RuntimeError(
+                        f"Failed to create sandbox container after removing stale "
+                        f"'{container_name}': {retry_exc}"
+                    ) from retry_exc
+            else:
+                raise
 
         container_id = container.id
         self._containers[pid] = container_id
@@ -775,13 +805,30 @@ class SandboxManager(BaseKernelService):
                 filters={"label": "managed_by=workstation"},
                 all=True,
             )
+            removed = 0
             for container in containers:
                 pid = container.labels.get("project_id")
-                if pid:
-                    self._containers[pid] = container.id
-                    self._last_activity[container.id] = time.time()
+                if not pid:
+                    continue
+                # Remove containers stuck in "created" state — they block
+                # new container creation with a 409 name conflict.
+                if container.status == "created":
+                    try:
+                        await asyncio.to_thread(container.remove, force=True)
+                        removed += 1
+                        logger.info(
+                            "Removed stale 'created' container %s for project %s",
+                            container.short_id, pid[:12],
+                        )
+                    except (NotFound, APIError):
+                        pass
+                    continue
+                self._containers[pid] = container.id
+                self._last_activity[container.id] = time.time()
             if self._containers:
                 logger.info("Recovered %d sandbox containers", len(self._containers))
+            if removed:
+                logger.info("Cleaned up %d stale containers", removed)
         except DockerException as e:
             logger.warning("Failed to recover containers: %s", e)
 

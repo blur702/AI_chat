@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   cn,
   ContextMenu,
@@ -56,9 +56,11 @@ export function FileTreeItem({
   const isSelected = selectedFile === node.path;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const handleRenameSubmit = useCallback(async () => {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       if (renameValue.trim() && renameValue !== node.name) {
@@ -75,15 +77,16 @@ export function FileTreeItem({
       console.error("Rename failed:", error);
     } finally {
       setIsRenaming(false);
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [renameValue, node.name, node.path, onRename, isSubmitting]);
+  }, [renameValue, node.name, node.path, onRename]);
 
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (!isSubmitting) {
-        handleRenameSubmit();
+      if (!isSubmittingRef.current) {
+        void handleRenameSubmit();
       }
     } else if (e.key === "Escape") {
       setRenameValue(node.name);
@@ -187,7 +190,11 @@ export function FileTreeItem({
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
-                  onBlur={handleRenameSubmit}
+                  onBlur={() => {
+                    if (!isSubmittingRef.current) {
+                      void handleRenameSubmit();
+                    }
+                  }}
                   className="h-5 text-xs px-1 py-0"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
@@ -247,7 +254,11 @@ export function FileTreeItem({
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={handleRenameKeyDown}
-              onBlur={handleRenameSubmit}
+              onBlur={() => {
+                if (!isSubmittingRef.current) {
+                  void handleRenameSubmit();
+                }
+              }}
               className="h-5 text-xs px-1 py-0"
               autoFocus
               onClick={(e) => e.stopPropagation()}

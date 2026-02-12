@@ -88,7 +88,7 @@ export function OffloadPreferences({
     type: "success" | "error";
   } | null>(null);
 
-  // Advanced settings (local state, not persisted to backend)
+  // Advanced settings (session-only, not persisted to backend)
   const [autoUnloadIdle, setAutoUnloadIdle] = useState(false);
   const [idleTimeoutMin, setIdleTimeoutMin] = useState(30);
   const [vramThreshold, setVramThreshold] = useState(90);
@@ -201,13 +201,13 @@ export function OffloadPreferences({
       <div className="border-t pt-4">
         <div className="flex items-center gap-2 mb-3">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Advanced Settings</h3>
+          <h3 className="text-sm font-semibold">Advanced Settings (Session only)</h3>
         </div>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Auto-unload idle resources</p>
+              <p className="text-sm font-medium">Auto-unload idle resources (Session only)</p>
               <p className="text-xs text-muted-foreground">
                 Automatically offload resources that haven't been used recently.
               </p>
@@ -223,7 +223,7 @@ export function OffloadPreferences({
           {autoUnloadIdle && (
             <div className="space-y-2 pl-4">
               <label htmlFor="idleTimeout" className="text-sm font-medium">
-                Idle timeout (minutes)
+                Idle timeout (minutes, session only)
               </label>
               <Input
                 id="idleTimeout"
@@ -244,7 +244,7 @@ export function OffloadPreferences({
 
           <div className="space-y-2">
             <label htmlFor="vramThreshold" className="text-sm font-medium">
-              VRAM warning threshold: {vramThreshold}%
+              VRAM warning threshold (Session only): {vramThreshold}%
             </label>
             <input
               id="vramThreshold"
@@ -267,7 +267,7 @@ export function OffloadPreferences({
 
           <div className="space-y-2">
             <label htmlFor="preemptionStrategy" className="text-sm font-medium">
-              Preemption strategy
+              Preemption strategy (Session only)
             </label>
             <select
               id="preemptionStrategy"
