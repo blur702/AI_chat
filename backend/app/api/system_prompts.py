@@ -221,7 +221,6 @@ async def delete_system_prompt(
         .where(Project.system_prompt_id == prompt.id)
         .values(system_prompt_id=None)
     )
-    await db.commit()
 
     prompt.soft_delete()
     await db.commit()
