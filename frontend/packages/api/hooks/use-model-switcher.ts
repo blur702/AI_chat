@@ -79,7 +79,11 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
 
   const setActiveModel = useCallback((name: string) => {
     setActiveModelState(name);
-    localStorage.setItem(ACTIVE_MODEL_KEY, name);
+    try {
+      localStorage.setItem(ACTIVE_MODEL_KEY, name);
+    } catch (e) {
+      console.warn("Failed to persist active model to localStorage:", e);
+    }
     // Dispatch custom event for same-window communication
     window.dispatchEvent(new CustomEvent(ACTIVE_MODEL_CHANGE_EVENT, {
       detail: { model: name },
@@ -150,7 +154,11 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       // If the deleted model was active, clear active selection
       if (activeModelRef.current === name) {
         setActiveModelState(null);
-        localStorage.removeItem(ACTIVE_MODEL_KEY);
+        try {
+          localStorage.removeItem(ACTIVE_MODEL_KEY);
+        } catch (e) {
+          console.warn("Failed to remove active model from localStorage:", e);
+        }
       }
       await refresh();
     } catch (err) {

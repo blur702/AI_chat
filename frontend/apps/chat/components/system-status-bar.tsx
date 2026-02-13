@@ -78,6 +78,7 @@ export function SystemStatusBar() {
         <button
           onClick={() => setModelDialogOpen(true)}
           className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-muted transition-colors"
+          aria-label={`Open model selector, current model: ${activeModel ? activeModel.split(":")[0] : "No model"}`}
         >
           <Bot className="h-3.5 w-3.5 text-muted-foreground" />
           <span className={cn(

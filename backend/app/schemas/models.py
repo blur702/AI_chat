@@ -104,3 +104,4 @@ class ModelPullProgress(BaseModel):
     total: Optional[int] = None
     completed: Optional[int] = None
     percent: Optional[float] = None
+    message: Optional[str] = None
