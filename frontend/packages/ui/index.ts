@@ -15,6 +15,17 @@ export {
   DialogTitle,
   DialogDescription,
 } from "./components/ui/dialog";
+export {
+  Sheet,
+  SheetPortal,
+  SheetOverlay,
+  SheetClose,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "./components/ui/sheet";
 export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 export {

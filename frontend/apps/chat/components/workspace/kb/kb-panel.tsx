@@ -91,9 +91,9 @@ export function KBPanel({ projectId, onClose }: KBPanelProps) {
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    await deleteSource(deleteTarget, projectId);
+    await deleteSource(deleteTarget);
     setDeleteTarget(null);
-  }, [deleteTarget, projectId, deleteSource]);
+  }, [deleteTarget, deleteSource]);
 
   return (
     <div className="flex h-full flex-col bg-background">

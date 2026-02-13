@@ -11,7 +11,7 @@ interface ImageGenPanelProps {
 
 export function ImageGenPanel({ projectId, onClose }: ImageGenPanelProps) {
   return (
-    <div className="flex h-full flex-col border-l">
+    <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-semibold uppercase flex items-center gap-1.5">
           <ImageIcon className="h-3.5 w-3.5" />

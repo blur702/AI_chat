@@ -219,7 +219,7 @@ export class WorkstationClient {
     });
 
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== "undefined") {
+      if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
         localStorage.removeItem("workstation_token");
         this.token = null;
         window.location.href = "/login";

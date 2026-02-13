@@ -59,11 +59,16 @@ export function SnapshotsPanel({ projectId, onClose }: SnapshotsPanelProps) {
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newName.trim()) return;
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+        setError("Snapshot name may only contain letters, digits, hyphens, and underscores");
+        return;
+      }
       setCreating(true);
       setError(null);
       try {
-        await createSnapshot(projectId, newName.trim());
+        await createSnapshot(projectId, trimmed);
         setNewName("");
         setShowCreate(false);
       } catch (err) {

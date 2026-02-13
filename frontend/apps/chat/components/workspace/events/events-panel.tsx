@@ -81,7 +81,7 @@ export function EventsPanel({ onClose }: EventsPanelProps) {
   const hasFilters = filterType || filterSeverity;
 
   return (
-    <div className="flex h-full flex-col border-l">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">

@@ -137,22 +137,25 @@ export function useEventStats(): UseEventStatsReturn {
   const [stats, setStats] = useState<EventStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const result = await getClient().getEventStats();
-      setStats(result);
+      if (!cancelledRef.current) setStats(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch event stats");
+      if (!cancelledRef.current) setError(err instanceof Error ? err.message : "Failed to fetch event stats");
     } finally {
-      setLoading(false);
+      if (!cancelledRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    cancelledRef.current = false;
     refresh();
+    return () => { cancelledRef.current = true; };
   }, [refresh]);
 
   return { stats, loading, error, refresh };

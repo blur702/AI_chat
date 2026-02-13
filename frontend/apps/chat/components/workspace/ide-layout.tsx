@@ -25,7 +25,7 @@ import { PanelErrorBoundary } from "./panel-error-boundary";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useBreakpoint } from "@workstation/ui";
+import { useBreakpoint, Sheet, SheetContent, SheetTitle } from "@workstation/ui";
 import { useFileExplorer, useAutomationActions, useTools } from "@workstation/api/hooks";
 import type { ToolExecuteResponse } from "@workstation/api/types";
 
@@ -450,7 +450,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
-        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources || showDrupal || showKB || showSnapshots ? 55 : 85} minSize={30}>
+        <Panel defaultSize={showChat ? 55 : 85} minSize={30}>
           <Group orientation="vertical">
             {/* Editor Area */}
             <Panel defaultSize={65} minSize={30}>
@@ -484,7 +484,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           </Group>
         </Panel>
 
-        {/* Chat Panel (collapsible) */}
+        {/* Chat Panel (collapsible sidebar — stays inline) */}
         {showChat && (
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
@@ -499,145 +499,120 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             </Panel>
           </>
         )}
-
-        {/* Automation Actions Panel (collapsible) */}
-        {showAutomations && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Automation Actions">
-                <AutomationActionsPanel
-                  projectId={projectId}
-                  onClose={() => setShowAutomations(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Edit History Panel (collapsible) */}
-        {showHistory && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Edit History">
-                <YoloEditHistory
-                  projectId={projectId}
-                  onClose={() => setShowHistory(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Image Generation Panel (collapsible) */}
-        {showImageGen && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <PanelErrorBoundary panelName="Image Generation">
-                <ImageGenPanel
-                  projectId={projectId}
-                  onClose={() => setShowImageGen(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Tools Panel (collapsible) */}
-        {showTools && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <PanelErrorBoundary panelName="Tools">
-                <ToolsPanel
-                  tools={tools}
-                  loading={toolsLoading}
-                  error={toolsError}
-                  onExecute={executeTool}
-                  onRefresh={refreshTools}
-                  onClose={() => setShowTools(false)}
-                  prefillFile={toolsPrefillFile}
-                  filterForFile={toolsFilterForFile}
-                  onToolExecuted={handleToolExecuted}
-                  rerunExecution={rerunExecution}
-                  initialTool={initialTool}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Events Panel (collapsible) */}
-        {showEvents && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Events">
-                <EventsPanel onClose={() => setShowEvents(false)} />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Resources Panel (collapsible) */}
-        {showResources && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Resources">
-                <ResourcesPanel onClose={() => setShowResources(false)} />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Drupal Panel (collapsible) */}
-        {showDrupal && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <PanelErrorBoundary panelName="Drupal">
-                <DrupalPanel
-                  projectId={projectId}
-                  onClose={() => setShowDrupal(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Knowledge Base Panel (collapsible) */}
-        {showKB && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Knowledge Base">
-                <KBPanel
-                  projectId={projectId}
-                  onClose={() => setShowKB(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
-
-        {/* Snapshots Panel (collapsible) */}
-        {showSnapshots && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <PanelErrorBoundary panelName="Snapshots">
-                <SnapshotsPanel
-                  projectId={projectId}
-                  onClose={() => setShowSnapshots(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
       </Group>
+
+      {/* --- Slide-in Sheet overlays (float on top of content) --- */}
+
+      <Sheet open={showAutomations} onOpenChange={setShowAutomations}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Automation Actions</SheetTitle>
+          <PanelErrorBoundary panelName="Automation Actions">
+            <AutomationActionsPanel
+              projectId={projectId}
+              onClose={() => setShowAutomations(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showHistory} onOpenChange={setShowHistory}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Edit History</SheetTitle>
+          <PanelErrorBoundary panelName="Edit History">
+            <YoloEditHistory
+              projectId={projectId}
+              onClose={() => setShowHistory(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showImageGen} onOpenChange={setShowImageGen}>
+        <SheetContent className="w-[520px]">
+          <SheetTitle className="sr-only">Image Generation</SheetTitle>
+          <PanelErrorBoundary panelName="Image Generation">
+            <ImageGenPanel
+              projectId={projectId}
+              onClose={() => setShowImageGen(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showTools} onOpenChange={setShowTools}>
+        <SheetContent className="w-[520px]">
+          <SheetTitle className="sr-only">Tools</SheetTitle>
+          <PanelErrorBoundary panelName="Tools">
+            <ToolsPanel
+              tools={tools}
+              loading={toolsLoading}
+              error={toolsError}
+              onExecute={executeTool}
+              onRefresh={refreshTools}
+              onClose={() => setShowTools(false)}
+              prefillFile={toolsPrefillFile}
+              filterForFile={toolsFilterForFile}
+              onToolExecuted={handleToolExecuted}
+              rerunExecution={rerunExecution}
+              initialTool={initialTool}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showEvents} onOpenChange={setShowEvents}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Events</SheetTitle>
+          <PanelErrorBoundary panelName="Events">
+            <EventsPanel onClose={() => setShowEvents(false)} />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showResources} onOpenChange={setShowResources}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Resources</SheetTitle>
+          <PanelErrorBoundary panelName="Resources">
+            <ResourcesPanel onClose={() => setShowResources(false)} />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showDrupal} onOpenChange={setShowDrupal}>
+        <SheetContent className="w-[520px]">
+          <SheetTitle className="sr-only">Drupal</SheetTitle>
+          <PanelErrorBoundary panelName="Drupal">
+            <DrupalPanel
+              projectId={projectId}
+              onClose={() => setShowDrupal(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showKB} onOpenChange={setShowKB}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Knowledge Base</SheetTitle>
+          <PanelErrorBoundary panelName="Knowledge Base">
+            <KBPanel
+              projectId={projectId}
+              onClose={() => setShowKB(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showSnapshots} onOpenChange={setShowSnapshots}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Snapshots</SheetTitle>
+          <PanelErrorBoundary panelName="Snapshots">
+            <SnapshotsPanel
+              projectId={projectId}
+              onClose={() => setShowSnapshots(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

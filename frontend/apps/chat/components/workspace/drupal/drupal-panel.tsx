@@ -57,7 +57,7 @@ export function DrupalPanel({ projectId, onClose }: DrupalPanelProps) {
   // Loading state
   if (siteLoading) {
     return (
-      <div className="flex h-full flex-col border-l">
+      <div className="flex h-full flex-col">
         <PanelHeader onClose={onClose} onRefresh={refresh} loading />
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -69,7 +69,7 @@ export function DrupalPanel({ projectId, onClose }: DrupalPanelProps) {
   // Not connected — show connect prompt
   if (!site) {
     return (
-      <div className="flex h-full flex-col border-l">
+      <div className="flex h-full flex-col">
         <PanelHeader onClose={onClose} onRefresh={refresh} />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <Globe className="h-10 w-10 text-muted-foreground/50" />
@@ -97,7 +97,7 @@ export function DrupalPanel({ projectId, onClose }: DrupalPanelProps) {
 
   // Connected — show tabbed interface
   return (
-    <div className="flex h-full flex-col border-l">
+    <div className="flex h-full flex-col">
       <PanelHeader
         onClose={onClose}
         onRefresh={refresh}

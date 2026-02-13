@@ -241,7 +241,7 @@ export function AutomationActionsPanel({
     approveAction && EDITABLE_FIELDS[approveAction.action_type];
 
   return (
-    <div className="flex h-full flex-col border-l">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-semibold uppercase">Actions</span>
