@@ -23,7 +23,7 @@ interface UseConversationReturn {
   excludeMessage: (messageId: string, excluded: boolean) => Promise<boolean>;
 }
 
-export function useConversation(chatId: string | null): UseConversationReturn {
+export function useConversation(chatId: string | null, activeModel?: string | null): UseConversationReturn {
   const [conversation, setConversation] = useState<ConversationState | null>(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -197,12 +197,13 @@ export function useConversation(chatId: string | null): UseConversationReturn {
           finishProgress();
           abortRef.current = null;
         },
+        activeModel ?? undefined,
       );
 
       abortRef.current = cancel;
       return true;
     },
-    [chatId, conversation, startProgress, finishProgress]
+    [chatId, conversation, startProgress, finishProgress, activeModel]
   );
 
   const updateMessage = useCallback(

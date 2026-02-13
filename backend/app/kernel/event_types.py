@@ -19,6 +19,8 @@ CHAT_MESSAGE = "chat_message"
 KERNEL_STARTUP = "kernel_startup"
 KERNEL_SHUTDOWN = "kernel_shutdown"
 SERVICE_HEALTH_CHANGED = "service_health_changed"
+MODEL_LOADING = "model_loading"
+MODEL_PULLING = "model_pulling"
 
 # Severity Levels
 INFO = "info"
@@ -41,6 +43,8 @@ ALL_EVENT_TYPES = [
     KERNEL_STARTUP,
     KERNEL_SHUTDOWN,
     SERVICE_HEALTH_CHANGED,
+    MODEL_LOADING,
+    MODEL_PULLING,
 ]
 
 # All severity levels for validation
@@ -66,6 +70,8 @@ __all__ = [
     "KERNEL_STARTUP",
     "KERNEL_SHUTDOWN",
     "SERVICE_HEALTH_CHANGED",
+    "MODEL_LOADING",
+    "MODEL_PULLING",
     # Severity levels
     "INFO",
     "WARNING",

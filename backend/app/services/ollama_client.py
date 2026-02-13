@@ -179,3 +179,69 @@ class OllamaClient(BaseKernelService):
                     yield token
                 if chunk.get("done", False):
                     break
+
+    async def list_running_models(self) -> List[Dict[str, Any]]:
+        """Return models currently loaded in VRAM via Ollama's /api/ps."""
+        if self._client is None:
+            raise RuntimeError("OllamaClient not started")
+        resp = await self._client.get("/api/ps", timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("models", [])
+
+    async def load_model(self, name: str, keep_alive: str = "5m") -> Dict[str, Any]:
+        """Load a model into VRAM by sending a blank generate request with keep_alive."""
+        if self._client is None:
+            raise RuntimeError("OllamaClient not started")
+        resp = await self._client.post(
+            "/api/generate",
+            json={"model": name, "keep_alive": keep_alive},
+            timeout=httpx.Timeout(connect=5.0, read=300.0, write=5.0, pool=5.0),
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def unload_model(self, name: str) -> Dict[str, Any]:
+        """Unload a model from VRAM by setting keep_alive to 0."""
+        if self._client is None:
+            raise RuntimeError("OllamaClient not started")
+        resp = await self._client.post(
+            "/api/generate",
+            json={"model": name, "keep_alive": 0},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def pull_model(self, name: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """Pull/download a model from Ollama registry, streaming progress."""
+        if self._client is None:
+            raise RuntimeError("OllamaClient not started")
+        async with self._client.stream(
+            "POST",
+            "/api/pull",
+            json={"model": name, "stream": True},
+            timeout=httpx.Timeout(connect=10.0, read=600.0, write=5.0, pool=5.0),
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning("Malformed JSON chunk from Ollama pull: %s", line[:100])
+                    continue
+                yield chunk
+
+    async def delete_model(self, name: str) -> None:
+        """Delete a local model."""
+        if self._client is None:
+            raise RuntimeError("OllamaClient not started")
+        resp = await self._client.request(
+            "DELETE",
+            "/api/delete",
+            json={"model": name},
+            timeout=30.0,
+        )
+        resp.raise_for_status()

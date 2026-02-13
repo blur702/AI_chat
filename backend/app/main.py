@@ -35,6 +35,7 @@ from app.api.yolo import router as yolo_router
 from app.api.templates import router as templates_router
 from app.api.project_import import router as project_import_router
 from app.api.drupal import router as drupal_router
+from app.api.models import router as models_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -290,6 +291,7 @@ app.include_router(yolo_router, prefix="/api", tags=["yolo"])
 app.include_router(templates_router, prefix="/api", tags=["templates"])
 app.include_router(project_import_router, prefix="/api", tags=["projects"])
 app.include_router(drupal_router, prefix="/api", tags=["drupal"])
+app.include_router(models_router, prefix="/api", tags=["models"])
 
 
 async def check_postgres() -> tuple[bool, str]:

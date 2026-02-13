@@ -107,6 +107,9 @@ import type {
   DrushCommandResponse,
   SyncStatus,
   SyncResponse,
+  OllamaModelListResponse,
+  ModelActionResponse,
+  ModelPullProgress,
 } from "./types";
 
 export class ApiError extends Error {
@@ -513,6 +516,106 @@ export class WorkstationClient {
 
   async listModels(): Promise<ModelListResponse> {
     return this.request("/api/context/models");
+  }
+
+  // Ollama Model Management
+  async listOllamaModels(): Promise<OllamaModelListResponse> {
+    return this.request("/api/models");
+  }
+
+  async loadOllamaModel(modelName: string, keepAlive?: string): Promise<ModelActionResponse> {
+    return this.request("/api/models/load", {
+      method: "POST",
+      body: JSON.stringify({ model_name: modelName, keep_alive: keepAlive }),
+    });
+  }
+
+  async unloadOllamaModel(modelName: string): Promise<ModelActionResponse> {
+    return this.request("/api/models/unload", {
+      method: "POST",
+      body: JSON.stringify({ model_name: modelName }),
+    });
+  }
+
+  async deleteOllamaModel(modelName: string): Promise<ModelActionResponse> {
+    return this.request(`/api/models/${encodeURIComponent(modelName)}`, {
+      method: "DELETE",
+    });
+  }
+
+  pullOllamaModel(
+    modelName: string,
+    onProgress: (progress: ModelPullProgress) => void,
+    onDone: () => void,
+    onError: (error: string) => void,
+  ): () => void {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (this.token) {
+          headers["Authorization"] = `Bearer ${this.token}`;
+        }
+        const response = await fetch(`${this.baseUrl}/api/models/pull`, {
+          method: "POST",
+          signal: controller.signal,
+          headers,
+          body: JSON.stringify({ model_name: modelName }),
+        });
+        if (!response.ok || !response.body) {
+          if (response.status === 401 && typeof window !== "undefined") {
+            localStorage.removeItem("workstation_token");
+            this.token = null;
+            window.location.href = "/login";
+            return;
+          }
+          onError(`HTTP ${response.status}: ${response.statusText}`);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6);
+            try {
+              const progress: ModelPullProgress = JSON.parse(jsonStr);
+              if (progress.status === "error") {
+                onError(progress.message ?? "Pull failed");
+                return;
+              }
+              if (progress.status === "success") {
+                onDone();
+                return;
+              }
+              onProgress(progress);
+            } catch {
+              // skip malformed SSE lines
+            }
+          }
+        }
+        // If stream ended without explicit success/error
+        onDone();
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        onError(err instanceof Error ? err.message : "Pull connection failed");
+      }
+    })();
+
+    return () => controller.abort();
   }
 
   async trackTokenUsage(

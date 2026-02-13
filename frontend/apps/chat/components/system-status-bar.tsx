@@ -1,9 +1,10 @@
 "use client";
 
 import { Badge, cn, useBreakpoint } from "@workstation/ui";
-import { Cpu, MemoryStick, Monitor, Wifi, WifiOff } from "lucide-react";
-import { useEffect } from "react";
-import { useResources, useWebSocket, useAuth } from "@workstation/api/hooks";
+import { Bot, Cpu, MemoryStick, Monitor, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useResources, useWebSocket, useAuth, ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "@workstation/api/hooks";
+import { ModelSelectorDialog } from "./model-selector-dialog";
 
 function usageColor(percent: number | null): string {
   if (percent === null) return "text-muted-foreground";
@@ -22,8 +23,23 @@ export function SystemStatusBar() {
   const { vramStats, systemStats, loading, refresh } = useResources(5000);
   const { status, subscribe } = useWebSocket({ token, autoConnect: true });
   const { isMobile } = useBreakpoint();
+  const [modelDialogOpen, setModelDialogOpen] = useState(false);
+  const [activeModel, setActiveModel] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(ACTIVE_MODEL_KEY);
+  });
 
   const connected = status === "connected";
+
+  // Listen for active model changes from same-window custom event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const model = (e as CustomEvent).detail?.model ?? null;
+      setActiveModel(model);
+    };
+    window.addEventListener(ACTIVE_MODEL_CHANGE_EVENT, handler);
+    return () => window.removeEventListener(ACTIVE_MODEL_CHANGE_EVENT, handler);
+  }, []);
 
   // Subscribe to real-time resource updates
   useEffect(() => {
@@ -59,6 +75,18 @@ export function SystemStatusBar() {
             {connected ? "Connected" : "Disconnected"}
           </span>
         </div>
+        <button
+          onClick={() => setModelDialogOpen(true)}
+          className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-muted transition-colors"
+        >
+          <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className={cn(
+            "text-muted-foreground truncate max-w-[120px]",
+            isMobile ? "text-[10px]" : "text-xs"
+          )}>
+            {activeModel ? activeModel.split(":")[0] : "No model"}
+          </span>
+        </button>
       </div>
       <div className="flex items-center gap-3">
         {!isMobile && (
@@ -88,6 +116,7 @@ export function SystemStatusBar() {
           AI Workstation
         </Badge>
       </div>
+      <ModelSelectorDialog open={modelDialogOpen} onOpenChange={setModelDialogOpen} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { MessageInput } from "@/components/message-input";
 import { TokenUsageBar } from "@/components/chat/token-usage-bar";
 import { ContextDashboard } from "@/components/context/context-dashboard";
 import { useConversation } from "@workstation/api";
+import { ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "@workstation/api/hooks";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
 
 const DASHBOARD_KEY = "workstation_context_dashboard_open";
@@ -16,6 +17,22 @@ export default function ChatPage() {
   const params = useParams();
   const rawChatId = params.chatId;
   const chatId = Array.isArray(rawChatId) ? rawChatId[0] : rawChatId ?? "";
+
+  const [activeModel, setActiveModel] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(ACTIVE_MODEL_KEY);
+  });
+
+  // Listen for model changes from the ModelSelectorDialog
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const model = (e as CustomEvent).detail?.model ?? null;
+      setActiveModel(model);
+    };
+    window.addEventListener(ACTIVE_MODEL_CHANGE_EVENT, handler);
+    return () => window.removeEventListener(ACTIVE_MODEL_CHANGE_EVENT, handler);
+  }, []);
+
   const {
     conversation,
     messages,
@@ -29,7 +46,7 @@ export default function ChatPage() {
     excludeMessage,
     updateMessage,
     deleteMessage,
-  } = useConversation(chatId);
+  } = useConversation(chatId, activeModel);
 
   const [dashboardOpen, setDashboardOpen] = useState(() => {
     if (typeof window === "undefined") return false;

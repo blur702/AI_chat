@@ -39,3 +39,5 @@ export { useSystemPrompts } from "./use-system-prompts";
 export type { UseSystemPromptsReturn } from "./use-system-prompts";
 export { useContextDashboard } from "./use-context-dashboard";
 export type { UseContextDashboardReturn } from "./use-context-dashboard";
+export { useModelSwitcher, ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "./use-model-switcher";
+export type { UseModelSwitcherReturn } from "./use-model-switcher";

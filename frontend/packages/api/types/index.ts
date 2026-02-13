@@ -12,3 +12,4 @@ export * from "./image";
 export * from "./kb";
 export * from "./project-import";
 export * from "./drupal";
+export * from "./models";
