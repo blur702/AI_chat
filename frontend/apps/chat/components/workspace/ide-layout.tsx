@@ -17,8 +17,11 @@ import { ToolsPanel } from "./tools/tools-panel";
 import { ResourcesPanel } from "./resources/resources-panel";
 import { EventsPanel } from "./events/events-panel";
 import { DrupalPanel } from "./drupal/drupal-panel";
+import { KBPanel } from "./kb/kb-panel";
+import { SnapshotsPanel } from "./snapshots/snapshots-panel";
 import { WorkspaceToolbar } from "./workspace-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
+import { PanelErrorBoundary } from "./panel-error-boundary";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -40,6 +43,8 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showEvents, setShowEvents] = useState(false);
   const [showResources, setShowResources] = useState(false);
   const [showDrupal, setShowDrupal] = useState(false);
+  const [showKB, setShowKB] = useState(false);
+  const [showSnapshots, setShowSnapshots] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
   const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
   const [initialTool, setInitialTool] = useState<string | null>(null);
@@ -74,6 +79,15 @@ export function IDELayout({ projectId }: IDELayoutProps) {
 
   const { pendingCount } = useAutomationActions(projectId);
   const { tools, loading: toolsLoading, error: toolsError, executeTool, refresh: refreshTools } = useTools();
+
+  // Read pinned tools once on mount, not on every render
+  const [pinnedToolNames, setPinnedToolNames] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
+      setPinnedToolNames(pinned);
+    } catch { /* ignore */ }
+  }, []);
 
   const handleTerminalCommand = useCallback((cmd: string) => {
     setTerminalHistory((prev) => [...prev.slice(-49), cmd]);
@@ -144,6 +158,22 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       setMobileTab("drupal");
     } else {
       setShowDrupal((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleKBClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("kb");
+    } else {
+      setShowKB((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleSnapshotsClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("snapshots");
+    } else {
+      setShowSnapshots((prev) => !prev);
     }
   }, [isMobile]);
 
@@ -295,16 +325,13 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onResourcesClick={handleResourcesClick}
           onEventsClick={handleEventsClick}
           onDrupalClick={handleDrupalClick}
+          onKBClick={handleKBClick}
+          onSnapshotsClick={handleSnapshotsClick}
           onToolsClick={handleToolsClick}
           onSettingsClick={handleSettingsClick}
           pendingActionsCount={pendingCount}
           toolsCount={tools.length}
-          pinnedTools={tools.filter((t) => {
-            try {
-              const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
-              return pinned.includes(t.name);
-            } catch { return false; }
-          })}
+          pinnedTools={tools.filter((t) => pinnedToolNames.includes(t.name))}
           onQuickExecuteTool={(toolName) => {
             setToolsPrefillFile(null);
             setToolsFilterForFile(false);
@@ -363,6 +390,18 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               onClose={() => setMobileTab("editor")}
             />
           )}
+          {mobileTab === "kb" && (
+            <KBPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
+          {mobileTab === "snapshots" && (
+            <SnapshotsPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
       </div>
@@ -381,6 +420,8 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onResourcesClick={handleResourcesClick}
         onEventsClick={handleEventsClick}
         onDrupalClick={handleDrupalClick}
+        onKBClick={handleKBClick}
+        onSnapshotsClick={handleSnapshotsClick}
         onToolsClick={handleToolsClick}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
@@ -401,17 +442,21 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       <Group orientation="horizontal" className="flex-1">
         {/* File Explorer */}
         <Panel defaultSize={15} minSize={10} maxSize={30}>
-          <FileExplorer {...fileExplorerProps} />
+          <PanelErrorBoundary panelName="File Explorer">
+            <FileExplorer {...fileExplorerProps} />
+          </PanelErrorBoundary>
         </Panel>
 
         <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
-        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources || showDrupal ? 55 : 85} minSize={30}>
+        <Panel defaultSize={showChat || showAutomations || showHistory || showImageGen || showTools || showEvents || showResources || showDrupal || showKB || showSnapshots ? 55 : 85} minSize={30}>
           <Group orientation="vertical">
             {/* Editor Area */}
             <Panel defaultSize={65} minSize={30}>
-              <EditorPane {...editorProps} />
+              <PanelErrorBoundary panelName="Editor">
+                <EditorPane {...editorProps} />
+              </PanelErrorBoundary>
             </Panel>
 
             <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors" />
@@ -420,15 +465,19 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <Panel defaultSize={35} minSize={15}>
               <Group orientation="horizontal">
                 <Panel defaultSize={60} minSize={30}>
-                  <TerminalPane
-                    projectId={projectId}
-                    onCommand={handleTerminalCommand}
-                    handleRef={terminalRef}
-                  />
+                  <PanelErrorBoundary panelName="Terminal">
+                    <TerminalPane
+                      projectId={projectId}
+                      onCommand={handleTerminalCommand}
+                      handleRef={terminalRef}
+                    />
+                  </PanelErrorBoundary>
                 </Panel>
                 <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
                 <Panel defaultSize={40} minSize={20}>
-                  <PreviewPane />
+                  <PanelErrorBoundary panelName="Preview">
+                    <PreviewPane />
+                  </PanelErrorBoundary>
                 </Panel>
               </Group>
             </Panel>
@@ -440,11 +489,13 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <ChatPanel
-                {...chatPanelProps}
-                toolResults={toolResultsForChat}
-                onClose={() => setShowChat(false)}
-              />
+              <PanelErrorBoundary panelName="Chat">
+                <ChatPanel
+                  {...chatPanelProps}
+                  toolResults={toolResultsForChat}
+                  onClose={() => setShowChat(false)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -454,10 +505,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <AutomationActionsPanel
-                projectId={projectId}
-                onClose={() => setShowAutomations(false)}
-              />
+              <PanelErrorBoundary panelName="Automation Actions">
+                <AutomationActionsPanel
+                  projectId={projectId}
+                  onClose={() => setShowAutomations(false)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -467,10 +520,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <YoloEditHistory
-                projectId={projectId}
-                onClose={() => setShowHistory(false)}
-              />
+              <PanelErrorBoundary panelName="Edit History">
+                <YoloEditHistory
+                  projectId={projectId}
+                  onClose={() => setShowHistory(false)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -480,10 +535,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <ImageGenPanel
-                projectId={projectId}
-                onClose={() => setShowImageGen(false)}
-              />
+              <PanelErrorBoundary panelName="Image Generation">
+                <ImageGenPanel
+                  projectId={projectId}
+                  onClose={() => setShowImageGen(false)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -493,19 +550,21 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <ToolsPanel
-                tools={tools}
-                loading={toolsLoading}
-                error={toolsError}
-                onExecute={executeTool}
-                onRefresh={refreshTools}
-                onClose={() => setShowTools(false)}
-                prefillFile={toolsPrefillFile}
-                filterForFile={toolsFilterForFile}
-                onToolExecuted={handleToolExecuted}
-                rerunExecution={rerunExecution}
-                initialTool={initialTool}
-              />
+              <PanelErrorBoundary panelName="Tools">
+                <ToolsPanel
+                  tools={tools}
+                  loading={toolsLoading}
+                  error={toolsError}
+                  onExecute={executeTool}
+                  onRefresh={refreshTools}
+                  onClose={() => setShowTools(false)}
+                  prefillFile={toolsPrefillFile}
+                  filterForFile={toolsFilterForFile}
+                  onToolExecuted={handleToolExecuted}
+                  rerunExecution={rerunExecution}
+                  initialTool={initialTool}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -515,7 +574,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <EventsPanel onClose={() => setShowEvents(false)} />
+              <PanelErrorBoundary panelName="Events">
+                <EventsPanel onClose={() => setShowEvents(false)} />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -525,7 +586,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <ResourcesPanel onClose={() => setShowResources(false)} />
+              <PanelErrorBoundary panelName="Resources">
+                <ResourcesPanel onClose={() => setShowResources(false)} />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}
@@ -535,10 +598,42 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
             <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <DrupalPanel
-                projectId={projectId}
-                onClose={() => setShowDrupal(false)}
-              />
+              <PanelErrorBoundary panelName="Drupal">
+                <DrupalPanel
+                  projectId={projectId}
+                  onClose={() => setShowDrupal(false)}
+                />
+              </PanelErrorBoundary>
+            </Panel>
+          </>
+        )}
+
+        {/* Knowledge Base Panel (collapsible) */}
+        {showKB && (
+          <>
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={25} minSize={15} maxSize={35}>
+              <PanelErrorBoundary panelName="Knowledge Base">
+                <KBPanel
+                  projectId={projectId}
+                  onClose={() => setShowKB(false)}
+                />
+              </PanelErrorBoundary>
+            </Panel>
+          </>
+        )}
+
+        {/* Snapshots Panel (collapsible) */}
+        {showSnapshots && (
+          <>
+            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Panel defaultSize={25} minSize={15} maxSize={35}>
+              <PanelErrorBoundary panelName="Snapshots">
+                <SnapshotsPanel
+                  projectId={projectId}
+                  onClose={() => setShowSnapshots(false)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </>
         )}

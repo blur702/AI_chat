@@ -297,6 +297,19 @@ class ContextManager(BaseKernelService):
                 "default_temperature": pref.default_temperature,
                 "email_notifications": pref.email_notifications,
                 "in_app_notifications": pref.in_app_notifications,
+                "imggen_default_workflow": pref.imggen_default_workflow,
+                "imggen_default_width": pref.imggen_default_width,
+                "imggen_default_height": pref.imggen_default_height,
+                "imggen_default_steps": pref.imggen_default_steps,
+                "imggen_default_cfg_scale": pref.imggen_default_cfg_scale,
+                "imggen_default_negative_prompt": pref.imggen_default_negative_prompt,
+                "imggen_completion_notification": pref.imggen_completion_notification,
+                "imggen_desktop_notification": pref.imggen_desktop_notification,
+                "imggen_sound_notification": pref.imggen_sound_notification,
+                "imggen_notification_sound": pref.imggen_notification_sound,
+                "imggen_auto_delete_days": pref.imggen_auto_delete_days,
+                "imggen_max_generations": pref.imggen_max_generations,
+                "comfyui_base_url": pref.comfyui_base_url,
             }
 
         await self._redis.setex(cache_key, self.USER_PREFS_CACHE_TTL, json.dumps(prefs_dict, default=str))
@@ -545,6 +558,15 @@ class ContextManager(BaseKernelService):
 
         except Exception as exc:
             logger.error("Compaction failed for chat %s: %s", chat_id, exc)
+            # Mark the compaction record as failed so it doesn't block future compactions
+            try:
+                async with self._session_factory() as err_session:
+                    comp = await err_session.get(ContextCompaction, UUID(compaction_id))
+                    if comp and comp.status == "pending":
+                        comp.status = "failed"
+                        await err_session.commit()
+            except Exception as update_exc:
+                logger.warning("Failed to mark compaction %s as failed: %s", compaction_id, update_exc)
             return {"status": "failed", "reason": str(exc)}
 
         finally:
@@ -709,5 +731,5 @@ class ContextManager(BaseKernelService):
                 [{"role": m.get("role", ""), "content": m.get("content", "")} for m in messages]
             )
         except Exception:
-            # Fallback to message count if tiktoken unavailable
-            return len(messages)
+            # Rough estimate: ~4 chars per token (common heuristic)
+            return sum(len(m.get("content", "")) for m in messages) // 4

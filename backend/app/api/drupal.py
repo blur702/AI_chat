@@ -1,6 +1,7 @@
 """API endpoints for Drupal MCP site management."""
 
 import logging
+import re
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -15,7 +16,9 @@ from app.api.context_deps import (
     get_sandbox_manager,
     validate_project_access,
 )
-from app.auth import get_user_id_from_token
+# get_user_id_from_token expects a raw JWT string, but our endpoints receive
+# the already-decoded payload dict via Depends(get_current_user_payload).
+# Extract user_id directly from the payload instead.
 from app.models.drupal_site import DrupalSite
 from app.schemas.drupal import (
     DrupalConnectRequest,
@@ -35,15 +38,36 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/drupal")
 
 # Dangerous Drush commands that should not be executed remotely
-BLOCKED_DRUSH_COMMANDS = frozenset({
-    "php:eval", "php-eval", "eval",
-    "php:script", "php-script", "scr",
-    "sql-drop", "sql:drop",
-    "sql-cli", "sql:cli", "sqlc",
-    "site-install", "site:install", "si",
-    "core:rsync", "core-rsync", "rsync",
-    "ssh",
+ALLOWED_DRUSH_COMMANDS = frozenset({
+    "status", "st",
+    "core:status", "core-status",
+    "config:get", "config-get", "cget",
+    "config:export", "config-export", "cex",
+    "config:import", "config-import", "cim",
+    "cache:rebuild", "cache-rebuild", "cr",
+    "pm:list", "pm-list", "pml",
+    "pm:info", "pm-info", "pmi",
+    "pm:enable", "pm-enable", "en",
+    "pm:uninstall", "pm-uninstall", "pmu",
+    "updatedb", "updb",
+    "watchdog:show", "watchdog-show", "wd-show", "ws",
+    "cron",
+    "queue:list", "queue-list",
+    "queue:run", "queue-run",
+    "deploy:hook", "deploy-hook",
+    "locale:check", "locale-check",
+    "locale:update", "locale-update",
+    "theme:enable", "theme-enable",
+    "theme:uninstall", "theme-uninstall",
+    "state:get", "state-get", "sget",
+    "state:set", "state-set", "sset",
+    "role:list", "role-list",
+    "user:information", "user-information", "uinf",
+    "views:list", "views-list",
 })
+
+# Shell metacharacters that must never appear in drush commands
+_SHELL_METACHARS = re.compile(r'[;|&`$(){}<>\\]')
 
 
 async def _get_drupal_site(
@@ -71,8 +95,8 @@ async def connect_site(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Connect a remote Drupal site to a project."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     # Test connection first
     ok, msg = await drupal.test_connection(body.site_url, body.api_key)
@@ -128,8 +152,8 @@ async def get_site(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get the connected Drupal site info for a project."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
     return DrupalSiteResponse(
@@ -151,8 +175,8 @@ async def disconnect_site(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Disconnect the Drupal site from a project."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
     await db.delete(site)
@@ -167,8 +191,8 @@ async def get_config(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Read remote Drupal site configuration."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
     api_key = drupal.decrypt_api_key(site.api_key_encrypted)
@@ -185,15 +209,25 @@ async def run_drush(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Execute a Drush command on the remote Drupal site."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
-    # Validate command against blocklist
+    # Validate command against allowlist and shell metacharacters
     base_command = body.command.strip().split()[0] if body.command.strip() else ""
-    if base_command.lower() in BLOCKED_DRUSH_COMMANDS:
+    if not base_command:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Command '{base_command}' is blocked for security reasons",
+            detail="Empty command",
+        )
+    if _SHELL_METACHARS.search(body.command):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Command contains prohibited shell characters",
+        )
+    if base_command.lower() not in ALLOWED_DRUSH_COMMANDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Command '{base_command}' is not in the allowed commands list",
         )
 
     site = await _get_drupal_site(project_id, db)
@@ -211,8 +245,8 @@ async def pull_site(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Pull database and files from remote Drupal into sandbox."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
     api_key = drupal.decrypt_api_key(site.api_key_encrypted)
@@ -246,8 +280,8 @@ async def push_config(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Push local config to remote Drupal site."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
     api_key = drupal.decrypt_api_key(site.api_key_encrypted)
@@ -273,8 +307,8 @@ async def sync_status(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Check sync status for a connected Drupal site."""
-    user_id = get_user_id_from_token(payload)
-    await validate_project_access(project_id, str(user_id), db)
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
 
     result = await db.execute(
         select(DrupalSite).where(DrupalSite.project_id == project_id)

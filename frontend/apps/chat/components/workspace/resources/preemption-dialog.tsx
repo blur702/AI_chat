@@ -5,6 +5,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   Badge,
@@ -46,6 +47,9 @@ export function PreemptionDialog({
             <AlertTriangle className="h-4 w-4 text-orange-500" />
             Preemption Required
           </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Free GPU memory by removing lower-priority resources.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">

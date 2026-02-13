@@ -148,7 +148,7 @@ export function ChatPanel({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onClose} aria-label="Close chat panel">
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -296,6 +296,7 @@ export function ChatPanel({
             className="h-8 w-8"
             onClick={handleSend}
             disabled={loading || processing || !input.trim()}
+            aria-label="Send message"
           >
             <Send className="h-3.5 w-3.5" />
           </Button>

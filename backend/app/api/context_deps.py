@@ -109,7 +109,7 @@ async def validate_chat_access(
     result = await db.execute(
         select(Chat, Project.user_id)
         .join(Project, Chat.project_id == Project.id)
-        .where(Chat.id == chat_id, Chat.is_deleted == False)  # noqa: E712
+        .where(Chat.id == chat_id, Chat.is_deleted == False, Project.is_deleted == False)  # noqa: E712
     )
     row = result.one_or_none()
     if row is None:

@@ -25,13 +25,21 @@ logger = logging.getLogger("workstation.rate_limit")
 class _InMemoryRateLimiter:
     """Thread-safe in-memory sliding window rate limiter (fallback when Redis is down)."""
 
+    _CLEANUP_INTERVAL = 300  # Run cleanup every 5 minutes
+
     def __init__(self) -> None:
         self._windows: dict[str, list[float]] = defaultdict(list)
         self._lock = threading.Lock()
+        self._last_cleanup = time.time()
 
     def check(self, key: str, max_requests: int, window_seconds: int) -> tuple[bool, int, int]:
         now = time.time()
         cutoff = now - window_seconds
+
+        # Periodic cleanup of stale buckets
+        if now - self._last_cleanup > self._CLEANUP_INTERVAL:
+            self._cleanup_stale(now)
+
         with self._lock:
             timestamps = self._windows[key]
             # Prune expired entries
@@ -42,10 +50,10 @@ class _InMemoryRateLimiter:
             timestamps.append(now)
             return True, max_requests - len(timestamps), 0
 
-    def cleanup(self) -> None:
-        """Remove all empty buckets to prevent memory growth."""
-        now = time.time()
+    def _cleanup_stale(self, now: float) -> None:
+        """Remove stale buckets to prevent memory growth."""
         with self._lock:
+            self._last_cleanup = now
             empty_keys = [k for k, v in self._windows.items() if not v or v[-1] < now - 3600]
             for k in empty_keys:
                 del self._windows[k]

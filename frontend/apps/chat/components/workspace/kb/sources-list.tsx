@@ -13,6 +13,7 @@ import {
 import {
   FileText,
   Eye,
+  Trash2,
   Loader2,
   AlertCircle,
   Clock,
@@ -26,6 +27,7 @@ interface SourcesListProps {
   sources: KBSource[];
   loading: boolean;
   error?: string | null;
+  onDelete?: (sourceId: string) => void;
 }
 
 const statusConfig: Record<
@@ -50,7 +52,7 @@ function getSourceFileName(source: KBSource): string {
   return filename;
 }
 
-export function SourcesList({ sources, loading, error }: SourcesListProps) {
+export function SourcesList({ sources, loading, error, onDelete }: SourcesListProps) {
   const [viewingSource, setViewingSource] = useState<KBSource | null>(null);
 
   const handleViewChunks = useCallback((source: KBSource) => {
@@ -129,25 +131,37 @@ export function SourcesList({ sources, loading, error }: SourcesListProps) {
                   </p>
                 </div>
 
-                {isCompleted && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => handleViewChunks(source)}
-                  >
-                    <Eye className="h-3 w-3" />
-                    View Chunks
-                    {source.chunk_count > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="h-4 text-[9px] ml-0.5"
-                      >
-                        {source.chunk_count}
-                      </Badge>
-                    )}
-                  </Button>
-                )}
+                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isCompleted && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => handleViewChunks(source)}
+                    >
+                      <Eye className="h-3 w-3" />
+                      Chunks
+                      {source.chunk_count > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 text-[9px] ml-0.5"
+                        >
+                          {source.chunk_count}
+                        </Badge>
+                      )}
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDelete(source.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}

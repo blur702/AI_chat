@@ -40,6 +40,7 @@ export function PreviewPane() {
           size="icon"
           className="h-6 w-6 shrink-0"
           onClick={() => setKey((k) => k + 1)}
+          aria-label="Refresh preview"
         >
           <RefreshCw className="h-3 w-3" />
         </Button>
@@ -48,6 +49,7 @@ export function PreviewPane() {
           size="icon"
           className="h-6 w-6 shrink-0"
           onClick={handleOpenExternal}
+          aria-label="Open in new tab"
         >
           <ExternalLink className="h-3 w-3" />
         </Button>
@@ -65,7 +67,7 @@ export function PreviewPane() {
           src={safePreviewUrl}
           className="h-full w-full border-0"
           title="Preview"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          sandbox="allow-scripts allow-forms allow-popups"
           onError={() => {
             // Iframe load errors are handled by the browser
           }}

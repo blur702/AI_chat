@@ -54,6 +54,7 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
   ]);
   const [activeTab, setActiveTab] = useState("term-1");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const tabCounterRef = useRef(1);
 
   // Track which tab issued the most recent command so output is routed there,
   // even if the user switches tabs while output is still streaming.
@@ -168,21 +169,25 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
   }, [handleRef, handleCommand]);
 
   const addTab = useCallback(() => {
+    tabCounterRef.current += 1;
     const id = `term-${crypto.randomUUID()}`;
-    const name = `Terminal ${tabs.length + 1}`;
+    const name = `Terminal ${tabCounterRef.current}`;
     setTabs((prev) => [...prev, createTab(id, name)]);
     setActiveTab(id);
-  }, [tabs.length]);
+  }, []);
 
   const closeTab = useCallback((id: string) => {
     setTabs((prev) => {
       if (prev.length === 1) return prev;
       const remaining = prev.filter((t) => t.id !== id);
+      const newActive = remaining.length > 0 ? remaining[0].id : prev[0].id;
       setActiveTab((currentActive) =>
-        currentActive === id && remaining.length > 0
-          ? remaining[0].id
-          : currentActive
+        currentActive === id ? newActive : currentActive
       );
+      // If the closed tab was the issuing tab, redirect output to the new active tab
+      if (issuingTabRef.current === id) {
+        issuingTabRef.current = newActive;
+      }
       return remaining;
     });
   }, []);
@@ -223,6 +228,7 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
           size="icon"
           className="h-6 w-6 ml-1"
           onClick={addTab}
+          aria-label="New terminal tab"
         >
           <Plus className="h-3 w-3" />
         </Button>

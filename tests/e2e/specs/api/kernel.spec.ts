@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
+import { resetLockout, flushRateLimits } from "../../helpers/db";
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost";
 const ADMIN_ID = "admin";
@@ -8,6 +9,9 @@ let api: APIRequestContext;
 let adminToken: string;
 
 test.beforeAll(async ({ playwright }) => {
+  resetLockout("admin");
+  flushRateLimits();
+
   api = await playwright.request.newContext({ baseURL: BASE });
   const res = await api.post("/api/auth/login", {
     data: { identifier: ADMIN_ID, password: ADMIN_PW },
@@ -111,6 +115,29 @@ test.describe("Events API", () => {
     const body = await res.json();
     expect(body).toHaveProperty("events");
     expect(Array.isArray(body.events)).toBe(true);
+  });
+
+  test("GET /api/events/stats/summary returns event statistics", async () => {
+    const res = await api.get("/api/events/stats/summary", {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty("total");
+    expect(typeof body.total).toBe("number");
+    expect(body).toHaveProperty("by_type");
+    expect(body).toHaveProperty("by_severity");
+  });
+
+  test("GET /api/events/types/list returns event types", async () => {
+    const res = await api.get("/api/events/types/list", {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
   });
 });
 

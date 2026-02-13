@@ -57,6 +57,12 @@ export interface EventBroadcastResponse {
   broadcast_at: string;
 }
 
+export interface EventStatsResponse {
+  total: number;
+  by_type: Record<string, number>;
+  by_severity: Record<string, number>;
+}
+
 export interface WebSocketMessage {
   type: string;
   data: Record<string, unknown>;

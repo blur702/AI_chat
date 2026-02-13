@@ -76,7 +76,13 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     await Promise.all([fetchSite(), fetchSyncStatus()]);
   }, [fetchSite, fetchSyncStatus]);
 
+  // Reset state and re-fetch when projectId changes
   useEffect(() => {
+    setSite(null);
+    setConfig(null);
+    setSyncStatus(null);
+    setError(null);
+    setDrushOutput(null);
     refresh();
   }, [refresh]);
 

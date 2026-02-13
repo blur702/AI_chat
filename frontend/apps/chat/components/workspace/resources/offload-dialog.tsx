@@ -5,6 +5,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@workstation/ui";
@@ -64,6 +65,9 @@ export function OffloadDialog({
             <ArrowDownToLine className="h-4 w-4" />
             Offload to CPU
           </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Move a model from GPU VRAM to system RAM.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">

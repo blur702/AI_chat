@@ -358,6 +358,12 @@ async def stream_message(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Message content is required",
         )
+    MAX_CONTENT_LENGTH = 100_000  # 100K characters
+    if len(content) > MAX_CONTENT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Message content too long (max {MAX_CONTENT_LENGTH} characters)",
+        )
     await validate_chat_access(chat_id, user_id, db)
 
     # -- Persist user message ----------------------------------------------

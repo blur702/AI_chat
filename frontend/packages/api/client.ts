@@ -74,6 +74,11 @@ import type {
   ImageGenerationResponse,
   ImageGenerationListResponse,
   KBChunk,
+  KBSourceListResponse,
+  KBSource,
+  KBSearchRequest,
+  KBSearchResponse,
+  EventStatsResponse,
   TemplateInfo,
   TemplateListResponse,
   GitImportRequest,
@@ -149,7 +154,8 @@ export class WorkstationClient {
           const err = new ApiError(response.status, response.statusText, body);
 
           // On 401, clear token and redirect to login
-          if (response.status === 401 && typeof window !== "undefined") {
+          // Skip redirect for the login endpoint itself — let the caller handle it
+          if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
             localStorage.removeItem("workstation_token");
             this.token = null;
             window.location.href = "/login";
@@ -188,6 +194,41 @@ export class WorkstationClient {
   private delay(attempt: number): Promise<void> {
     const ms = this.retryBaseDelayMs * Math.pow(2, attempt);
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Lower-level fetch that adds auth headers and handles 401 redirect,
+   * but does NOT assume JSON request/response. Use for FormData uploads
+   * and Blob downloads.
+   */
+  private async rawFetch(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("workstation_token");
+        this.token = null;
+        window.location.href = "/login";
+      }
+      const body = await response.text().catch(() => undefined);
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return response;
   }
 
   // Health
@@ -344,26 +385,15 @@ export class WorkstationClient {
     return this.request("/api/events/types/list");
   }
 
-  async createEventBroadcast(data: EventCreate): Promise<EventResponse | EventBroadcastResponse> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
+  async getEventStats(): Promise<EventStatsResponse> {
+    return this.request("/api/events/stats/summary");
+  }
 
-    const response = await fetch(`${this.baseUrl}/api/events`, {
+  async createEventBroadcast(data: EventCreate): Promise<EventResponse | EventBroadcastResponse> {
+    return this.request("/api/events", {
       method: "POST",
-      headers,
       body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => undefined);
-      throw new ApiError(response.status, response.statusText, body);
-    }
-
-    return response.json();
   }
 
   // Tools
@@ -529,6 +559,12 @@ export class WorkstationClient {
           body: JSON.stringify(body),
         });
         if (!response.ok || !response.body) {
+          if (response.status === 401 && typeof window !== "undefined") {
+            localStorage.removeItem("workstation_token");
+            this.token = null;
+            window.location.href = "/login";
+            return;
+          }
           onError(`HTTP ${response.status}: ${response.statusText}`);
           return;
         }
@@ -764,24 +800,9 @@ export class WorkstationClient {
   }
 
   async downloadImage(jobId: string, filename: string): Promise<Blob> {
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/api/image/download/${encodeURIComponent(jobId)}/${encodeURIComponent(filename)}`,
-      {
-        method: "GET",
-        headers,
-      }
+    const response = await this.rawFetch(
+      `/api/image/download/${encodeURIComponent(jobId)}/${encodeURIComponent(filename)}`
     );
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => undefined);
-      throw new ApiError(response.status, response.statusText, body);
-    }
-
     return response.blob();
   }
 
@@ -824,22 +845,10 @@ export class WorkstationClient {
       formData.append("install_deps", String(installDeps));
     if (path) formData.append("path", path);
 
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(`${this.baseUrl}/api/projects/import/upload`, {
+    const response = await this.rawFetch("/api/projects/import/upload", {
       method: "POST",
-      headers,
       body: formData,
     });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => undefined);
-      throw new ApiError(response.status, response.statusText, body);
-    }
-
     return response.json();
   }
 
@@ -856,21 +865,10 @@ export class WorkstationClient {
   }
 
   async exportProject(projectId: string): Promise<Blob> {
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/export`,
-      { method: "POST", headers }
+    const response = await this.rawFetch(
+      `/api/projects/${encodeURIComponent(projectId)}/export`,
+      { method: "POST" }
     );
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => undefined);
-      throw new ApiError(response.status, response.statusText, body);
-    }
-
     return response.blob();
   }
 
@@ -985,6 +983,34 @@ export class WorkstationClient {
     );
   }
 
+  async listKBSources(projectId: string): Promise<KBSourceListResponse> {
+    return this.request(`/api/kb/sources/${encodeURIComponent(projectId)}`);
+  }
+
+  async uploadKBSource(projectId: string, file: File): Promise<KBSource> {
+    const formData = new FormData();
+    formData.append("project_id", projectId);
+    formData.append("file", file);
+    const response = await this.rawFetch("/api/kb/sources", {
+      method: "POST",
+      body: formData,
+    });
+    return response.json();
+  }
+
+  async deleteKBSource(sourceId: string): Promise<void> {
+    return this.request(`/api/kb/sources/${encodeURIComponent(sourceId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async searchKB(data: KBSearchRequest): Promise<KBSearchResponse> {
+    return this.request("/api/kb/search", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // Admin
   async getKernelDebug(): Promise<KernelDebugInfo> {
     return this.request("/api/admin/kernel/debug");
@@ -1069,21 +1095,9 @@ export class WorkstationClient {
       if (params.order) searchParams.set("order", params.order);
     }
 
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/api/admin/users/audit-logs/export?${searchParams}`,
-      { method: "GET", headers }
+    const response = await this.rawFetch(
+      `/api/admin/users/audit-logs/export?${searchParams}`
     );
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => undefined);
-      throw new ApiError(response.status, response.statusText, body);
-    }
-
     return response.blob();
   }
 }

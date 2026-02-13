@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getClient } from "../client";
-import type { EventCreate, EventResponse, EventBroadcastResponse } from "../types";
+import type { EventCreate, EventResponse, EventBroadcastResponse, EventStatsResponse } from "../types";
 
 interface UseEventsReturn {
   events: EventResponse[];
@@ -124,4 +124,36 @@ export function useCreateEvent(): UseCreateEventReturn {
   const clearError = useCallback(() => setError(null), []);
 
   return { createEvent, creating, error, lastResult, clearError };
+}
+
+export interface UseEventStatsReturn {
+  stats: EventStatsResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+}
+
+export function useEventStats(): UseEventStatsReturn {
+  const [stats, setStats] = useState<EventStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getClient().getEventStats();
+      setStats(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch event stats");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { stats, loading, error, refresh };
 }

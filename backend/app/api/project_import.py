@@ -156,12 +156,20 @@ async def import_from_archive(
     import aiofiles
 
     CHUNK_SIZE = 64 * 1024  # 64KB
+    MAX_UPLOAD_SIZE = 500 * 1024 * 1024  # 500MB
     try:
+        total_bytes = 0
         async with aiofiles.open(temp_path, "wb") as out_f:
             while True:
                 chunk = await file.read(CHUNK_SIZE)
                 if not chunk:
                     break
+                total_bytes += len(chunk)
+                if total_bytes > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"File too large. Maximum upload size is {MAX_UPLOAD_SIZE // (1024 * 1024)}MB",
+                    )
                 await out_f.write(chunk)
         os.chmod(temp_path, 0o600)
     except Exception:
@@ -447,8 +455,14 @@ async def restore_snapshot(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> SnapshotRestoreResponse:
     """Restore a container from a named snapshot."""
+    import re as _re
     user_id = payload.get("user_id") or payload.get("sub", "")
     await validate_project_access(project_id, user_id, db)
+
+    # Sanitize snapshot_name to prevent Docker image name injection
+    snapshot_name = _re.sub(r"[^a-zA-Z0-9_-]", "-", snapshot_name.strip())
+    if not snapshot_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid snapshot name")
 
     try:
         container_id = await sandbox.restore_snapshot(project_id, snapshot_name)
@@ -478,8 +492,14 @@ async def delete_snapshot(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> None:
     """Delete a named snapshot."""
+    import re as _re
     user_id = payload.get("user_id") or payload.get("sub", "")
     await validate_project_access(project_id, user_id, db)
+
+    # Sanitize snapshot_name to prevent Docker image name injection
+    snapshot_name = _re.sub(r"[^a-zA-Z0-9_-]", "-", snapshot_name.strip())
+    if not snapshot_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid snapshot name")
 
     try:
         await sandbox.delete_snapshot(project_id, snapshot_name)

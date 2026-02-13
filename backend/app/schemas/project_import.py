@@ -2,6 +2,7 @@
 
 import ipaddress
 import re
+import socket
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -39,12 +40,24 @@ class GitImportRequest(BaseModel):
             raise ValueError("Git URLs pointing to localhost are not allowed")
         try:
             addr = ipaddress.ip_address(hostname)
-            if addr.is_private or addr.is_loopback or addr.is_link_local:
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
                 raise ValueError("Git URLs pointing to private networks are not allowed")
         except ValueError as exc:
             if "not allowed" in str(exc):
                 raise
-            # hostname is not an IP address — that's fine (e.g. github.com)
+            # hostname is not an IP address — resolve it and check the IPs
+            try:
+                resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                for family, _, _, _, sockaddr in resolved:
+                    ip_str = sockaddr[0]
+                    addr = ipaddress.ip_address(ip_str)
+                    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+                        raise ValueError("Git URLs pointing to private networks are not allowed")
+            except socket.gaierror:
+                pass  # DNS resolution failed — let the clone attempt handle it
+            except ValueError as inner_exc:
+                if "not allowed" in str(inner_exc):
+                    raise
         return v
 
 

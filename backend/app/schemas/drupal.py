@@ -1,6 +1,7 @@
 """Pydantic schemas for Drupal MCP site management."""
 
 import ipaddress
+import socket
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -20,8 +21,8 @@ class DrupalConnectRequest(BaseModel):
     def validate_site_url(cls, v: str) -> str:
         """Validate URL scheme and block private/internal addresses (SSRF protection)."""
         parsed = urlparse(v.strip())
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("Site URL must use http or https scheme")
+        if parsed.scheme != "https":
+            raise ValueError("Site URL must use https scheme")
         hostname = parsed.hostname
         if not hostname:
             raise ValueError("Site URL must include a hostname")
@@ -33,9 +34,21 @@ class DrupalConnectRequest(BaseModel):
         try:
             addr = ipaddress.ip_address(hostname)
         except ValueError:
-            pass  # Not a raw IP — that's fine (it's a hostname)
+            # Not a raw IP — resolve the hostname and check the IPs
+            try:
+                resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                for family, _, _, _, sockaddr in resolved:
+                    ip_str = sockaddr[0]
+                    addr = ipaddress.ip_address(ip_str)
+                    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+                        raise ValueError("Site URL must not point to private or reserved IP addresses")
+            except socket.gaierror:
+                pass  # DNS resolution failed — let the connection attempt handle it
+            except ValueError as inner_exc:
+                if "must not point" in str(inner_exc):
+                    raise
         else:
-            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
                 raise ValueError("Site URL must not point to private or reserved IP addresses")
         return v.strip()
 

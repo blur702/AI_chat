@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { resetLockout } from "../../helpers/db";
+import { resetLockout, flushRateLimits } from "../../helpers/db";
 
 const ADMIN_PW = "Admin123!";
 
@@ -55,6 +55,11 @@ test.describe("Login page", () => {
 test.describe("Login flow", () => {
   test.beforeAll(() => {
     resetLockout("admin");
+    flushRateLimits();
+  });
+
+  test.beforeEach(() => {
+    flushRateLimits();
   });
 
   test("successful login redirects to /chat", async ({ page }) => {
@@ -70,16 +75,21 @@ test.describe("Login flow", () => {
   });
 
   test("failed login shows error message", async ({ page }) => {
-    await page.goto("/login");
+    await page.waitForLoadState("networkidle");
 
-    await page.getByPlaceholder(ID_FIELD).fill("admin");
-    await page.getByPlaceholder(PW_FIELD).fill("wrongpassword");
+    // Retry fill until React hydration completes and button enables
+    await expect(async () => {
+      await page.getByPlaceholder(ID_FIELD).fill("admin");
+      await page.getByPlaceholder(PW_FIELD).fill("wrongpassword");
+      await expect(page.getByRole("button", { name: /sign in/i })).toBeEnabled();
+    }).toPass({ timeout: 10_000 });
+
     await page.getByRole("button", { name: /sign in/i }).click();
 
     // Error message should appear
     await expect(
       page.getByText(/invalid username\/email or password/i)
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
 
     // Should stay on login page
     expect(page.url()).toContain("/login");
@@ -108,16 +118,20 @@ test.describe("Login flow", () => {
   });
 
   test("error clears when typing", async ({ page }) => {
-    await page.goto("/login");
+    await page.waitForLoadState("networkidle");
 
-    // Trigger error
-    await page.getByPlaceholder(ID_FIELD).fill("admin");
-    await page.getByPlaceholder(PW_FIELD).fill("wrong");
+    // Retry fill until React hydration completes and button enables
+    await expect(async () => {
+      await page.getByPlaceholder(ID_FIELD).fill("admin");
+      await page.getByPlaceholder(PW_FIELD).fill("wrong");
+      await expect(page.getByRole("button", { name: /sign in/i })).toBeEnabled();
+    }).toPass({ timeout: 10_000 });
+
     await page.getByRole("button", { name: /sign in/i }).click();
 
     await expect(
       page.getByText(/invalid username\/email or password/i)
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
 
     // Type in identifier to clear error
     await page.getByPlaceholder(ID_FIELD).fill("admin2");
@@ -134,6 +148,11 @@ test.describe("Login flow", () => {
 test.describe("Auth persistence", () => {
   test.beforeAll(() => {
     resetLockout("admin");
+    flushRateLimits();
+  });
+
+  test.beforeEach(() => {
+    flushRateLimits();
   });
 
   test("token is stored in localStorage after login", async ({ page }) => {

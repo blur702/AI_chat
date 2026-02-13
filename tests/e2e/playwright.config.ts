@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./specs",
   fullyParallel: false,
   retries: 1,
-  workers: 1,
+  workers: 1, // Required: tests share Redis/DB state and cannot run in parallel
   timeout: 30_000,
   expect: { timeout: 10_000 },
   reporter: [["list"], ["html", { open: "never" }]],

@@ -11,6 +11,7 @@ import { SystemMetrics } from "@/components/admin/system-metrics";
 import { ServiceHealth } from "@/components/admin/service-health";
 import { UserManagement } from "@/components/admin/user-management";
 import { AuditLogs } from "@/components/admin/audit-logs";
+import { EventStats } from "@/components/admin/event-stats";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -107,6 +108,7 @@ export default function AdminDashboardPage() {
               )}
 
               <QuickStats metrics={metrics} />
+              <EventStats />
               <SystemMetrics metrics={metrics} />
               <ServiceHealth
                 debugInfo={debugInfo}

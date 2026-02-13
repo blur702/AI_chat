@@ -28,6 +28,8 @@ import {
   ChevronDown,
   Zap,
   Globe,
+  BookOpen,
+  Camera,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 
@@ -42,6 +44,8 @@ interface WorkspaceToolbarProps {
   onToolsClick?: () => void;
   onEventsClick?: () => void;
   onDrupalClick?: () => void;
+  onKBClick?: () => void;
+  onSnapshotsClick?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
   toolsCount?: number;
@@ -60,6 +64,8 @@ export function WorkspaceToolbar({
   onToolsClick,
   onEventsClick,
   onDrupalClick,
+  onKBClick,
+  onSnapshotsClick,
   onSettingsClick,
   pendingActionsCount = 0,
   toolsCount = 0,
@@ -122,6 +128,16 @@ export function WorkspaceToolbar({
       <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onDrupalClick} title="Drupal">
         <Globe className="h-4 w-4" />
         {!isMobile && "Drupal"}
+      </Button>
+
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onKBClick} title="Knowledge Base">
+        <BookOpen className="h-4 w-4" />
+        {!isMobile && "KB"}
+      </Button>
+
+      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onSnapshotsClick} title="Snapshots">
+        <Camera className="h-4 w-4" />
+        {!isMobile && "Snapshots"}
       </Button>
 
       {/* Tools dropdown with count badge */}

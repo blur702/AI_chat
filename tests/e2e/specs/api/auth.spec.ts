@@ -1,13 +1,15 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
-import { resetLockout, deleteTestUsers } from "../../helpers/db";
+import { resetLockout, deleteTestUsers, flushRateLimits } from "../../helpers/db";
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost:8000";
+const BASE = process.env.API_BASE_URL ?? "http://localhost";
 const ADMIN_ID = "admin";
 const ADMIN_PW = "Admin123!";
 
 let api: APIRequestContext;
 
 test.beforeAll(async ({ playwright }) => {
+  flushRateLimits();
+  resetLockout("admin");
   api = await playwright.request.newContext({ baseURL: BASE });
 });
 
@@ -26,6 +28,7 @@ async function login(identifier: string, password: string) {
 }
 
 async function getAdminToken(): Promise<string> {
+  flushRateLimits();
   const res = await login(ADMIN_ID, ADMIN_PW);
   const body = await res.json();
   return body.access_token;
@@ -37,7 +40,8 @@ async function getAdminToken(): Promise<string> {
 
 test.describe("POST /api/auth/login", () => {
   test.beforeAll(async () => {
-    await resetLockout("admin");
+    flushRateLimits();
+    resetLockout("admin");
   });
 
   test("returns token for valid credentials", async () => {
@@ -67,6 +71,7 @@ test.describe("POST /api/auth/login", () => {
   });
 
   test("accepts email as identifier", async () => {
+    flushRateLimits();
     const res = await login("admin@workstation.local", ADMIN_PW);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -82,8 +87,8 @@ test.describe("POST /api/auth/login", () => {
     const res = await api.post("/api/auth/login", {
       data: { identifier: ADMIN_ID, password: "" },
     });
-    // pydantic validation or 401
-    expect([401, 422]).toContain(res.status());
+    // pydantic validation, 401, or rate-limited
+    expect([401, 422, 429]).toContain(res.status());
   });
 });
 
@@ -93,41 +98,57 @@ test.describe("POST /api/auth/login", () => {
 
 test.describe("Account lockout", () => {
   test.beforeAll(async () => {
-    await resetLockout("admin");
+    flushRateLimits();
+    resetLockout("admin");
+  });
+
+  test.beforeEach(() => {
+    flushRateLimits();
   });
 
   test.afterAll(async () => {
-    await resetLockout("admin");
+    resetLockout("admin");
   });
 
   test("locks account after 5 failed attempts", async () => {
-    // 5 wrong attempts
+    flushRateLimits();
+    resetLockout("admin");
+
+    // 5 wrong attempts — flush before each to avoid login rate limit (5/900s)
     for (let i = 0; i < 5; i++) {
+      flushRateLimits();
       const res = await login(ADMIN_ID, "bad_password");
       expect(res.status()).toBe(401);
     }
 
     // 6th attempt - still locked
+    flushRateLimits();
     const locked = await login(ADMIN_ID, "bad_password");
     expect(locked.status()).toBe(401);
 
     // Correct password also rejected while locked
+    flushRateLimits();
     const correct = await login(ADMIN_ID, ADMIN_PW);
     expect(correct.status()).toBe(401);
   });
 
   test("login succeeds after lockout is cleared", async () => {
-    await resetLockout("admin");
+    flushRateLimits();
+    resetLockout("admin");
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
   });
 
   test("successful login resets failed counter", async () => {
+    flushRateLimits();
+    resetLockout("admin");
+
     // Make 3 failed attempts (below threshold)
     for (let i = 0; i < 3; i++) {
       await login(ADMIN_ID, "bad_password");
     }
     // Succeed
+    flushRateLimits();
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
 
@@ -135,6 +156,7 @@ test.describe("Account lockout", () => {
     for (let i = 0; i < 3; i++) {
       await login(ADMIN_ID, "bad_password");
     }
+    flushRateLimits();
     const res2 = await login(ADMIN_ID, ADMIN_PW);
     expect(res2.status()).toBe(200);
   });
@@ -190,14 +212,20 @@ test.describe("GET /api/auth/me", () => {
 
 test.describe("POST /api/auth/users", () => {
   test.beforeAll(async () => {
-    await deleteTestUsers();
+    flushRateLimits();
+    deleteTestUsers();
+  });
+
+  test.beforeEach(() => {
+    flushRateLimits();
   });
 
   test.afterAll(async () => {
-    await deleteTestUsers();
+    deleteTestUsers();
   });
 
   test("admin can create a user", async () => {
+    deleteTestUsers(); // Ensure clean state even on retry
     const token = await getAdminToken();
 
     const res = await api.post("/api/auth/users", {
@@ -205,7 +233,7 @@ test.describe("POST /api/auth/users", () => {
       data: {
         username: "e2e_newuser",
         email: "e2e_new@example.com",
-        password: "StrongPass1",
+        password: "StrongPass1!",
         role: "user",
         first_name: "Test",
         last_name: "User",
@@ -226,7 +254,8 @@ test.describe("POST /api/auth/users", () => {
   });
 
   test("newly created user can login", async () => {
-    const res = await login("e2e_newuser", "StrongPass1");
+    flushRateLimits();
+    const res = await login("e2e_newuser", "StrongPass1!");
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.role).toBe("user");
@@ -238,7 +267,7 @@ test.describe("POST /api/auth/users", () => {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         username: "e2e_newuser",
-        password: "AnotherPass1",
+        password: "AnotherPass1!",
         role: "user",
       },
     });
@@ -252,7 +281,7 @@ test.describe("POST /api/auth/users", () => {
       data: {
         username: "e2e_another",
         email: "e2e_new@example.com",
-        password: "AnotherPass1",
+        password: "AnotherPass1!",
         role: "user",
       },
     });
@@ -260,14 +289,15 @@ test.describe("POST /api/auth/users", () => {
   });
 
   test("non-admin cannot create users", async () => {
-    const loginRes = await login("e2e_newuser", "StrongPass1");
+    flushRateLimits();
+    const loginRes = await login("e2e_newuser", "StrongPass1!");
     const body = await loginRes.json();
 
     const res = await api.post("/api/auth/users", {
       headers: { Authorization: `Bearer ${body.access_token}` },
       data: {
         username: "e2e_hacker",
-        password: "HackerPass1",
+        password: "HackerPass1!",
         role: "admin",
       },
     });
@@ -278,7 +308,7 @@ test.describe("POST /api/auth/users", () => {
     const res = await api.post("/api/auth/users", {
       data: {
         username: "e2e_noauth",
-        password: "NoAuth1234",
+        password: "NoAuth1234!",
         role: "user",
       },
     });

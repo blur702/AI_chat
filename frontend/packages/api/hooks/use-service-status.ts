@@ -102,19 +102,34 @@ export function useServiceStatus(): UseServiceStatusReturn {
     return () => clearInterval(tick);
   }, [unreachableSince]);
 
-  // Manage polling interval — fast while starting, slow once ready
+  // Track desired interval in a ref so the single effect can read it
+  const criticalReadyRef = useRef(criticalReady);
+  criticalReadyRef.current = criticalReady;
+
+  // Manage polling — single effect with dynamic scheduling via setTimeout
   useEffect(() => {
     mountedRef.current = true;
-    poll(); // initial fetch
 
-    const ms = criticalReady ? POLL_SLOW_MS : POLL_FAST_MS;
-    intervalRef.current = setInterval(poll, ms);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      const ms = criticalReadyRef.current ? POLL_SLOW_MS : POLL_FAST_MS;
+      timeoutId = setTimeout(async () => {
+        await poll();
+        if (mountedRef.current) schedule();
+      }, ms);
+    };
+
+    // Initial fetch, then start scheduling
+    poll().then(() => {
+      if (mountedRef.current) schedule();
+    });
 
     return () => {
       mountedRef.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [poll, criticalReady]);
+  }, [poll]);
 
   const services: ServiceStatus[] = TRACKED_SERVICES.map((name) => ({
     name,
