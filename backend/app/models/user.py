@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from app.models.event import Event
     from app.models.image_generation import ImageGeneration
     from app.models.project import Project
+    from app.models.system_prompt import SystemPrompt
     from app.models.user_preference import UserPreference
 
 
@@ -164,6 +165,12 @@ class User(UUIDMixin, TimestampMixin, Base):
 
     image_generations: Mapped[List["ImageGeneration"]] = relationship(
         "ImageGeneration",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    system_prompts: Mapped[List["SystemPrompt"]] = relationship(
+        "SystemPrompt",
         back_populates="user",
         cascade="all, delete-orphan",
     )

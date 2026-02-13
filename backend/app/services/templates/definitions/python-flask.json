@@ -19,7 +19,7 @@
   "exposed_ports": [5000],
   "environment": {
     "VIRTUAL_ENV": "/workspace/.venv",
-    "PATH": "/workspace/.venv/bin:$PATH",
+    "PATH": "/workspace/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
     "FLASK_APP": "app.py",
     "FLASK_DEBUG": "1"
   },

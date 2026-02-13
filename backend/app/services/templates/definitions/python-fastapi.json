@@ -18,7 +18,7 @@
   "exposed_ports": [8000],
   "environment": {
     "VIRTUAL_ENV": "/workspace/.venv",
-    "PATH": "/workspace/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    "PATH": "/workspace/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
   },
   "sidecar_services": [],
   "memory_limit": "512m",

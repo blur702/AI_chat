@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.chat import Chat
     from app.models.drupal_site import DrupalSite
     from app.models.kb_source import KBSource
+    from app.models.system_prompt import SystemPrompt
     from app.models.user import User
     from app.models.yolo_edit import YoloEdit
 
@@ -56,6 +57,11 @@ class Project(UUIDMixin, TimestampMixin, Base):
         nullable=True,
     )
 
+    template_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
     settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
@@ -68,6 +74,12 @@ class Project(UUIDMixin, TimestampMixin, Base):
 
     important_files: Mapped[Optional[List[str]]] = mapped_column(
         ARRAY(Text),
+        nullable=True,
+    )
+
+    system_prompt_id: Mapped[Optional[UUID]] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("system_prompts.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -86,6 +98,9 @@ class Project(UUIDMixin, TimestampMixin, Base):
     user: Mapped["User"] = relationship(
         "User",
         back_populates="projects",
+    )
+    system_prompt: Mapped[Optional["SystemPrompt"]] = relationship(
+        "SystemPrompt", foreign_keys=[system_prompt_id]
     )
     chats: Mapped[List["Chat"]] = relationship(
         "Chat",

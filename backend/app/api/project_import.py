@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_payload
-from app.api.context_deps import get_sandbox_manager, validate_project_access
+from app.api.context_deps import get_sandbox_manager, validate_project_access, validate_project_access_with_template
 from app.database import get_db_session
 from app.models.project import Project
 from app.models.project_import import ProjectImport
@@ -304,9 +304,9 @@ async def detect_project_type(
 ) -> DetectionResultResponse:
     """Detect the project type from container files."""
     user_id = payload.get("user_id") or payload.get("sub", "")
-    await validate_project_access(project_id, user_id, db)
+    template_id = await validate_project_access_with_template(project_id, user_id, db)
 
-    container_id = await sandbox.get_or_create_container(project_id)
+    container_id = await sandbox.get_or_create_container(project_id, template_id=template_id)
     detection = await ProjectDetector.detect_from_container(sandbox, container_id)
 
     return DetectionResultResponse(
@@ -331,10 +331,10 @@ async def export_project(
 ):
     """Stream the workspace as a tar download."""
     user_id = payload.get("user_id") or payload.get("sub", "")
-    await validate_project_access(project_id, user_id, db)
+    template_id = await validate_project_access_with_template(project_id, user_id, db)
 
     # Ensure container is running
-    await sandbox.get_or_create_container(project_id)
+    await sandbox.get_or_create_container(project_id, template_id=template_id)
 
     return StreamingResponse(
         sandbox.export_workspace_streaming(project_id),

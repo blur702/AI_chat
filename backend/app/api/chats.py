@@ -17,6 +17,7 @@ from app.api.context_deps import (
 )
 from app.kernel.context_manager import ContextManager
 from app.models.chat import Chat
+from app.models.system_prompt import SystemPrompt
 from app.schemas.context import (
     ChatCreateRequest,
     ChatCreateResponse,
@@ -32,6 +33,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/context", tags=["context"])
 
 
+async def _validate_system_prompt_ownership(
+    system_prompt_id: UUID | None,
+    user_id: str,
+    db: AsyncSession,
+) -> None:
+    """Verify a system prompt belongs to the requesting user."""
+    if system_prompt_id is None:
+        return
+    result = await db.execute(
+        select(SystemPrompt).where(
+            SystemPrompt.id == system_prompt_id,
+            SystemPrompt.user_id == UUID(user_id),
+            SystemPrompt.is_deleted == False,  # noqa: E712
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System prompt not found",
+        )
+
+
 @router.post("/chats", response_model=ChatCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_chat(
     body: ChatCreateRequest,
@@ -42,8 +65,14 @@ async def create_chat(
     """Create a new chat within a project."""
     user_id = payload.get("user_id", "")
     await validate_project_access(body.project_id, user_id, db)
+    await _validate_system_prompt_ownership(body.system_prompt_id, user_id, db)
 
-    chat = Chat(project_id=body.project_id, title=body.title)
+    chat = Chat(
+        project_id=body.project_id,
+        title=body.title,
+        chat_instructions=body.chat_instructions,
+        system_prompt_id=body.system_prompt_id,
+    )
     db.add(chat)
     await db.commit()
     await db.refresh(chat)
@@ -54,6 +83,8 @@ async def create_chat(
         id=str(chat.id),
         title=chat.title,
         project_id=str(chat.project_id),
+        chat_instructions=chat.chat_instructions,
+        system_prompt_id=str(chat.system_prompt_id) if chat.system_prompt_id else None,
         created_at=chat.created_at.isoformat() if chat.created_at else None,
     )
 
@@ -80,12 +111,14 @@ async def update_chat(
             detail=f"Chat '{chat_id}' not found",
         )
 
-    if body.title is not None:
-        chat.title = body.title
-    if body.is_pinned is not None:
-        chat.is_pinned = body.is_pinned
-    if body.is_archived is not None:
-        chat.is_archived = body.is_archived
+    update_data = body.model_dump(exclude_unset=True)
+
+    if "system_prompt_id" in update_data:
+        await _validate_system_prompt_ownership(update_data["system_prompt_id"], user_id, db)
+
+    for field, value in update_data.items():
+        if hasattr(chat, field):
+            setattr(chat, field, value)
 
     await db.commit()
     await db.refresh(chat)
@@ -99,6 +132,8 @@ async def update_chat(
         project_id=str(chat.project_id),
         is_pinned=chat.is_pinned,
         is_archived=chat.is_archived,
+        chat_instructions=chat.chat_instructions,
+        system_prompt_id=str(chat.system_prompt_id) if chat.system_prompt_id else None,
         created_at=chat.created_at.isoformat() if chat.created_at else None,
         updated_at=chat.updated_at.isoformat() if chat.updated_at else None,
     )

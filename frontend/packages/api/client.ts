@@ -37,6 +37,13 @@ import type {
   ChatCreateResponse,
   ChatUpdateRequest,
   ChatUpdateResponse,
+  SystemPrompt,
+  SystemPromptCreateRequest,
+  SystemPromptUpdateRequest,
+  SystemPromptListResponse,
+  MessageUpdateRequest,
+  MessageUpdateResponse,
+  TokenBreakdownResponse,
   ProjectCreateRequest,
   ProjectCreateResponse,
   ProjectListResponse,
@@ -520,6 +527,59 @@ export class WorkstationClient {
 
   async getTokenUsage(chatId: string): Promise<TokenUsageResponse> {
     return this.request(`/api/context/conversations/${chatId}/tokens`);
+  }
+
+  // System Prompts
+  async listSystemPrompts(): Promise<SystemPromptListResponse> {
+    return this.request("/api/context/system-prompts");
+  }
+
+  async createSystemPrompt(data: SystemPromptCreateRequest): Promise<SystemPrompt> {
+    return this.request("/api/context/system-prompts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSystemPrompt(promptId: string): Promise<SystemPrompt> {
+    return this.request(`/api/context/system-prompts/${encodeURIComponent(promptId)}`);
+  }
+
+  async updateSystemPrompt(promptId: string, data: SystemPromptUpdateRequest): Promise<SystemPrompt> {
+    return this.request(`/api/context/system-prompts/${encodeURIComponent(promptId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSystemPrompt(promptId: string): Promise<void> {
+    return this.request(`/api/context/system-prompts/${encodeURIComponent(promptId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Message Actions
+  async updateMessage(chatId: string, messageId: string, data: MessageUpdateRequest): Promise<MessageUpdateResponse> {
+    return this.request(`/api/context/conversations/${chatId}/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMessage(chatId: string, messageId: string): Promise<void> {
+    return this.request(`/api/context/conversations/${chatId}/messages/${messageId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async triggerCompaction(chatId: string): Promise<{ status: string; compaction_id?: string; reason?: string }> {
+    return this.request(`/api/context/conversations/${chatId}/compact`, {
+      method: "POST",
+    });
+  }
+
+  async getTokenBreakdown(chatId: string): Promise<TokenBreakdownResponse> {
+    return this.request(`/api/context/conversations/${chatId}/token-breakdown`);
   }
 
   // Streaming

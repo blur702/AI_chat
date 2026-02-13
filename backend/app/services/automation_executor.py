@@ -8,7 +8,7 @@ import logging
 import os
 import re
 import shlex
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from app.services.sandbox_manager import SandboxManager
@@ -34,17 +34,20 @@ class AutomationExecutor:
 
     def __init__(self, sandbox_manager: SandboxManager) -> None:
         self._sandbox = sandbox_manager
+        self._current_template_id: Optional[str] = None
 
     async def execute(
         self,
         project_id: UUID,
         action_type: str,
         action_data: Dict[str, Any] | None,
+        template_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Dispatch and execute an action based on its type.
 
         Returns a result dict with 'success' bool and relevant output.
         """
+        self._current_template_id = template_id
         data = action_data or {}
         handlers = {
             "file_create": self._execute_file_create,
@@ -68,7 +71,9 @@ class AutomationExecutor:
             return {"success": False, "error": str(exc)}
 
     async def _get_container(self, project_id: UUID) -> str:
-        return await self._sandbox.get_or_create_container(project_id)
+        return await self._sandbox.get_or_create_container(
+            project_id, template_id=self._current_template_id
+        )
 
     async def _execute_file_create(
         self, project_id: UUID, data: Dict[str, Any]

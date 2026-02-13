@@ -406,6 +406,7 @@ async def execute_automation_action_task(ctx, action_id: str) -> dict:
 
     from app.database import AsyncSessionLocal
     from app.models.automation_action import AutomationAction
+    from app.models.project import Project
     from app.services.automation_executor import AutomationExecutor
     from app.services.sandbox_manager import SandboxManager
     from sqlalchemy import select
@@ -432,11 +433,18 @@ async def execute_automation_action_task(ctx, action_id: str) -> dict:
             if action.executed_at is not None:
                 return {"action_id": action_id, "status": "failed", "error": "already executed"}
 
+            # Look up the project's template_id
+            proj_result = await db.execute(
+                select(Project.template_id).where(Project.id == action.project_id)
+            )
+            project_template_id = proj_result.scalar_one_or_none()
+
             executor = AutomationExecutor(sandbox)
             exec_result = await executor.execute(
                 project_id=action.project_id,
                 action_type=action.action_type,
                 action_data=action.action_data,
+                template_id=project_template_id,
             )
 
             # Store result and mark as executed
@@ -534,6 +542,7 @@ async def import_git_project_task(ctx, import_id: str) -> dict:
     import shlex
 
     from app.database import AsyncSessionLocal
+    from app.models.project import Project
     from app.models.project_import import ProjectImport
     from app.services.project_detector import ProjectDetector
     from app.services.sandbox_manager import SandboxManager
@@ -555,6 +564,12 @@ async def import_git_project_task(ctx, import_id: str) -> dict:
                 logger.error("ProjectImport %s not found", import_id)
                 return {"import_id": import_id, "status": "failed"}
 
+            # Look up the project's template_id
+            proj_result = await db.execute(
+                select(Project.template_id).where(Project.id == record.project_id)
+            )
+            project_template_id = proj_result.scalar_one_or_none()
+
             # Update status: cloning
             record.status = "cloning"
             record.progress_message = "Cloning repository..."
@@ -565,7 +580,9 @@ async def import_git_project_task(ctx, import_id: str) -> dict:
             install_deps = record.import_options.get("install_deps", True)
 
             # Ensure container exists
-            container_id = await sandbox.get_or_create_container(record.project_id)
+            container_id = await sandbox.get_or_create_container(
+                record.project_id, template_id=project_template_id
+            )
 
             # Clone into a temp directory, then copy to /workspace
             clone_cmd = f"git clone --depth 1 {shlex.quote(git_url)}"
@@ -646,6 +663,7 @@ async def import_archive_project_task(ctx, import_id: str, archive_path: str) ->
     import zipfile
 
     from app.database import AsyncSessionLocal
+    from app.models.project import Project
     from app.models.project_import import ProjectImport
     from app.services.project_detector import ProjectDetector
     from app.services.sandbox_manager import SandboxManager
@@ -667,6 +685,12 @@ async def import_archive_project_task(ctx, import_id: str, archive_path: str) ->
                 logger.error("ProjectImport %s not found", import_id)
                 return {"import_id": import_id, "status": "failed"}
 
+            # Look up the project's template_id
+            proj_result = await db.execute(
+                select(Project.template_id).where(Project.id == record.project_id)
+            )
+            project_template_id = proj_result.scalar_one_or_none()
+
             # Validate archive
             record.status = "extracting"
             record.progress_message = "Validating archive..."
@@ -681,7 +705,9 @@ async def import_archive_project_task(ctx, import_id: str, archive_path: str) ->
                 return {"import_id": import_id, "status": "failed"}
 
             # Ensure container exists
-            container_id = await sandbox.get_or_create_container(record.project_id)
+            container_id = await sandbox.get_or_create_container(
+                record.project_id, template_id=project_template_id
+            )
 
             record.progress_message = "Extracting archive..."
             await db.commit()

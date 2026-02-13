@@ -35,3 +35,7 @@ export { useDrupal } from "./use-drupal";
 export type { UseDrupalReturn } from "./use-drupal";
 export { useServiceStatus } from "./use-service-status";
 export type { UseServiceStatusReturn, ServiceStatus, TrackedService } from "./use-service-status";
+export { useSystemPrompts } from "./use-system-prompts";
+export type { UseSystemPromptsReturn } from "./use-system-prompts";
+export { useContextDashboard } from "./use-context-dashboard";
+export type { UseContextDashboardReturn } from "./use-context-dashboard";

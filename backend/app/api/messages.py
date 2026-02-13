@@ -29,6 +29,9 @@ from app.schemas.context import (
     ConversationStateUpdateRequest,
     MessageSubmitRequest,
     MessageSubmitResponse,
+    MessageUpdateRequest,
+    MessageUpdateResponse,
+    TokenBreakdownResponse,
 )
 from app.services.ollama_client import OllamaClient
 
@@ -150,6 +153,179 @@ async def invalidate_conversation_cache(
 
 
 # -------------------------------------------------------------------------
+# Message Action Endpoints
+# -------------------------------------------------------------------------
+
+
+@router.patch(
+    "/conversations/{chat_id}/messages/{msg_id}",
+    response_model=MessageUpdateResponse,
+)
+async def update_message(
+    chat_id: UUID,
+    msg_id: UUID,
+    body: MessageUpdateRequest,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> MessageUpdateResponse:
+    """Update a message: pin, exclude, or edit content."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(Message).where(
+            Message.id == msg_id,
+            Message.chat_id == chat_id,
+        )
+    )
+    msg = result.scalar_one_or_none()
+    if msg is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Message '{msg_id}' not found in chat '{chat_id}'",
+        )
+
+    if body.is_excluded is True and msg.is_pinned and body.is_pinned is not False:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot exclude a pinned message. Unpin it first.",
+        )
+
+    if body.content is not None:
+        msg.content = body.content
+    if body.is_pinned is not None:
+        msg.is_pinned = body.is_pinned
+    if body.is_excluded is not None:
+        msg.is_excluded = body.is_excluded
+
+    await db.commit()
+    await db.refresh(msg)
+
+    await cm.invalidate_conversation_cache(chat_id)
+
+    return MessageUpdateResponse(
+        id=str(msg.id),
+        role=msg.role,
+        content=msg.content,
+        is_pinned=msg.is_pinned,
+        is_excluded=msg.is_excluded,
+        updated_at=msg.updated_at.isoformat() if msg.updated_at else None,
+    )
+
+
+@router.delete(
+    "/conversations/{chat_id}/messages/{msg_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_message(
+    chat_id: UUID,
+    msg_id: UUID,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Hard-delete a message."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(Message).where(
+            Message.id == msg_id,
+            Message.chat_id == chat_id,
+        )
+    )
+    msg = result.scalar_one_or_none()
+    if msg is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Message '{msg_id}' not found in chat '{chat_id}'",
+        )
+
+    await db.delete(msg)
+    await db.commit()
+
+    await cm.invalidate_conversation_cache(chat_id)
+
+
+@router.post(
+    "/conversations/{chat_id}/compact",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def manual_compact(
+    chat_id: UUID,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Manually trigger compaction for a conversation."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    compaction_id = await cm.trigger_compaction(chat_id)
+    if compaction_id is None:
+        return {"status": "skipped", "reason": "not_enough_messages_or_pending"}
+
+    try:
+        from arq import create_pool
+        from app.worker import get_redis_settings
+        pool = await create_pool(get_redis_settings())
+        await pool.enqueue_job("compact_conversation_task", str(chat_id))
+        await pool.aclose()
+    except Exception as exc:
+        logger.warning("Failed to enqueue manual compaction for chat %s: %s", chat_id, exc)
+
+    return {"status": "enqueued", "compaction_id": compaction_id}
+
+
+@router.get(
+    "/conversations/{chat_id}/token-breakdown",
+    response_model=TokenBreakdownResponse,
+)
+async def get_token_breakdown(
+    chat_id: UUID,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> TokenBreakdownResponse:
+    """Get detailed per-layer token breakdown for a conversation."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    state = await cm.get_conversation_state(chat_id)
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat '{chat_id}' not found",
+        )
+
+    prefs = await cm.get_user_preferences(user_id)
+    project_id = state.get("project_id")
+    project_context = {}
+    if project_id:
+        project_context = await cm.get_project_context(UUID(str(project_id))) or {}
+
+    # Resolve system prompt content
+    system_prompt_content = await cm.resolve_system_prompt_content(
+        chat_id=chat_id,
+        project_id=UUID(str(project_id)) if project_id else None,
+        user_id=UUID(str(user_id)),
+    )
+    chat_instructions = state.get("chat_instructions")
+
+    return _prompt_builder.compute_token_breakdown(
+        user_prefs=prefs,
+        project_context=project_context,
+        system_prompt_content=system_prompt_content,
+        chat_instructions=chat_instructions,
+        messages=state.get("messages", []),
+        compactions=state.get("compactions", []),
+    )
+
+
+# -------------------------------------------------------------------------
 # Message Submission Endpoint
 # -------------------------------------------------------------------------
 
@@ -195,7 +371,19 @@ async def submit_message(
     if project_id:
         project_context = await cm.get_project_context(UUID(str(project_id))) or {}
 
-    system_prompt = _prompt_builder.build_system_prompt(prefs, project_context)
+    # Resolve layered system prompt
+    system_prompt_content = await cm.resolve_system_prompt_content(
+        chat_id=chat_id,
+        project_id=UUID(str(project_id)) if project_id else None,
+        user_id=UUID(str(user_id)),
+    )
+    chat_instructions = state.get("chat_instructions") if state else None
+
+    system_prompt = _prompt_builder.build_system_prompt(
+        prefs, project_context,
+        system_prompt_content=system_prompt_content,
+        chat_instructions=chat_instructions,
+    )
 
     # -- 2b. Retrieve KB context (RAG) -----------------------------------------
     kb_results = []
@@ -389,7 +577,19 @@ async def stream_message(
     if project_id:
         project_context = await cm.get_project_context(UUID(str(project_id))) or {}
 
-    system_prompt = _prompt_builder.build_system_prompt(prefs, project_context)
+    # Resolve layered system prompt
+    system_prompt_content = await cm.resolve_system_prompt_content(
+        chat_id=chat_id,
+        project_id=UUID(str(project_id)) if project_id else None,
+        user_id=UUID(str(user_id)),
+    )
+    chat_instructions = state.get("chat_instructions") if state else None
+
+    system_prompt = _prompt_builder.build_system_prompt(
+        prefs, project_context,
+        system_prompt_content=system_prompt_content,
+        chat_instructions=chat_instructions,
+    )
 
     # -- Retrieve KB context (RAG) for streaming ---------------------------
     kb_results = []

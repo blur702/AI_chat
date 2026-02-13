@@ -11,12 +11,12 @@ import logging
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_payload
-from app.api.context_deps import validate_project_access
+from app.api.context_deps import get_sandbox_manager, validate_project_access, validate_project_access_with_template
 from app.database import get_db_session
 from app.models.yolo_edit import YoloEdit
 from app.schemas.yolo import (
@@ -70,21 +70,6 @@ async def _get_edit_with_access(
     return edit
 
 
-def _get_sandbox_manager(request: Request) -> SandboxManager:
-    """Dependency to get SandboxManager from kernel."""
-    kernel = getattr(request.app.state, "kernel", None)
-    if kernel is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kernel not initialized",
-        )
-    sm = kernel.get_service("sandbox_manager")
-    if sm is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="SandboxManager service not available",
-        )
-    return sm
 
 
 def _sanitize_undo_path(path: str) -> str:
@@ -221,9 +206,9 @@ async def get_edit_detail(
 )
 async def undo_edit(
     edit_id: UUID,
-    request: Request,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
+    sm: SandboxManager = Depends(get_sandbox_manager),
 ) -> YoloEditUndoResponse:
     """Revert file changes by restoring previous content."""
     user_id = payload.get("user_id") or payload.get("sub", "")
@@ -256,8 +241,8 @@ async def undo_edit(
             detail="No restorable files found in undo data (all missing old_content)",
         )
 
-    sm = _get_sandbox_manager(request)
-    container_id = await sm.get_or_create_container(edit.project_id)
+    template_id = await validate_project_access_with_template(edit.project_id, user_id, db)
+    container_id = await sm.get_or_create_container(edit.project_id, template_id=template_id)
 
     files_restored: list[str] = []
     files_failed: list[str] = []

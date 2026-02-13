@@ -26,6 +26,7 @@ SANDBOX_IDLE_TIMEOUT = int(os.getenv("SANDBOX_IDLE_TIMEOUT", "3600"))  # 1 hour
 SANDBOX_MEMORY_LIMIT = os.getenv("SANDBOX_MEMORY_LIMIT", "512m")
 SANDBOX_CPU_QUOTA = int(os.getenv("SANDBOX_CPU_QUOTA", "50000"))  # 50% of one core
 COMMAND_TIMEOUT = int(os.getenv("SANDBOX_COMMAND_TIMEOUT", "300"))  # 5 minutes
+CREATION_FAILURE_COOLDOWN = int(os.getenv("SANDBOX_CREATION_FAILURE_COOLDOWN", "30"))
 
 
 class SandboxManager(BaseKernelService):
@@ -46,6 +47,12 @@ class SandboxManager(BaseKernelService):
         # project_id -> list of sidecar container IDs
         self._sidecars: Dict[str, List[str]] = {}
         self._template_registry = TemplateRegistry()
+        # Per-project locks to prevent concurrent container creation races
+        self._creation_locks: Dict[str, asyncio.Lock] = {}
+        # Track which projects have had their template applied
+        self._applied_templates: Dict[str, str] = {}
+        # Circuit breaker: project_id -> (failure_timestamp, error_message)
+        self._creation_failures: Dict[str, Tuple[float, str]] = {}
 
     @property
     def name(self) -> str:
@@ -79,6 +86,9 @@ class SandboxManager(BaseKernelService):
         self._containers.clear()
         self._last_activity.clear()
         self._sidecars.clear()
+        self._creation_locks.clear()
+        self._applied_templates.clear()
+        self._creation_failures.clear()
         self._running = False
         logger.info("SandboxManager stopped")
 
@@ -115,8 +125,20 @@ class SandboxManager(BaseKernelService):
         """
         pid = str(project_id)
 
-        # Check if we already track this container and it's still running
-        if pid in self._containers:
+        # Circuit breaker: refuse creation if this project failed recently
+        if pid in self._creation_failures:
+            fail_time, _fail_msg = self._creation_failures[pid]
+            if time.time() - fail_time < CREATION_FAILURE_COOLDOWN:
+                raise RuntimeError(
+                    f"Container creation for project {pid[:12]} is in cooldown "
+                    f"({CREATION_FAILURE_COOLDOWN}s). Please retry later."
+                )
+            # Cooldown expired — clear the failure record (pop tolerates concurrent deletion)
+            self._creation_failures.pop(pid, None)
+
+        # Fast path (no lock): container already tracked and running,
+        # AND no pending template application needed (compare actual template value).
+        if pid in self._containers and (not template_id or self._applied_templates.get(pid) == template_id):
             container_id = self._containers[pid]
             try:
                 container = await asyncio.to_thread(
@@ -135,93 +157,161 @@ class SandboxManager(BaseKernelService):
                 if container_id in self._last_activity:
                     del self._last_activity[container_id]
 
-        # Resolve template configuration
-        template: Optional[TemplateDefinition] = None
-        if template_id:
-            template = self._template_registry.get(template_id)
-            if template is None:
-                logger.warning("Template '%s' not found, using default image", template_id)
+        # Acquire per-project lock to prevent concurrent creation races.
+        # Without this, a concurrent call (e.g. from the files endpoint
+        # without template_id) can create a bare container before the
+        # project-creation call (with template_id) finishes scaffolding.
+        lock = self._creation_locks.setdefault(pid, asyncio.Lock())
 
-        # Determine image, memory, cpu, environment
-        image = custom_image or SANDBOX_IMAGE
-        mem_limit = SANDBOX_MEMORY_LIMIT
-        cpu_quota = SANDBOX_CPU_QUOTA
-        env_vars: Dict[str, str] = {}
-
-        if template:
-            if template.dockerfile:
-                image = await self._build_template_image(template)
-            elif template.docker_image:
-                image = template.docker_image
-            mem_limit = template.memory_limit
-            cpu_quota = template.cpu_quota
-            env_vars = dict(template.environment)
-
-        # Create the main container (with conflict recovery)
-        container_name = f"sandbox-{pid[:12]}"
-        run_kwargs = dict(
-            image=image,
-            command="sleep infinity",
-            detach=True,
-            name=container_name,
-            labels={
-                "project_id": pid,
-                "managed_by": "workstation",
-            },
-            network=SANDBOX_NETWORK,
-            working_dir="/workspace",
-            volumes={
-                f"sandbox-{pid}": {"bind": "/workspace", "mode": "rw"},
-            },
-            environment=env_vars or None,
-            mem_limit=mem_limit,
-            cpu_quota=cpu_quota,
-            read_only=False,
-            security_opt=["no-new-privileges"],
-            cap_drop=["ALL"],
-            cap_add=["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"],
-        )
-
-        try:
-            container = await asyncio.to_thread(
-                self._client.containers.run, **run_kwargs
-            )
-        except APIError as exc:
-            if exc.status_code == 409:
-                # Name conflict — stale container exists; remove it and retry
-                logger.warning(
-                    "Container name '%s' conflict (409), removing stale container",
-                    container_name,
-                )
-                try:
-                    stale = await asyncio.to_thread(
-                        self._client.containers.get, container_name
-                    )
-                    await asyncio.to_thread(stale.remove, force=True)
-                except (NotFound, APIError):
-                    pass  # Already gone or removal race
+        async with lock:
+            # Re-check under lock: another coroutine may have created it
+            if pid in self._containers:
+                container_id = self._containers[pid]
                 try:
                     container = await asyncio.to_thread(
-                        self._client.containers.run, **run_kwargs
+                        self._client.containers.get, container_id
                     )
-                except APIError as retry_exc:
-                    raise RuntimeError(
-                        f"Failed to create sandbox container after removing stale "
-                        f"'{container_name}': {retry_exc}"
-                    ) from retry_exc
-            else:
+                    if container.status != "running":
+                        await asyncio.to_thread(container.start)
+                    self._last_activity[container_id] = time.time()
+
+                    # Apply template if requested and not yet applied (or different template)
+                    if template_id and self._applied_templates.get(pid) != template_id:
+                        template = self._template_registry.get(template_id)
+                        if template:
+                            await self._apply_template(container_id, pid, template)
+                            self._applied_templates[pid] = template_id
+                            logger.info("Applied template '%s' to existing container for project %s", template_id, pid[:12])
+
+                    return container_id
+                except NotFound:
+                    del self._containers[pid]
+                    if container_id in self._last_activity:
+                        del self._last_activity[container_id]
+
+            # Resolve template configuration
+            template: Optional[TemplateDefinition] = None
+            if template_id:
+                template = self._template_registry.get(template_id)
+                if template is None:
+                    logger.warning("Template '%s' not found, using default image", template_id)
+
+            # Determine image, memory, cpu, environment
+            image = custom_image or SANDBOX_IMAGE
+            mem_limit = SANDBOX_MEMORY_LIMIT
+            cpu_quota = SANDBOX_CPU_QUOTA
+            env_vars: Dict[str, str] = {}
+
+            if template:
+                if template.dockerfile:
+                    image = await self._build_template_image(template)
+                elif template.docker_image:
+                    image = template.docker_image
+                mem_limit = template.memory_limit
+                cpu_quota = template.cpu_quota
+                env_vars = dict(template.environment)
+
+            # Create the main container (with conflict recovery)
+            container_name = f"sandbox-{pid[:12]}"
+            run_kwargs = dict(
+                image=image,
+                command="sleep infinity",
+                detach=True,
+                name=container_name,
+                labels={
+                    "project_id": pid,
+                    "managed_by": "workstation",
+                    "template_id": template_id or "",
+                },
+                network=SANDBOX_NETWORK,
+                working_dir="/workspace",
+                volumes={
+                    f"sandbox-{pid}": {"bind": "/workspace", "mode": "rw"},
+                },
+                environment=env_vars or None,
+                mem_limit=mem_limit,
+                cpu_quota=cpu_quota,
+                read_only=False,
+                security_opt=["no-new-privileges"],
+                cap_drop=["ALL"],
+                cap_add=["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"],
+            )
+
+            try:
+                container = await self._create_container_with_retry(
+                    container_name, run_kwargs
+                )
+            except Exception as create_err:
+                self._creation_failures[pid] = (time.time(), str(create_err)[:200])
                 raise
 
-        container_id = container.id
-        self._containers[pid] = container_id
-        self._last_activity[container_id] = time.time()
-        logger.info("Created sandbox container %s for project %s", container_id[:12], pid[:12])
+            container_id = container.id
+            self._containers[pid] = container_id
+            self._last_activity[container_id] = time.time()
+            logger.info("Created sandbox container %s for project %s", container_id[:12], pid[:12])
 
-        # Apply template scaffolding if provided
-        if template:
-            await self._apply_template(container_id, pid, template)
+            # Apply template scaffolding if provided
+            if template:
+                try:
+                    await self._apply_template(container_id, pid, template)
+                except Exception:
+                    logger.exception("Template application failed for project %s, marking as applied to prevent infinite retry", pid[:12])
+                self._applied_templates[pid] = template_id
 
-        return container_id
+            return container_id
+
+    async def _create_container_with_retry(self, container_name: str, run_kwargs: dict) -> "docker.models.containers.Container":
+        """Create a container, handling 409 name conflicts with one retry.
+
+        If container creation succeeds but start fails, the orphaned
+        container is force-removed to prevent stale "Created" containers
+        from poisoning subsequent Docker operations.
+        """
+        for attempt in range(2):
+            try:
+                return await asyncio.to_thread(
+                    self._client.containers.run, **run_kwargs
+                )
+            except APIError as exc:
+                # Start failure (container created but won't run) — clean up orphan
+                if exc.status_code in (400, 500):
+                    logger.warning(
+                        "Container '%s' failed to start (attempt %d, status %d): %s",
+                        container_name, attempt + 1, exc.status_code, str(exc)[:200],
+                    )
+                    await self._remove_container_by_name(container_name)
+                    if attempt == 0:
+                        await asyncio.sleep(1)
+                        continue
+                    raise RuntimeError(
+                        f"Container '{container_name}' failed to start after "
+                        f"cleanup retry: {str(exc)[:200]}"
+                    ) from exc
+
+                if exc.status_code == 409 and attempt == 0:
+                    # Name conflict — stale container; remove and retry
+                    logger.warning(
+                        "Container name '%s' conflict (409), removing stale container",
+                        container_name,
+                    )
+                    await self._remove_container_by_name(container_name)
+                    await asyncio.sleep(0.5)
+                    continue
+
+                raise
+
+        # Should not reach here, but just in case
+        raise RuntimeError(f"Failed to create container '{container_name}'")
+
+    async def _remove_container_by_name(self, name: str) -> None:
+        """Force-remove a container by name, ignoring NotFound."""
+        try:
+            stale = await asyncio.to_thread(self._client.containers.get, name)
+            await asyncio.to_thread(stale.remove, force=True)
+        except NotFound:
+            pass
+        except APIError as e:
+            logger.warning("Failed to remove container '%s': %s", name, e)
 
     async def execute_command(self, container_id: str, command: str) -> dict:
         """Execute a command in a container.
@@ -295,6 +385,9 @@ class SandboxManager(BaseKernelService):
         """Stop and remove a container and its sidecars for a project."""
         pid = str(project_id)
         container_id = self._containers.pop(pid, None)
+        self._creation_locks.pop(pid, None)
+        self._applied_templates.pop(pid, None)
+        self._creation_failures.pop(pid, None)
         if not container_id:
             return False
 
@@ -334,11 +427,14 @@ class SandboxManager(BaseKernelService):
 
         Returns a list of dicts with keys: name, type, path, size, modified_at.
         """
-        # Use find to list immediate children, stat for metadata
+        # Use find to list immediate children, stat for metadata.
+        # Note: Python's \t in the f-string produces a real tab char (0x09)
+        # which is passed through to sort inside single quotes. This is
+        # POSIX-compatible (works in dash/sh), unlike bash's $'\t' syntax.
         safe_dir = shlex.quote(dir_path)
         cmd = (
             f"find {safe_dir} -maxdepth 1 -mindepth 1 "
-            f"-printf '%y\\t%s\\t%T@\\t%P\\n' 2>/dev/null | sort -t$'\\t' -k4"
+            f"-printf '%y\\t%s\\t%T@\\t%P\\n' 2>/dev/null | sort -t'\t' -k4"
         )
         exec_info = await self.execute_command(container_id, cmd)
         output = ""
@@ -378,7 +474,7 @@ class SandboxManager(BaseKernelService):
         safe_dir = shlex.quote(dir_path)
         cmd = (
             f"find {safe_dir} -mindepth 1 "
-            f"-printf '%y\\t%s\\t%T@\\t%p\\n' 2>/dev/null | sort -t$'\\t' -k4"
+            f"-printf '%y\\t%s\\t%T@\\t%p\\n' 2>/dev/null | sort -t'\t' -k4"
         )
         exec_info = await self.execute_command(container_id, cmd)
         output = ""
@@ -825,6 +921,10 @@ class SandboxManager(BaseKernelService):
                     continue
                 self._containers[pid] = container.id
                 self._last_activity[container.id] = time.time()
+                # Restore template tracking from container labels
+                recovered_template = container.labels.get("template_id")
+                if recovered_template:
+                    self._applied_templates[pid] = recovered_template
             if self._containers:
                 logger.info("Recovered %d sandbox containers", len(self._containers))
             if removed:

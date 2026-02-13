@@ -28,6 +28,7 @@ from app.models.chat import Chat
 from app.models.context_compaction import ContextCompaction
 from app.models.message import Message
 from app.models.project import Project
+from app.models.system_prompt import SystemPrompt
 from app.models.user_preference import UserPreference
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,7 @@ class ContextManager(BaseKernelService):
                     "original_message_count": c.original_message_count,
                     "compacted_message_count": c.compacted_message_count,
                     "summary": c.summary,
+                    "status": c.status,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                 }
                 for c in chat.context_compactions
@@ -173,6 +175,8 @@ class ContextManager(BaseKernelService):
                 "messages": messages,
                 "compactions": compactions,
                 "current_token_count": self._count_conversation_tokens(active_messages),
+                "chat_instructions": chat.chat_instructions,
+                "system_prompt_id": str(chat.system_prompt_id) if chat.system_prompt_id else None,
             }
 
         # Cache the state
@@ -239,6 +243,8 @@ class ContextManager(BaseKernelService):
                 "name": project.name,
                 "path": project.path,
                 "type": project.type,
+                "template_id": project.template_id,
+                "system_prompt_id": str(project.system_prompt_id) if project.system_prompt_id else None,
                 "settings": project.settings,
                 "custom_context": project.custom_context,
                 "important_files": project.important_files,
@@ -476,7 +482,16 @@ class ContextManager(BaseKernelService):
 
                 # Keep newest 25% (minimum 5 messages)
                 keep_count = max(5, len(messages) // 4)
-                to_compact = messages[:-keep_count]
+                candidates = messages[:-keep_count]
+                # Never compact pinned messages
+                to_compact = [m for m in candidates if not m.is_pinned]
+
+                if len(to_compact) < 3:
+                    logger.info(
+                        "Skipping compaction for chat %s: only %d compactable (non-pinned) messages",
+                        chat_id, len(to_compact),
+                    )
+                    return {"status": "skipped", "reason": "too_few_compactable"}
 
                 # Build summarization prompt — truncate each message to 500 chars
                 truncated_history = "\n".join(
@@ -572,6 +587,55 @@ class ContextManager(BaseKernelService):
         finally:
             if owns_ollama and ollama is not None:
                 await ollama.shutdown()
+
+    # -------------------------------------------------------------------------
+    # System Prompt Resolution
+    # -------------------------------------------------------------------------
+
+    async def resolve_system_prompt_content(
+        self,
+        chat_id: UUID,
+        project_id: Optional[UUID],
+        user_id: UUID,
+    ) -> Optional[str]:
+        """Resolve the system prompt content via the priority chain.
+
+        Resolution order:
+        1. Chat's system_prompt_id
+        2. Project's system_prompt_id
+        3. User's default system prompt (is_default=True)
+        4. None (caller falls back to user_prefs["custom_system_prompt"])
+        """
+        async with self._session_factory() as session:
+            # 1. Check chat-level override
+            if chat_id:
+                chat = await session.get(Chat, chat_id)
+                if chat and chat.system_prompt_id:
+                    prompt = await session.get(SystemPrompt, chat.system_prompt_id)
+                    if prompt and not prompt.is_deleted:
+                        return prompt.content
+
+            # 2. Check project-level override
+            if project_id:
+                project = await session.get(Project, project_id)
+                if project and project.system_prompt_id:
+                    prompt = await session.get(SystemPrompt, project.system_prompt_id)
+                    if prompt and not prompt.is_deleted:
+                        return prompt.content
+
+            # 3. Check user's default prompt
+            result = await session.execute(
+                select(SystemPrompt).where(
+                    SystemPrompt.user_id == user_id,
+                    SystemPrompt.is_default == True,  # noqa: E712
+                    SystemPrompt.is_deleted == False,  # noqa: E712
+                )
+            )
+            default_prompt = result.scalar_one_or_none()
+            if default_prompt:
+                return default_prompt.content
+
+        return None
 
     # -------------------------------------------------------------------------
     # Knowledge Base Context Retrieval

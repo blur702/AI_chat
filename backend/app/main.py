@@ -23,6 +23,7 @@ from app.api.resources import router as resources_router
 from app.api.events import router as events_router
 from app.api.tools import router as tools_router
 from app.api.context import router as context_router, projects_router, messages_router, chats_router, context_projects_router
+from app.api.system_prompts import router as system_prompts_router
 from app.api.websocket import router as websocket_router, get_websocket_manager
 from app.api.operations import router as operations_router
 from app.api.admin import router as admin_router, user_router as admin_user_router
@@ -276,6 +277,7 @@ app.include_router(messages_router, prefix="/api", tags=["context"])
 app.include_router(chats_router, prefix="/api", tags=["context"])
 app.include_router(context_projects_router, prefix="/api", tags=["context"])
 app.include_router(projects_router, prefix="/api", tags=["projects"])
+app.include_router(system_prompts_router, prefix="/api", tags=["context"])
 app.include_router(websocket_router, prefix="/api", tags=["websocket"])
 app.include_router(operations_router, prefix="/api", tags=["operations"])
 app.include_router(admin_router, prefix="/api", tags=["admin"])

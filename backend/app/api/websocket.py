@@ -61,7 +61,7 @@ class ConnectionManager:
         async with self._lock:
             self._active_connections[connection_id] = websocket
             self._connection_metadata[connection_id] = metadata or {}
-        logger.info(f"WebSocket connected: {connection_id}")
+        logger.info("WebSocket connected: %s", connection_id)
 
     async def disconnect(self, connection_id: str) -> None:
         """
@@ -75,7 +75,7 @@ class ConnectionManager:
                 del self._active_connections[connection_id]
             if connection_id in self._connection_metadata:
                 del self._connection_metadata[connection_id]
-        logger.info(f"WebSocket disconnected: {connection_id}")
+        logger.info("WebSocket disconnected: %s", connection_id)
 
     async def send_message(self, connection_id: str, message: dict) -> bool:
         """
@@ -96,7 +96,7 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 return True
             except Exception as e:
-                logger.error(f"Error sending to {connection_id}: {e}")
+                logger.error("Error sending to %s: %s", connection_id, e)
                 await self.disconnect(connection_id)
         return False
 
@@ -121,7 +121,7 @@ class ConnectionManager:
                 await websocket.send_json(message)
                 sent_count += 1
             except Exception as e:
-                logger.warning(f"Broadcast failed for {conn_id}: {e}")
+                logger.warning("Broadcast failed for %s: %s", conn_id, e)
                 disconnected.append(conn_id)
 
         # Clean up failed connections
@@ -273,7 +273,7 @@ async def generate_state_snapshot(
                             **state
                         })
             except Exception as e:
-                logger.warning(f"Failed to collect active operations: {e}")
+                logger.warning("Failed to collect active operations: %s", e)
 
             # Collect resource status
             try:
@@ -288,23 +288,23 @@ async def generate_state_snapshot(
                         "last_used_at": resource.last_used_at.isoformat() if resource.last_used_at else None,
                     })
             except Exception as e:
-                logger.warning(f"Failed to collect resource status: {e}")
+                logger.warning("Failed to collect resource status: %s", e)
 
             # Collect VRAM statistics
             try:
                 snapshot["vram_stats"] = await resource_manager.get_cached_vram_stats()
             except Exception as e:
-                logger.warning(f"Failed to collect VRAM stats: {e}")
+                logger.warning("Failed to collect VRAM stats: %s", e)
 
         # Collect kernel health
         try:
             snapshot["kernel_health"] = await kernel.health_check()
         except Exception as e:
-            logger.warning(f"Failed to collect kernel health: {e}")
+            logger.warning("Failed to collect kernel health: %s", e)
             snapshot["kernel_health"] = {"healthy": False, "error": str(e)}
 
     except Exception as e:
-        logger.error(f"Error generating state snapshot: {e}")
+        logger.error("Error generating state snapshot: %s", e)
 
     return snapshot
 
@@ -341,27 +341,27 @@ async def websocket_events_endpoint(
     # Validate authentication token
     if token is None:
         await websocket.close(code=1008, reason="Authentication required")
-        logger.warning(f"WebSocket connection rejected: no token provided")
+        logger.warning("WebSocket connection rejected: no token provided")
         return
 
     payload = verify_token(token)
     if payload is None:
         await websocket.close(code=1008, reason="Invalid or expired token")
-        logger.warning(f"WebSocket connection rejected: invalid token")
+        logger.warning("WebSocket connection rejected: invalid token")
         return
 
     # Extract and validate user_id from token (required)
     user_id_str = payload.get("user_id")
     if not user_id_str:
         await websocket.close(code=1008, reason="Invalid user")
-        logger.warning(f"WebSocket connection rejected: missing user_id in token")
+        logger.warning("WebSocket connection rejected: missing user_id in token")
         return
 
     try:
         user_id = UUID(user_id_str)
     except (ValueError, TypeError):
         await websocket.close(code=1008, reason="Invalid user")
-        logger.warning(f"WebSocket connection rejected: invalid user_id format: {user_id_str}")
+        logger.warning("WebSocket connection rejected: invalid user_id format: %s", user_id_str)
         return
 
     try:
@@ -393,11 +393,11 @@ async def websocket_events_endpoint(
             if kernel:
                 snapshot = await generate_state_snapshot(kernel, user_id)
                 await manager.send_state_snapshot(connection_id, snapshot)
-                logger.info(f"State snapshot sent to {connection_id}")
+                logger.info("State snapshot sent to %s", connection_id)
             else:
                 logger.warning("Kernel not available, skipping state snapshot")
         except Exception as e:
-            logger.error(f"Failed to send state snapshot: {e}")
+            logger.error("Failed to send state snapshot: %s", e)
             # Don't close connection on snapshot failure
 
         # Keep connection alive and handle client messages
@@ -413,11 +413,11 @@ async def websocket_events_endpoint(
                     )
 
             except WebSocketDisconnect:
-                logger.info(f"Client {connection_id} disconnected normally")
+                logger.info("Client %s disconnected normally", connection_id)
                 break
 
     except Exception as e:
-        logger.error(f"WebSocket error for {connection_id}: {e}")
+        logger.error("WebSocket error for %s: %s", connection_id, e)
 
     finally:
         await manager.disconnect(connection_id)
@@ -475,16 +475,20 @@ async def websocket_terminal_endpoint(
         return
 
     # -- Verify project exists and user owns it --
+    # NOTE: This inline access check mirrors validate_project_access_with_template
+    # from context_deps.py but is duplicated here because WebSocket endpoints
+    # cannot use FastAPI Depends() for DB sessions the same way HTTP endpoints do.
+    project_template_id = None
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(Project.user_id)
+            select(Project.user_id, Project.template_id)
             .where(Project.id == project_uuid, Project.is_deleted == False)  # noqa: E712
         )
         row = result.one_or_none()
         if row is None:
             await websocket.close(code=1008, reason="Project not found")
             return
-        (owner_id,) = row
+        owner_id, project_template_id = row
         if str(owner_id) != str(user_id):
             await websocket.close(code=1008, reason="Access denied")
             return
@@ -505,7 +509,9 @@ async def websocket_terminal_endpoint(
 
     try:
         # Get or create sandbox container
-        container_id = await sandbox_manager.get_or_create_container(project_uuid)
+        container_id = await sandbox_manager.get_or_create_container(
+            project_uuid, template_id=project_template_id
+        )
 
         await websocket.send_json({
             "type": "connected",
@@ -626,10 +632,13 @@ async def get_state_snapshot(
     REST endpoint to retrieve current state snapshot.
 
     Useful for debugging and initial page loads before WebSocket connection.
+    Authentication is via query parameter (same pattern as the WebSocket
+    endpoint) rather than the standard Authorization header, since this
+    endpoint is often called alongside the WebSocket connection setup.
 
     Args:
         request: FastAPI request object
-        token: JWT authentication token
+        token: JWT authentication token (query parameter)
 
     Returns:
         State snapshot dictionary

@@ -17,6 +17,10 @@ interface UseConversationReturn {
   refresh: () => Promise<void>;
   sendMessage: (content: string, role?: string) => Promise<boolean>;
   cancelStream: () => void;
+  updateMessage: (messageId: string, data: { content?: string; is_pinned?: boolean; is_excluded?: boolean }) => Promise<boolean>;
+  deleteMessage: (messageId: string) => Promise<boolean>;
+  pinMessage: (messageId: string, pinned: boolean) => Promise<boolean>;
+  excludeMessage: (messageId: string, excluded: boolean) => Promise<boolean>;
 }
 
 export function useConversation(chatId: string | null): UseConversationReturn {
@@ -201,6 +205,63 @@ export function useConversation(chatId: string | null): UseConversationReturn {
     [chatId, conversation, startProgress, finishProgress]
   );
 
+  const updateMessage = useCallback(
+    async (messageId: string, data: { content?: string; is_pinned?: boolean; is_excluded?: boolean }): Promise<boolean> => {
+      if (!chatId) return false;
+      try {
+        setError(null);
+        const updated = await getClient().updateMessage(chatId, messageId, data);
+        setConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = prev.messages.map((m) =>
+            m.id === messageId
+              ? { ...m, content: updated.content, is_pinned: updated.is_pinned, is_excluded: updated.is_excluded }
+              : m
+          );
+          return { ...prev, messages: msgs };
+        });
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update message");
+        return false;
+      }
+    },
+    [chatId]
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId: string): Promise<boolean> => {
+      if (!chatId) return false;
+      try {
+        setError(null);
+        await getClient().deleteMessage(chatId, messageId);
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return { ...prev, messages: prev.messages.filter((m) => m.id !== messageId) };
+        });
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete message");
+        return false;
+      }
+    },
+    [chatId]
+  );
+
+  const pinMessage = useCallback(
+    async (messageId: string, pinned: boolean): Promise<boolean> => {
+      return updateMessage(messageId, { is_pinned: pinned });
+    },
+    [updateMessage]
+  );
+
+  const excludeMessage = useCallback(
+    async (messageId: string, excluded: boolean): Promise<boolean> => {
+      return updateMessage(messageId, { is_excluded: excluded });
+    },
+    [updateMessage]
+  );
+
   return {
     conversation,
     messages: conversation?.messages ?? [],
@@ -212,5 +273,9 @@ export function useConversation(chatId: string | null): UseConversationReturn {
     refresh,
     sendMessage,
     cancelStream,
+    updateMessage,
+    deleteMessage,
+    pinMessage,
+    excludeMessage,
   };
 }

@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { ScrollArea, Skeleton } from "@workstation/ui";
 import { MessageBubble } from "./message-bubble";
 import { ThinkingIndicator } from "./thinking-indicator";
-import type { MessageSummary } from "@workstation/api";
+import { CompactionBanner } from "./chat/compaction-banner";
+import type { MessageSummary, CompactionSummary } from "@workstation/api";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -63,12 +64,27 @@ This gives you a fully async database setup. Let me know if you need help with m
 
 interface MessageThreadProps {
   messages: MessageSummary[];
+  compactions?: CompactionSummary[];
   loading: boolean;
   processing?: boolean;
   progress?: number;
+  onPin?: (messageId: string, pinned: boolean) => void;
+  onExclude?: (messageId: string, excluded: boolean) => void;
+  onEdit?: (messageId: string, content: string) => void;
+  onDelete?: (messageId: string) => void;
 }
 
-export function MessageThread({ messages, loading, processing, progress = 0 }: MessageThreadProps) {
+export function MessageThread({
+  messages,
+  compactions = [],
+  loading,
+  processing,
+  progress = 0,
+  onPin,
+  onExclude,
+  onEdit,
+  onDelete,
+}: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const displayMessages =
@@ -121,16 +137,28 @@ export function MessageThread({ messages, loading, processing, progress = 0 }: M
         role="log"
         aria-label="Message thread"
       >
+        {/* Show compaction banners at the top of the thread */}
+        {compactions.map((c) => (
+          <CompactionBanner key={c.id} compaction={c} />
+        ))}
+
         {displayMessages.map((msg) => (
           <MessageBubble
             key={msg.id}
+            id={msg.id}
             role={msg.role}
             content={msg.content}
+            isPinned={msg.is_pinned}
+            isExcluded={msg.is_excluded}
             timestamp={
               msg.created_at
                 ? new Date(msg.created_at).toLocaleTimeString()
                 : undefined
             }
+            onPin={onPin}
+            onExclude={onExclude}
+            onEdit={onEdit}
+            onDelete={onDelete}
           />
         ))}
         {processing && <ThinkingIndicator progress={progress} />}

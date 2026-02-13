@@ -21,6 +21,7 @@ from app.models.message import Message
 from app.models.project import Project
 from app.models.project_import import ProjectImport
 from app.models.resource import Resource
+from app.models.system_prompt import SystemPrompt
 from app.models.user import User
 from app.models.user_preference import UserPreference
 from app.models.utils import hash_password, verify_password
@@ -42,6 +43,7 @@ __all__ = [
     "Project",
     "ProjectImport",
     "Resource",
+    "SystemPrompt",
     "TimestampMixin",
     "UUIDMixin",
     "User",

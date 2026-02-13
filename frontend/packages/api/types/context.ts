@@ -13,6 +13,7 @@ export interface CompactionSummary {
   original_message_count: number;
   compacted_message_count: number;
   summary: string;
+  status?: string;
   created_at?: string;
 }
 
@@ -23,6 +24,8 @@ export interface ConversationState {
   messages: MessageSummary[];
   compactions: CompactionSummary[];
   current_token_count: number;
+  chat_instructions?: string;
+  system_prompt_id?: string;
 }
 
 export interface ChatSummary {
@@ -37,12 +40,16 @@ export interface ChatSummary {
 export interface ChatCreateRequest {
   project_id: string;
   title: string;
+  chat_instructions?: string;
+  system_prompt_id?: string;
 }
 
 export interface ChatCreateResponse {
   id: string;
   title: string;
   project_id: string;
+  chat_instructions?: string;
+  system_prompt_id?: string;
   created_at?: string;
 }
 
@@ -50,6 +57,8 @@ export interface ChatUpdateRequest {
   title?: string;
   is_pinned?: boolean;
   is_archived?: boolean;
+  chat_instructions?: string;
+  system_prompt_id?: string;
 }
 
 export interface ChatUpdateResponse {
@@ -58,6 +67,8 @@ export interface ChatUpdateResponse {
   project_id: string;
   is_pinned: boolean;
   is_archived: boolean;
+  chat_instructions?: string;
+  system_prompt_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -68,6 +79,8 @@ export interface ProjectContext {
   name: string;
   path: string;
   type?: string;
+  template_id?: string;
+  system_prompt_id?: string;
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];
@@ -226,6 +239,7 @@ export interface ProjectUpdateRequest {
   path?: string;
   type?: string;
   template_id?: string;
+  system_prompt_id?: string;
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];
@@ -236,6 +250,7 @@ export interface ProjectUpdateResponse {
   name: string;
   path: string;
   type?: string;
+  system_prompt_id?: string;
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];
@@ -255,4 +270,66 @@ export interface ProjectSummary {
 export interface ProjectListResponse {
   projects: ProjectSummary[];
   count: number;
+}
+
+// System Prompts
+export interface SystemPrompt {
+  id: string;
+  name: string;
+  content: string;
+  description?: string;
+  is_default: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SystemPromptCreateRequest {
+  name: string;
+  content: string;
+  description?: string;
+  is_default?: boolean;
+}
+
+export interface SystemPromptUpdateRequest {
+  name?: string;
+  content?: string;
+  description?: string;
+  is_default?: boolean;
+}
+
+export interface SystemPromptListResponse {
+  prompts: SystemPrompt[];
+  count: number;
+}
+
+// Message Actions
+export interface MessageUpdateRequest {
+  content?: string;
+  is_pinned?: boolean;
+  is_excluded?: boolean;
+}
+
+export interface MessageUpdateResponse {
+  id: string;
+  role: string;
+  content: string;
+  is_pinned: boolean;
+  is_excluded: boolean;
+  updated_at?: string;
+}
+
+// Token Breakdown
+export interface TokenBreakdownResponse {
+  system_prompt_tokens: number;
+  project_context_tokens: number;
+  chat_instructions_tokens: number;
+  kb_results_tokens: number;
+  compaction_summary_tokens: number;
+  conversation_tokens: number;
+  total: number;
+  context_window: number;
+  fill_ratio: number;
+  message_count: number;
+  excluded_count: number;
+  pinned_count: number;
 }

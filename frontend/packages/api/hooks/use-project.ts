@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
-import type { ProjectContext, ChatSummary } from "../types";
+import type { ProjectContext, ChatSummary, ProjectUpdateRequest } from "../types";
 
 interface UseProjectReturn {
   project: ProjectContext | null;
@@ -10,6 +10,7 @@ interface UseProjectReturn {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  updateProject: (data: ProjectUpdateRequest) => Promise<boolean>;
 }
 
 export function useProject(projectId: string | null): UseProjectReturn {
@@ -39,11 +40,28 @@ export function useProject(projectId: string | null): UseProjectReturn {
     }
   }, [projectId, refresh]);
 
+  const updateProject = useCallback(
+    async (data: ProjectUpdateRequest): Promise<boolean> => {
+      if (!projectId) return false;
+      try {
+        setError(null);
+        await getClient().updateProject(projectId, data);
+        await refresh();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update project");
+        return false;
+      }
+    },
+    [projectId, refresh]
+  );
+
   return {
     project,
     chats: project?.chats ?? [],
     loading,
     error,
     refresh,
+    updateProject,
   };
 }

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from app.models.event import Event
     from app.models.message import Message
     from app.models.project import Project
+    from app.models.system_prompt import SystemPrompt
     from app.models.yolo_edit import YoloEdit
 
 
@@ -43,9 +44,20 @@ class Chat(UUIDMixin, TimestampMixin, Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    system_prompt_id: Mapped[Optional[UUID]] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("system_prompts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    chat_instructions: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="chats")
+    system_prompt: Mapped[Optional["SystemPrompt"]] = relationship(
+        "SystemPrompt", foreign_keys=[system_prompt_id]
+    )
     messages: Mapped[List["Message"]] = relationship(
         "Message",
         back_populates="chat",

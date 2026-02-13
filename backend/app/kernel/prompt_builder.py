@@ -1,9 +1,10 @@
 """Centralized prompt builder for assembling LLM messages from user prefs and project context."""
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.kernel.token_counter import TokenCounter
+from app.schemas.context import TokenBreakdownResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,20 +28,27 @@ class PromptBuilder:
         self,
         user_prefs: Dict[str, Any],
         project_context: Dict[str, Any],
+        system_prompt_content: Optional[str] = None,
+        chat_instructions: Optional[str] = None,
     ) -> str:
         """Assemble a system prompt from all stored fields.
 
-        Order:
-        1. custom_system_prompt (or default)
+        Layered order:
+        1. system_prompt_content (from library) or custom_system_prompt or default
         2. coding_principles as numbered list
         3. response_style directives
         4. project custom_context
         5. project important_files list
+        6. chat_instructions (per-chat layer)
         """
         parts: List[str] = []
 
-        # 1. Base system prompt
-        base = user_prefs.get("custom_system_prompt") or _DEFAULT_SYSTEM_PROMPT
+        # 1. Base system prompt (library prompt > user pref > default)
+        base = (
+            system_prompt_content
+            or user_prefs.get("custom_system_prompt")
+            or _DEFAULT_SYSTEM_PROMPT
+        )
         parts.append(base)
 
         # 2. Coding principles
@@ -82,6 +90,10 @@ class PromptBuilder:
             file_list = "\n".join(f"- {f}" for f in important_files if f)
             if file_list:
                 parts.append(f"\n\nImportant Project Files:\n{file_list}")
+
+        # 6. Chat instructions (per-chat layer)
+        if chat_instructions and isinstance(chat_instructions, str) and chat_instructions.strip():
+            parts.append(f"\n\nChat Instructions:\n{chat_instructions.strip()}")
 
         prompt = "".join(parts)
         logger.debug(
@@ -186,3 +198,85 @@ class PromptBuilder:
             (total_tokens / context_window * 100) if context_window else 0,
         )
         return messages, total_tokens
+
+    def compute_token_breakdown(
+        self,
+        user_prefs: Dict[str, Any],
+        project_context: Dict[str, Any],
+        system_prompt_content: Optional[str],
+        chat_instructions: Optional[str],
+        messages: List[Dict[str, Any]],
+        compactions: List[Dict[str, Any]],
+        model_name: str = "llama3.2",
+    ) -> TokenBreakdownResponse:
+        """Compute detailed per-layer token counts."""
+        tc = self.token_counter
+
+        # System prompt layer
+        base = (
+            system_prompt_content
+            or user_prefs.get("custom_system_prompt")
+            or _DEFAULT_SYSTEM_PROMPT
+        )
+        system_prompt_tokens = tc.count_tokens(base)
+
+        # Project context layer
+        project_text_parts = []
+        custom_context = project_context.get("custom_context")
+        if custom_context and isinstance(custom_context, str) and custom_context.strip():
+            project_text_parts.append(custom_context.strip())
+        important_files = project_context.get("important_files")
+        if important_files and isinstance(important_files, list):
+            project_text_parts.append("\n".join(f"- {f}" for f in important_files if f))
+        project_context_tokens = tc.count_tokens("\n".join(project_text_parts)) if project_text_parts else 0
+
+        # Chat instructions layer
+        chat_instructions_tokens = (
+            tc.count_tokens(chat_instructions) if chat_instructions else 0
+        )
+
+        # Compaction summary
+        compaction_summary_tokens = 0
+        if compactions:
+            latest = compactions[-1]
+            summary = latest.get("summary", "")
+            if summary and summary != "[Pending compaction — awaiting LLM summarization]":
+                compaction_summary_tokens = tc.count_tokens(summary)
+
+        # Conversation messages
+        active_msgs = [
+            m for m in messages
+            if not m.get("is_excluded", False) and m.get("role") in ("user", "assistant")
+        ]
+        conversation_tokens = tc.count_messages(
+            [{"role": m.get("role", ""), "content": m.get("content", "")} for m in active_msgs]
+        )
+
+        total = (
+            system_prompt_tokens
+            + project_context_tokens
+            + chat_instructions_tokens
+            + compaction_summary_tokens
+            + conversation_tokens
+        )
+
+        context_window = tc.estimate_model_context_window(model_name)
+        fill_ratio = total / context_window if context_window > 0 else 0.0
+
+        excluded_count = sum(1 for m in messages if m.get("is_excluded", False))
+        pinned_count = sum(1 for m in messages if m.get("is_pinned", False))
+
+        return TokenBreakdownResponse(
+            system_prompt_tokens=system_prompt_tokens,
+            project_context_tokens=project_context_tokens,
+            chat_instructions_tokens=chat_instructions_tokens,
+            kb_results_tokens=0,  # Would need KB results to compute
+            compaction_summary_tokens=compaction_summary_tokens,
+            conversation_tokens=conversation_tokens,
+            total=total,
+            context_window=context_window,
+            fill_ratio=round(fill_ratio, 4),
+            message_count=len(active_msgs),
+            excluded_count=excluded_count,
+            pinned_count=pinned_count,
+        )

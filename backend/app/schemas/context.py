@@ -31,6 +31,7 @@ class CompactionSummary(BaseModel):
     original_message_count: int
     compacted_message_count: int
     summary: str
+    status: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -43,6 +44,8 @@ class ConversationStateResponse(BaseModel):
     messages: List[MessageSummary] = Field(default_factory=list)
     compactions: List[CompactionSummary] = Field(default_factory=list)
     current_token_count: int = 0
+    chat_instructions: Optional[str] = None
+    system_prompt_id: Optional[str] = None
 
 
 class ConversationStateUpdateRequest(BaseModel):
@@ -74,6 +77,8 @@ class ChatCreateRequest(BaseModel):
 
     project_id: UUID
     title: str = Field(..., max_length=500, description="Chat title")
+    chat_instructions: Optional[str] = Field(None, max_length=10000)
+    system_prompt_id: Optional[UUID] = None
 
 
 class ChatCreateResponse(BaseModel):
@@ -82,6 +87,8 @@ class ChatCreateResponse(BaseModel):
     id: str
     title: str
     project_id: str
+    chat_instructions: Optional[str] = None
+    system_prompt_id: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -91,6 +98,8 @@ class ChatUpdateRequest(BaseModel):
     title: Optional[str] = Field(None, max_length=500)
     is_pinned: Optional[bool] = None
     is_archived: Optional[bool] = None
+    chat_instructions: Optional[str] = Field(None, max_length=10000)
+    system_prompt_id: Optional[UUID] = None
 
 
 class ChatUpdateResponse(BaseModel):
@@ -101,6 +110,8 @@ class ChatUpdateResponse(BaseModel):
     project_id: str
     is_pinned: bool = False
     is_archived: bool = False
+    chat_instructions: Optional[str] = None
+    system_prompt_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -113,6 +124,8 @@ class ProjectContextResponse(BaseModel):
     name: str
     path: str
     type: Optional[str] = None
+    template_id: Optional[str] = None
+    system_prompt_id: Optional[str] = None
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None
@@ -207,7 +220,7 @@ class ModelListResponse(BaseModel):
 class MessageSubmitRequest(BaseModel):
     """Request body for submitting a user message and getting an AI response."""
 
-    content: str = Field(..., min_length=1, description="User message content")
+    content: str = Field(..., min_length=1, max_length=100_000, description="User message content")
     metadata: Optional[Dict[str, Any]] = None
     model: Optional[str] = Field(None, description="Ollama model name (e.g. 'llama3.2')")
 
@@ -296,6 +309,7 @@ class ProjectCreateResponse(BaseModel):
     name: str
     path: str
     type: Optional[str] = None
+    template_id: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -306,6 +320,7 @@ class ProjectUpdateRequest(BaseModel):
     path: Optional[str] = None
     type: Optional[str] = Field(None, max_length=50)
     template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
+    system_prompt_id: Optional[UUID] = None
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None
@@ -318,6 +333,8 @@ class ProjectUpdateResponse(BaseModel):
     name: str
     path: str
     type: Optional[str] = None
+    template_id: Optional[str] = None
+    system_prompt_id: Optional[str] = None
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None
@@ -332,6 +349,7 @@ class ProjectSummary(BaseModel):
     name: str
     path: str
     type: Optional[str] = None
+    template_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -341,3 +359,91 @@ class ProjectListResponse(BaseModel):
 
     projects: List["ProjectSummary"] = Field(default_factory=list)
     count: int = 0
+
+
+# -------------------------------------------------------------------------
+# System Prompts
+# -------------------------------------------------------------------------
+
+
+class SystemPromptCreateRequest(BaseModel):
+    """Request body for creating a system prompt."""
+
+    name: str = Field(..., max_length=255, description="Prompt name")
+    content: str = Field(..., min_length=1, max_length=50000, description="Prompt content")
+    description: Optional[str] = Field(None, max_length=500)
+    is_default: bool = False
+
+
+class SystemPromptUpdateRequest(BaseModel):
+    """Request body for updating a system prompt."""
+
+    name: Optional[str] = Field(None, max_length=255)
+    content: Optional[str] = Field(None, min_length=1, max_length=50000)
+    description: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+class SystemPromptResponse(BaseModel):
+    """Response for a single system prompt."""
+
+    id: str
+    name: str
+    content: str
+    description: Optional[str] = None
+    is_default: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class SystemPromptListResponse(BaseModel):
+    """List of system prompts belonging to a user."""
+
+    prompts: List[SystemPromptResponse] = Field(default_factory=list)
+    count: int = 0
+
+
+# -------------------------------------------------------------------------
+# Message Actions
+# -------------------------------------------------------------------------
+
+
+class MessageUpdateRequest(BaseModel):
+    """Request body for updating a message (pin, exclude, edit)."""
+
+    content: Optional[str] = Field(None, min_length=1, max_length=100_000)
+    is_pinned: Optional[bool] = None
+    is_excluded: Optional[bool] = None
+
+
+class MessageUpdateResponse(BaseModel):
+    """Response after updating a message."""
+
+    id: str
+    role: str
+    content: str
+    is_pinned: bool = False
+    is_excluded: bool = False
+    updated_at: Optional[str] = None
+
+
+# -------------------------------------------------------------------------
+# Token Breakdown
+# -------------------------------------------------------------------------
+
+
+class TokenBreakdownResponse(BaseModel):
+    """Detailed per-layer token breakdown for a conversation."""
+
+    system_prompt_tokens: int = 0
+    project_context_tokens: int = 0
+    chat_instructions_tokens: int = 0
+    kb_results_tokens: int = 0
+    compaction_summary_tokens: int = 0
+    conversation_tokens: int = 0
+    total: int = 0
+    context_window: int = 0
+    fill_ratio: float = 0.0
+    message_count: int = 0
+    excluded_count: int = 0
+    pinned_count: int = 0

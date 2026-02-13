@@ -2,6 +2,7 @@
 
 import logging
 import os
+from typing import Optional
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -126,14 +127,18 @@ async def validate_chat_access(
         )
 
 
-async def validate_project_access(
+async def validate_project_access_with_template(
     project_id: UUID,
     user_id: str,
     db: AsyncSession,
-) -> None:
-    """Validate that a project exists and the user owns it."""
+) -> Optional[str]:
+    """Validate project access and return the project's template_id.
+
+    Raises HTTPException 404 if not found, 403 if not owner.
+    Returns the template_id (may be None).
+    """
     result = await db.execute(
-        select(Project.user_id)
+        select(Project.user_id, Project.template_id)
         .where(Project.id == project_id, Project.is_deleted == False)  # noqa: E712
     )
     row = result.one_or_none()
@@ -143,9 +148,20 @@ async def validate_project_access(
             detail=f"Project '{project_id}' not found",
         )
 
-    (owner_id,) = row
+    owner_id, template_id = row
     if str(owner_id) != str(user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this project",
         )
+
+    return template_id
+
+
+async def validate_project_access(
+    project_id: UUID,
+    user_id: str,
+    db: AsyncSession,
+) -> None:
+    """Validate that a project exists and the user owns it."""
+    await validate_project_access_with_template(project_id, user_id, db)

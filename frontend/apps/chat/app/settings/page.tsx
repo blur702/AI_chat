@@ -13,6 +13,7 @@ import {
 import { useAuth, useSettings, useResources } from "@workstation/api/hooks";
 import { ArrowLeft, Loader2, Check, AlertCircle, Eye, EyeOff, ImageIcon, HardDrive } from "lucide-react";
 import { OffloadPreferences } from "@/components/resources/offload-preferences";
+import { PromptLibrary } from "@/components/context/prompt-library";
 import Link from "next/link";
 
 function StatusMessage({ message, type }: { message: string; type: "success" | "error" }) {
@@ -269,11 +270,12 @@ export default function SettingsPage() {
         </div>
       ) : (
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList aria-label="Settings sections" className="w-full grid grid-cols-7">
+          <TabsList aria-label="Settings sections" className="w-full grid grid-cols-8">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="ai">AI</TabsTrigger>
+            <TabsTrigger value="prompts">Prompts</TabsTrigger>
             <TabsTrigger value="image-gen">Image Gen</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
@@ -596,6 +598,17 @@ export default function SettingsPage() {
               {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save AI Preferences
             </Button>
+          </TabsContent>
+
+          {/* Prompts Tab */}
+          <TabsContent value="prompts" className="space-y-6 pt-6">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">System Prompts</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Create and manage reusable system prompts. Assign them to projects or individual chats.
+              </p>
+            </div>
+            <PromptLibrary />
           </TabsContent>
 
           {/* Image Generation Tab */}

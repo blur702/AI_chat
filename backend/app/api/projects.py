@@ -19,6 +19,7 @@ from app.api.context_deps import (
 )
 from app.kernel.context_manager import ContextManager
 from app.models.project import Project
+from app.models.system_prompt import SystemPrompt
 from app.schemas.context import (
     ProjectCreateRequest,
     ProjectCreateResponse,
@@ -28,6 +29,7 @@ from app.schemas.context import (
     ProjectUpdateResponse,
 )
 from app.services.sandbox_manager import SandboxManager
+from app.services.templates import TemplateRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +95,21 @@ async def _create_project_handler(
 
     normalized_path = _normalize_project_path(body.path)
 
+    # Validate template_id against the template registry
+    if body.template_id:
+        registry = TemplateRegistry()
+        if registry.get(body.template_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown template_id: '{body.template_id}'",
+            )
+
     project = Project(
         user_id=user_uuid,
         name=body.name,
         path=normalized_path,
         type=body.type,
+        template_id=body.template_id,
         settings=body.settings,
         custom_context=body.custom_context,
         important_files=body.important_files,
@@ -127,6 +139,7 @@ async def _create_project_handler(
         name=project.name,
         path=project.path,
         type=project.type,
+        template_id=project.template_id,
         created_at=project.created_at.isoformat() if project.created_at else None,
     )
 
@@ -157,6 +170,7 @@ async def _list_projects_handler(
             name=p.name,
             path=p.path,
             type=p.type,
+            template_id=p.template_id,
             created_at=p.created_at.isoformat() if p.created_at else None,
             updated_at=p.updated_at.isoformat() if p.updated_at else None,
         )
@@ -186,18 +200,39 @@ async def _update_project_handler(
             detail=f"Project '{project_id}' not found",
         )
 
-    if body.name is not None:
-        project.name = body.name
-    if body.path is not None:
-        project.path = _normalize_project_path(body.path)
-    if body.type is not None:
-        project.type = body.type
-    if body.settings is not None:
-        project.settings = body.settings
-    if body.custom_context is not None:
-        project.custom_context = body.custom_context
-    if body.important_files is not None:
-        project.important_files = body.important_files
+    update_data = body.model_dump(exclude_unset=True)
+
+    # Validate template_id if provided
+    if "template_id" in update_data and update_data["template_id"] is not None:
+        registry = TemplateRegistry()
+        if registry.get(update_data["template_id"]) is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown template_id: '{update_data['template_id']}'",
+            )
+
+    # Validate system_prompt_id ownership if provided
+    if "system_prompt_id" in update_data and update_data["system_prompt_id"] is not None:
+        sp_result = await db.execute(
+            select(SystemPrompt).where(
+                SystemPrompt.id == update_data["system_prompt_id"],
+                SystemPrompt.user_id == UUID(user_id),
+                SystemPrompt.is_deleted == False,  # noqa: E712
+            )
+        )
+        if sp_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="System prompt not found",
+            )
+
+    # Normalize path if provided
+    if "path" in update_data and update_data["path"] is not None:
+        update_data["path"] = _normalize_project_path(update_data["path"])
+
+    for field, value in update_data.items():
+        if hasattr(project, field):
+            setattr(project, field, value)
 
     await db.commit()
     await db.refresh(project)
@@ -209,6 +244,8 @@ async def _update_project_handler(
         name=project.name,
         path=project.path,
         type=project.type,
+        template_id=project.template_id,
+        system_prompt_id=str(project.system_prompt_id) if project.system_prompt_id else None,
         settings=project.settings,
         custom_context=project.custom_context,
         important_files=project.important_files,
