@@ -141,6 +141,8 @@ export function ProjectContextPanel({ projectId }: ProjectContextPanelProps) {
                 <button
                   onClick={() => removeFile(file)}
                   className="text-muted-foreground hover:text-foreground"
+                  aria-label={`Remove file ${file}`}
+                  title={`Remove file ${file}`}
                 >
                   <X className="h-3 w-3" />
                 </button>

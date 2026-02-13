@@ -151,6 +151,7 @@ class ContextManager(BaseKernelService):
                     "created_at": msg.created_at.isoformat() if msg.created_at else None,
                 }
                 for msg in chat.messages
+                if not msg.is_deleted
             ]
 
             # Build compactions list
@@ -373,6 +374,7 @@ class ContextManager(BaseKernelService):
                 select(func.count(Message.id)).where(
                     Message.chat_id == chat_id,
                     Message.is_excluded == False,  # noqa: E712
+                    Message.is_deleted == False,  # noqa: E712
                 )
             )
             active_count = result.scalar_one()
@@ -468,6 +470,7 @@ class ContextManager(BaseKernelService):
                     .where(
                         Message.chat_id == chat_id,
                         Message.is_excluded == False,  # noqa: E712
+                        Message.is_deleted == False,  # noqa: E712
                     )
                     .order_by(Message.created_at.asc())
                 )

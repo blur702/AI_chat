@@ -40,6 +40,7 @@ class Message(UUIDMixin, TimestampMixin, Base):
     )
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_excluded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
@@ -48,7 +49,12 @@ class Message(UUIDMixin, TimestampMixin, Base):
         Index("idx_messages_chat_created", "chat_id", "created_at"),
         Index("idx_messages_pinned", "chat_id", "is_pinned"),
         Index("idx_messages_excluded", "chat_id", "is_excluded"),
+        Index("idx_messages_deleted", "chat_id", "is_deleted"),
     )
+
+    def soft_delete(self) -> None:
+        """Mark the message as deleted without removing from database."""
+        self.is_deleted = True
 
     def __repr__(self) -> str:
         return f"<Message(id={self.id}, role={self.role}, chat_id={self.chat_id})>"

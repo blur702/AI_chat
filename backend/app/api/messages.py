@@ -178,6 +178,7 @@ async def update_message(
         sa_select(Message).where(
             Message.id == msg_id,
             Message.chat_id == chat_id,
+            Message.is_deleted == False,  # noqa: E712
         )
     )
     msg = result.scalar_one_or_none()
@@ -226,7 +227,7 @@ async def delete_message(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    """Hard-delete a message."""
+    """Soft-delete a message."""
     user_id = payload.get("user_id", "")
     await validate_chat_access(chat_id, user_id, db)
 
@@ -235,6 +236,7 @@ async def delete_message(
         sa_select(Message).where(
             Message.id == msg_id,
             Message.chat_id == chat_id,
+            Message.is_deleted == False,  # noqa: E712
         )
     )
     msg = result.scalar_one_or_none()
@@ -244,7 +246,7 @@ async def delete_message(
             detail=f"Message '{msg_id}' not found in chat '{chat_id}'",
         )
 
-    await db.delete(msg)
+    msg.soft_delete()
     await db.commit()
 
     await cm.invalidate_conversation_cache(chat_id)
