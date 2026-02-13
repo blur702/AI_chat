@@ -26,7 +26,7 @@ def upgrade() -> None:
         'system_prompts',
         sa.Column('id', postgresql.UUID(as_uuid=True), server_default=sa.text('uuid_generate_v4()'), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), server_onupdate=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('content', sa.Text(), nullable=False),
@@ -36,6 +36,25 @@ def upgrade() -> None:
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
+    )
+    op.execute(
+        """
+        CREATE FUNCTION set_system_prompts_updated_at()
+        RETURNS trigger AS $$
+        BEGIN
+            NEW.updated_at = now();
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_set_system_prompts_updated_at
+        BEFORE UPDATE ON system_prompts
+        FOR EACH ROW
+        EXECUTE FUNCTION set_system_prompts_updated_at();
+        """
     )
     op.create_index('idx_system_prompts_user_id', 'system_prompts', ['user_id'])
     op.create_index('idx_system_prompts_user_default', 'system_prompts', ['user_id', 'is_default'])
@@ -79,6 +98,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop chat_instructions, system_prompt FKs, and system_prompts table."""
+    op.execute("DROP TRIGGER IF EXISTS trg_set_system_prompts_updated_at ON system_prompts")
+    op.execute("DROP FUNCTION IF EXISTS set_system_prompts_updated_at()")
     op.drop_column('chats', 'chat_instructions')
     op.drop_constraint('fk_chats_system_prompt_id', 'chats', type_='foreignkey')
     op.drop_column('chats', 'system_prompt_id')
