@@ -57,3 +57,10 @@ class FileRenameRequest(BaseModel):
 
     old_path: str = Field(..., min_length=1)
     new_path: str = Field(..., min_length=1)
+
+
+class SandboxStopResponse(BaseModel):
+    """Response from stopping a sandbox container."""
+
+    project_id: str
+    stopped: bool

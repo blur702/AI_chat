@@ -25,8 +25,21 @@ import { PanelErrorBoundary } from "./panel-error-boundary";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useBreakpoint, Sheet, SheetContent, SheetTitle } from "@workstation/ui";
+import {
+  useBreakpoint,
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+} from "@workstation/ui";
 import { useFileExplorer, useAutomationActions, useTools } from "@workstation/api/hooks";
+import { getClient } from "@workstation/api";
 import type { ToolExecuteResponse } from "@workstation/api/types";
 
 interface IDELayoutProps {
@@ -45,6 +58,8 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showDrupal, setShowDrupal] = useState(false);
   const [showKB, setShowKB] = useState(false);
   const [showSnapshots, setShowSnapshots] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
   const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
   const [initialTool, setInitialTool] = useState<string | null>(null);
@@ -237,6 +252,17 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     router.push("/settings");
   }, [router]);
 
+  const handleCloseProject = useCallback(async () => {
+    setClosing(true);
+    try {
+      await getClient().stopSandbox(projectId);
+    } catch {
+      // Container may not be running — that's fine
+    }
+    setShowCloseConfirm(false);
+    router.push("/chat");
+  }, [projectId, router]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -328,6 +354,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onKBClick={handleKBClick}
           onSnapshotsClick={handleSnapshotsClick}
           onToolsClick={handleToolsClick}
+          onCloseProject={() => setShowCloseConfirm(true)}
           onSettingsClick={handleSettingsClick}
           pendingActionsCount={pendingCount}
           toolsCount={tools.length}
@@ -423,6 +450,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onKBClick={handleKBClick}
         onSnapshotsClick={handleSnapshotsClick}
         onToolsClick={handleToolsClick}
+        onCloseProject={() => setShowCloseConfirm(true)}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
         toolsCount={tools.length}
@@ -613,6 +641,34 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           </PanelErrorBoundary>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close Project</DialogTitle>
+            <DialogDescription>
+              This will stop the sandbox container and disconnect any active
+              terminal sessions. Unsaved editor changes will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCloseConfirm(false)}
+              disabled={closing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCloseProject}
+              disabled={closing}
+            >
+              {closing ? "Closing..." : "Close Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

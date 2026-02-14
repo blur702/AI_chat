@@ -25,6 +25,7 @@ from app.schemas.sandbox import (
     FileRenameRequest,
     FileTreeResponse,
     FileUpdateRequest,
+    SandboxStopResponse,
 )
 from app.services.sandbox_manager import SandboxManager
 
@@ -165,6 +166,27 @@ def _extract_user_id(payload: dict) -> str:
 # -------------------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------------------
+
+
+@router.post("/{project_id}/stop", response_model=SandboxStopResponse)
+async def stop_sandbox(
+    project_id: UUID,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    sm: SandboxManager = Depends(get_sandbox_manager),
+) -> SandboxStopResponse:
+    """Stop and remove the sandbox container for a project."""
+    user_id = _extract_user_id(payload)
+    await validate_project_access_with_template(project_id, user_id, db)
+
+    if not sm.is_running:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SandboxManager is not running",
+        )
+
+    stopped = await sm.stop_container(project_id)
+    return SandboxStopResponse(project_id=str(project_id), stopped=stopped)
 
 
 @router.get("/{project_id}/files", response_model=FileTreeResponse)

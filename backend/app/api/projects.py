@@ -259,6 +259,7 @@ async def _delete_project_handler(
     cm: ContextManager,
     payload: dict,
     db: AsyncSession,
+    sandbox_manager: Optional[SandboxManager] = None,
 ) -> None:
     user_id = payload.get("user_id", "")
     await validate_project_access(project_id, user_id, db)
@@ -272,6 +273,13 @@ async def _delete_project_handler(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{project_id}' not found",
         )
+
+    # Stop sandbox container before deleting
+    if sandbox_manager and sandbox_manager.is_running:
+        try:
+            await sandbox_manager.stop_container(project_id)
+        except Exception:
+            logger.warning("Failed to stop sandbox for project %s", str(project_id)[:12], exc_info=True)
 
     project.soft_delete()
     await db.commit()
@@ -322,9 +330,10 @@ async def delete_project(
     cm: ContextManager = Depends(get_context_manager),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
+    sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> None:
     """Soft-delete a project."""
-    return await _delete_project_handler(project_id, cm, payload, db)
+    return await _delete_project_handler(project_id, cm, payload, db, sandbox_manager)
 
 
 # -------------------------------------------------------------------------
@@ -367,5 +376,6 @@ async def delete_project_alias(
     cm: ContextManager = Depends(get_context_manager),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
+    sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> None:
-    return await _delete_project_handler(project_id, cm, payload, db)
+    return await _delete_project_handler(project_id, cm, payload, db, sandbox_manager)

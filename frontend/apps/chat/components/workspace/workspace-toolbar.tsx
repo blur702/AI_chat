@@ -30,6 +30,7 @@ import {
   Globe,
   BookOpen,
   Camera,
+  Power,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 
@@ -46,6 +47,7 @@ interface WorkspaceToolbarProps {
   onDrupalClick?: () => void;
   onKBClick?: () => void;
   onSnapshotsClick?: () => void;
+  onCloseProject?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
   toolsCount?: number;
@@ -66,6 +68,7 @@ export function WorkspaceToolbar({
   onDrupalClick,
   onKBClick,
   onSnapshotsClick,
+  onCloseProject,
   onSettingsClick,
   pendingActionsCount = 0,
   toolsCount = 0,
@@ -195,6 +198,19 @@ export function WorkspaceToolbar({
       </Button>
 
       <ThemeToggle />
+
+      {onCloseProject && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close Project"
+          onClick={onCloseProject}
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          title="Close Project"
+        >
+          <Power className="h-4 w-4" />
+        </Button>
+      )}
 
       <Button variant="ghost" size="icon" aria-label="Settings" onClick={onSettingsClick}>
         <Settings className="h-4 w-4" />

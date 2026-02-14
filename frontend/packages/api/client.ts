@@ -859,6 +859,10 @@ export class WorkstationClient {
     });
   }
 
+  async stopSandbox(projectId: string): Promise<{ project_id: string; stopped: boolean }> {
+    return this.request(`/api/sandbox/${projectId}/stop`, { method: "POST" });
+  }
+
   // Automation Actions
   async createAutomationAction(
     projectId: string,
