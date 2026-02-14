@@ -20,6 +20,8 @@ from app.api.context_deps import (
     validate_chat_access,
 )
 from app.kernel.context_manager import ContextManager
+from app.kernel.prompt_builder import PromptBuilder
+from app.kernel.token_counter import TokenCounter
 from app.schemas.context import (
     ModelInfo,
     ModelListResponse,
@@ -37,6 +39,9 @@ from app.api.projects import router as projects_router  # noqa: F401
 from app.api.projects import context_projects_router  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+_token_counter = TokenCounter()
+_prompt_builder = PromptBuilder(_token_counter)
 
 router = APIRouter(prefix="/context", tags=["context"])
 
@@ -185,17 +190,51 @@ async def track_token_usage(
 async def get_token_usage(
     chat_id: UUID,
     cm: ContextManager = Depends(get_context_manager),
+    ollama: OllamaClient = Depends(get_ollama_client),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenUsageResponse:
-    """Retrieve current token usage statistics for a conversation."""
+    """Retrieve current token usage statistics for a conversation.
+
+    Computes live from the same ``compute_token_breakdown()`` logic used by
+    the Context Dashboard so both surfaces show identical numbers.
+    """
     user_id = payload.get("user_id", "")
     await validate_chat_access(chat_id, user_id, db)
 
-    usage = await cm.get_token_usage(chat_id)
+    state = await cm.get_conversation_state(chat_id)
+    if state is None:
+        return TokenUsageResponse(
+            current_tokens=0, max_tokens=0, usage_ratio=0.0, compaction_triggered=False,
+        )
+
+    prefs = await cm.get_user_preferences(user_id)
+    project_id = state.get("project_id")
+    project_context = {}
+    if project_id:
+        project_context = await cm.get_project_context(UUID(str(project_id))) or {}
+
+    system_prompt_content = await cm.resolve_system_prompt_content(
+        chat_id=chat_id,
+        project_id=UUID(str(project_id)) if project_id else None,
+        user_id=UUID(str(user_id)),
+    )
+
+    resolved_model = prefs.get("default_model") or await ollama.get_default_model()
+
+    breakdown = _prompt_builder.compute_token_breakdown(
+        user_prefs=prefs,
+        project_context=project_context,
+        system_prompt_content=system_prompt_content,
+        chat_instructions=state.get("chat_instructions"),
+        messages=state.get("messages", []),
+        compactions=state.get("compactions", []),
+        model_name=resolved_model,
+    )
+
     return TokenUsageResponse(
-        current_tokens=usage["current_tokens"],
-        max_tokens=usage["max_tokens"],
-        usage_ratio=usage["usage_ratio"],
+        current_tokens=breakdown.total,
+        max_tokens=breakdown.context_window,
+        usage_ratio=breakdown.fill_ratio,
         compaction_triggered=False,
     )

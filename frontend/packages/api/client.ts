@@ -682,8 +682,11 @@ export class WorkstationClient {
     });
   }
 
-  async getTokenBreakdown(chatId: string): Promise<TokenBreakdownResponse> {
-    return this.request(`/api/context/conversations/${chatId}/token-breakdown`);
+  async getTokenBreakdown(chatId: string, model?: string): Promise<TokenBreakdownResponse> {
+    const params = new URLSearchParams();
+    if (model) params.set("model", model);
+    const query = params.toString();
+    return this.request(`/api/context/conversations/${chatId}/token-breakdown${query ? `?${query}` : ""}`);
   }
 
   async getAssembledContext(chatId: string, model?: string): Promise<AssembledContextResponse> {
@@ -719,6 +722,7 @@ export class WorkstationClient {
       token_count?: number;
       max_tokens?: number;
       usage_ratio?: number;
+      chat_title?: string;
     }) => void,
     onError: (error: string) => void,
     model?: string
@@ -781,6 +785,7 @@ export class WorkstationClient {
                   token_count: event.token_count,
                   max_tokens: event.max_tokens,
                   usage_ratio: event.usage_ratio,
+                  chat_title: event.chat_title,
                 });
               } else if (event.type === "error") {
                 onError(event.message);

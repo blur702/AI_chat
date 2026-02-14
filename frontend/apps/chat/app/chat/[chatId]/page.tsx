@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { Button } from "@workstation/ui";
 import { MessageThread } from "@/components/message-thread";
 import { MessageInput } from "@/components/message-input";
@@ -9,6 +9,7 @@ import { TokenUsageBar } from "@/components/chat/token-usage-bar";
 import { ContextDashboard } from "@/components/context/context-dashboard";
 import { ContextEditor } from "@/components/context/context-editor";
 import { useConversation } from "@workstation/api";
+import type { DraftOptions } from "@workstation/api/hooks";
 import { ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "@workstation/api/hooks";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
 
@@ -21,6 +22,13 @@ export default function ChatPage() {
   const params = useParams();
   const rawChatId = params.chatId;
   const chatId = Array.isArray(rawChatId) ? rawChatId[0] : rawChatId ?? "";
+
+  const isNewChat = chatId === "new";
+
+  const [projectId] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("workstation_chat_project_id");
+  });
 
   const [activeModel, setActiveModel] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -37,6 +45,18 @@ export default function ChatPage() {
     return () => window.removeEventListener(ACTIVE_MODEL_CHANGE_EVENT, handler);
   }, []);
 
+  const handleChatCreated = useCallback((newId: string, title?: string) => {
+    window.history.replaceState(null, "", `/chat/${newId}`);
+    window.dispatchEvent(
+      new CustomEvent("chat-list-refresh", { detail: { chatId: newId, title } })
+    );
+  }, []);
+
+  const draftOptions: DraftOptions | undefined = useMemo(
+    () => (isNewChat ? { projectId, onChatCreated: handleChatCreated } : undefined),
+    [isNewChat, projectId, handleChatCreated],
+  );
+
   const {
     conversation,
     messages,
@@ -50,7 +70,7 @@ export default function ChatPage() {
     excludeMessage,
     updateMessage,
     deleteMessage,
-  } = useConversation(chatId, activeModel);
+  } = useConversation(isNewChat ? null : chatId, activeModel, draftOptions);
 
   const [dashboardOpen, setDashboardOpen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -100,7 +120,9 @@ export default function ChatPage() {
       {/* Main chat area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h1 className="text-sm font-medium">Chat {chatId}</h1>
+          <h1 className="text-sm font-medium">
+            {isNewChat ? "New Chat" : (conversation?.title ?? `Chat ${chatId.slice(0, 8)}`)}
+          </h1>
           <Button
             size="sm"
             variant="ghost"
@@ -159,24 +181,30 @@ export default function ChatPage() {
 
           {/* Content */}
           <div className="flex-1 overflow-hidden">
-            {sidebarView === "dashboard" ? (
-              <ContextDashboard
-                chatId={chatId}
-                compactions={conversation?.compactions}
-                messageCount={messages.length}
-                chatInstructions={conversation?.chat_instructions}
-                systemPromptId={conversation?.system_prompt_id}
-              />
+            {conversation?.chat_id ? (
+              sidebarView === "dashboard" ? (
+                <ContextDashboard
+                  chatId={conversation.chat_id}
+                  compactions={conversation.compactions}
+                  messageCount={messages.length}
+                  chatInstructions={conversation.chat_instructions}
+                  systemPromptId={conversation.system_prompt_id}
+                />
+              ) : (
+                <ContextEditor
+                  chatId={conversation.chat_id}
+                  compactions={conversation.compactions}
+                  messageCount={messages.length}
+                  chatInstructions={conversation.chat_instructions}
+                  systemPromptId={conversation.system_prompt_id}
+                  activeModel={activeModel}
+                  onClose={() => switchView("dashboard")}
+                />
+              )
             ) : (
-              <ContextEditor
-                chatId={chatId}
-                compactions={conversation?.compactions}
-                messageCount={messages.length}
-                chatInstructions={conversation?.chat_instructions}
-                systemPromptId={conversation?.system_prompt_id}
-                activeModel={activeModel}
-                onClose={() => switchView("dashboard")}
-              />
+              <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+                Send a message to start
+              </div>
             )}
           </div>
         </div>

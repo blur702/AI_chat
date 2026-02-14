@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -34,11 +34,10 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
-  const { chats, loading, error, createChat, updateChat, deleteChat } = useChats(projectId);
+  const { chats, loading, error, refresh, updateChat, deleteChat } = useChats(projectId);
   const { isMobile } = useBreakpoint();
   const sidebarRef = useRef<HTMLElement>(null);
   const [internalOpen, setInternalOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
 
   // Rename dialog state
@@ -60,29 +59,23 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
     if (isMobile) onMobileClose();
   };
 
+  // Refresh chat list when a new chat is created from the draft page
+  useEffect(() => {
+    const handler = () => { refresh(); };
+    window.addEventListener("chat-list-refresh", handler);
+    return () => window.removeEventListener("chat-list-refresh", handler);
+  }, [refresh]);
+
   const handleLogout = useCallback(() => {
     logout();
     router.push("/login");
   }, [logout, router]);
 
-  const handleNewChat = useCallback(async () => {
-    if (!projectId || creating) return;
-    setCreating(true);
-    setOperationError(null);
-    try {
-      const chatId = await createChat("New Chat");
-      if (chatId) {
-        router.push(`/chat/${chatId}`);
-        if (isMobile) onMobileClose();
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Failed to create chat:", err);
-      setOperationError(`Failed to create chat: ${message}`);
-    } finally {
-      setCreating(false);
-    }
-  }, [projectId, creating, createChat, router, isMobile, onMobileClose]);
+  const handleNewChat = useCallback(() => {
+    if (!projectId) return;
+    router.push("/chat/new");
+    if (isMobile) onMobileClose();
+  }, [projectId, router, isMobile, onMobileClose]);
 
   const handleRename = useCallback(async () => {
     if (!renameTarget || !renameValue.trim()) return;
@@ -148,7 +141,6 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       chats={chats}
       pathname={pathname}
       loading={loading}
-      creating={creating}
       error={error}
       operationError={operationError}
       onChatSelect={handleChatSelect}
@@ -262,7 +254,6 @@ interface SidebarContentProps {
   chats: { id: string; title: string; is_pinned?: boolean; is_archived?: boolean; created_at?: string; updated_at?: string }[];
   pathname: string;
   loading: boolean;
-  creating: boolean;
   error: string | null;
   operationError: string | null;
   onChatSelect?: () => void;
@@ -279,7 +270,6 @@ function SidebarContent({
   chats,
   pathname,
   loading,
-  creating,
   error,
   operationError,
   onChatSelect,
@@ -302,14 +292,9 @@ function SidebarContent({
           variant="ghost"
           size="icon"
           onClick={onNewChat}
-          disabled={creating}
           aria-label="Create new chat"
         >
-          {creating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
 
@@ -448,7 +433,7 @@ function ChatItem({
           aria-current={isActive ? "page" : undefined}
           onClick={onSelect}
           className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "group flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             isActive
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
               : "text-sidebar-foreground hover:bg-sidebar-accent/50"
@@ -456,7 +441,42 @@ function ChatItem({
         >
           <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="truncate">{chat.title}</span>
-          {chat.is_pinned && <Pin className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" aria-label="Pinned" />}
+          {chat.is_pinned && (
+            <Pin className="ml-auto h-3 w-3 shrink-0 text-muted-foreground group-hover:hidden" aria-label="Pinned" />
+          )}
+          <div
+            className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0"
+            onClick={(e) => e.preventDefault()}
+          >
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRename(chat.id, chat.title); }}
+              className="p-1 rounded hover:bg-sidebar-accent"
+              title="Rename"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTogglePin(chat.id, !!chat.is_pinned); }}
+              className="p-1 rounded hover:bg-sidebar-accent"
+              title={chat.is_pinned ? "Unpin" : "Pin"}
+            >
+              <Pin className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleArchive(chat.id, !!chat.is_archived); }}
+              className="p-1 rounded hover:bg-sidebar-accent"
+              title={chat.is_archived ? "Unarchive" : "Archive"}
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(chat.id, chat.title); }}
+              className="p-1 rounded hover:bg-sidebar-accent text-destructive"
+              title="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </Link>
       </ContextMenuTrigger>
       <ContextMenuContent>

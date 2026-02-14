@@ -4,6 +4,7 @@ export { useResources } from "./use-resources";
 export type { UseResourcesReturn, ResourceSortField, ResourceSortOrder, ResourceStatusFilter } from "./use-resources";
 export { useChats } from "./use-chats";
 export { useConversation } from "./use-conversation";
+export type { DraftOptions } from "./use-conversation";
 export { useProject } from "./use-project";
 export { useProjects } from "./use-projects";
 export { useEvents, useEventTypes, useCreateEvent, useEventStats } from "./use-events";

@@ -6,6 +6,11 @@ import type { ConversationState, MessageSummary } from "../types";
 import { useTokenUsage } from "./use-token-usage";
 import type { TokenUsage } from "./use-token-usage";
 
+export interface DraftOptions {
+  projectId: string | null;
+  onChatCreated?: (chatId: string, title?: string) => void;
+}
+
 interface UseConversationReturn {
   conversation: ConversationState | null;
   messages: MessageSummary[];
@@ -23,7 +28,11 @@ interface UseConversationReturn {
   excludeMessage: (messageId: string, excluded: boolean) => Promise<boolean>;
 }
 
-export function useConversation(chatId: string | null, activeModel?: string | null): UseConversationReturn {
+export function useConversation(
+  chatId: string | null,
+  activeModel?: string | null,
+  draftOptions?: DraftOptions,
+): UseConversationReturn {
   const [conversation, setConversation] = useState<ConversationState | null>(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -32,7 +41,23 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
-  const { tokenUsage, setFromStream } = useTokenUsage(chatId);
+
+  // Track effective chatId via ref to avoid re-renders during draft→real transition
+  const chatIdRef = useRef(chatId);
+  useEffect(() => { chatIdRef.current = chatId; }, [chatId]);
+
+  // Keep draftOptions in a ref so sendMessage always sees latest without re-creating
+  const draftOptionsRef = useRef(draftOptions);
+  draftOptionsRef.current = draftOptions;
+
+  // Track conversation existence via ref for sendMessage guard
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
+
+  // Prevent double-creation in draft mode
+  const creatingChatRef = useRef(false);
+
+  const { tokenUsage, setFromStream } = useTokenUsage(chatIdRef.current);
   const setFromStreamRef = useRef(setFromStream);
   setFromStreamRef.current = setFromStream;
 
@@ -118,7 +143,39 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
 
   const sendMessage = useCallback(
     async (content: string, role = "user"): Promise<boolean> => {
-      if (!chatId || !conversation) return false;
+      const opts = draftOptionsRef.current;
+      let effectiveChatId = chatIdRef.current;
+
+      // Draft mode: create chat on first message
+      if (!effectiveChatId && opts?.projectId) {
+        if (creatingChatRef.current) return false;
+        creatingChatRef.current = true;
+        try {
+          const res = await getClient().createChat(opts.projectId, "New Chat");
+          effectiveChatId = res.id;
+          chatIdRef.current = res.id;
+
+          // Set up empty conversation state for optimistic updates
+          setConversation({
+            chat_id: res.id,
+            project_id: opts.projectId,
+            title: "New Chat",
+            messages: [],
+            compactions: [],
+            current_token_count: 0,
+          });
+
+          // Notify parent immediately (URL update)
+          opts.onChatCreated?.(res.id);
+        } catch (err) {
+          creatingChatRef.current = false;
+          setError(err instanceof Error ? err.message : "Failed to create chat");
+          return false;
+        }
+      }
+
+      // For existing chats, don't send until conversation is loaded
+      if (!effectiveChatId || (!opts && !conversationRef.current)) return false;
 
       // Cancel any in-flight stream
       abortRef.current?.();
@@ -156,7 +213,7 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
       startProgress();
 
       const cancel = getClient().streamMessage(
-        chatId,
+        effectiveChatId,
         content,
         // onToken
         (token) => {
@@ -184,6 +241,11 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
           setFromStreamRef.current(data);
           finishProgress();
           abortRef.current = null;
+
+          // If backend generated a title, notify parent so sidebar can update
+          if (data.chat_title && opts?.onChatCreated) {
+            opts.onChatCreated(chatIdRef.current!, data.chat_title);
+          }
         },
         // onError
         (errMsg) => {
@@ -203,15 +265,16 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
       abortRef.current = cancel;
       return true;
     },
-    [chatId, conversation, startProgress, finishProgress, activeModel]
+    [startProgress, finishProgress, activeModel]
   );
 
   const updateMessage = useCallback(
     async (messageId: string, data: { content?: string; is_pinned?: boolean; is_excluded?: boolean }): Promise<boolean> => {
-      if (!chatId) return false;
+      const id = chatIdRef.current;
+      if (!id) return false;
       try {
         setError(null);
-        const updated = await getClient().updateMessage(chatId, messageId, data);
+        const updated = await getClient().updateMessage(id, messageId, data);
         setConversation((prev) => {
           if (!prev) return prev;
           const msgs = prev.messages.map((m) =>
@@ -227,15 +290,16 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
         return false;
       }
     },
-    [chatId]
+    []
   );
 
   const deleteMessage = useCallback(
     async (messageId: string): Promise<boolean> => {
-      if (!chatId) return false;
+      const id = chatIdRef.current;
+      if (!id) return false;
       try {
         setError(null);
-        await getClient().deleteMessage(chatId, messageId);
+        await getClient().deleteMessage(id, messageId);
         setConversation((prev) => {
           if (!prev) return prev;
           return { ...prev, messages: prev.messages.filter((m) => m.id !== messageId) };
@@ -246,7 +310,7 @@ export function useConversation(chatId: string | null, activeModel?: string | nu
         return false;
       }
     },
-    [chatId]
+    []
   );
 
   const pinMessage = useCallback(

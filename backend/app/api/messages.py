@@ -294,7 +294,9 @@ async def manual_compact(
 )
 async def get_token_breakdown(
     chat_id: UUID,
+    model: Optional[str] = None,
     cm: ContextManager = Depends(get_context_manager),
+    ollama: OllamaClient = Depends(get_ollama_client),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenBreakdownResponse:
@@ -323,6 +325,8 @@ async def get_token_breakdown(
     )
     chat_instructions = state.get("chat_instructions")
 
+    resolved_model = model or prefs.get("default_model") or await ollama.get_default_model()
+
     return _prompt_builder.compute_token_breakdown(
         user_prefs=prefs,
         project_context=project_context,
@@ -330,6 +334,7 @@ async def get_token_breakdown(
         chat_instructions=chat_instructions,
         messages=state.get("messages", []),
         compactions=state.get("compactions", []),
+        model_name=resolved_model,
     )
 
 
@@ -903,6 +908,73 @@ async def stream_message(
                         chat_id, enqueue_exc,
                     )
 
+            # Auto-title: generate for first message exchange
+            chat_title = None
+            try:
+                from sqlalchemy import func as sa_func, select as sa_sel
+
+                async with AsyncSessionLocal() as count_db:
+                    msg_count = await count_db.scalar(
+                        sa_sel(sa_func.count(Message.id)).where(
+                            Message.chat_id == chat_id,
+                            Message.is_deleted == False,  # noqa: E712
+                        )
+                    )
+                is_first_exchange = (msg_count or 0) <= 2  # user + assistant
+            except Exception:
+                is_first_exchange = False
+
+            if is_first_exchange:
+                try:
+                    import asyncio as _asyncio
+
+                    title_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Generate a concise chat title (3-8 words, no quotes, "
+                                "no prefixes like 'Title:') for this conversation "
+                                "based on the user's message."
+                            ),
+                        },
+                        {"role": "user", "content": content},
+                    ]
+                    title_result = await _asyncio.wait_for(
+                        ollama.chat_completion(
+                            messages=title_messages,
+                            model=resolved_model,
+                            temperature=0.3,
+                            max_tokens=20,
+                        ),
+                        timeout=5.0,
+                    )
+                    raw_title = (
+                        title_result.get("message", {}).get("content", "").strip()
+                    )
+                    # Clean: remove quotes, newlines, control chars, limit length
+                    raw_title = raw_title.strip("\"'").strip()
+                    raw_title = " ".join(raw_title.split())  # collapse whitespace/newlines
+                    # Strip common LLM prefixes
+                    for prefix in ("Title:", "title:", "Chat:", "chat:"):
+                        if raw_title.startswith(prefix):
+                            raw_title = raw_title[len(prefix):].strip()
+                    if raw_title and len(raw_title) <= 100:
+                        chat_title = raw_title
+                        async with AsyncSessionLocal() as title_db:
+                            chat_obj = await title_db.get(Chat, chat_id)
+                            if chat_obj and chat_obj.title == "New Chat":
+                                chat_obj.title = chat_title
+                                await title_db.commit()
+                        logger.info(
+                            "SSE: auto-titled chat %s: %s", chat_id, chat_title
+                        )
+                except Exception as title_exc:
+                    logger.debug(
+                        "SSE: auto-title skipped for chat %s: %s",
+                        chat_id,
+                        title_exc,
+                    )
+
             done_payload = {
                 "type": "done",
                 "message_id": assistant_msg_id,
@@ -918,6 +990,8 @@ async def stream_message(
             }
             if action_ids:
                 done_payload["action_ids"] = action_ids
+            if chat_title:
+                done_payload["chat_title"] = chat_title
 
             done_event = json.dumps(done_payload)
             yield f"data: {done_event}\n\n"

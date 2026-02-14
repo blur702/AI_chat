@@ -178,6 +178,7 @@ export interface StreamDoneEvent {
   token_count?: number;
   max_tokens?: number;
   usage_ratio?: number;
+  chat_title?: string;
 }
 
 export interface StreamErrorEvent {

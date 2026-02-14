@@ -207,20 +207,27 @@ class PromptBuilder:
         chat_instructions: Optional[str],
         messages: List[Dict[str, Any]],
         compactions: List[Dict[str, Any]],
-        model_name: str = "llama3.2",
+        model_name: str,
     ) -> TokenBreakdownResponse:
-        """Compute detailed per-layer token counts."""
+        """Compute detailed per-layer token counts.
+
+        Uses ``build_system_prompt()`` so the breakdown includes all layers
+        (coding principles, response style, section headers) — not just the
+        base prompt text.
+        """
         tc = self.token_counter
 
-        # System prompt layer
-        base = (
-            system_prompt_content
-            or user_prefs.get("custom_system_prompt")
-            or _DEFAULT_SYSTEM_PROMPT
+        # Build the REAL assembled system prompt (includes all layers)
+        assembled_prompt = self.build_system_prompt(
+            user_prefs=user_prefs,
+            project_context=project_context,
+            system_prompt_content=system_prompt_content,
+            chat_instructions=chat_instructions,
         )
-        system_prompt_tokens = tc.count_tokens(base)
+        assembled_tokens = tc.count_tokens(assembled_prompt)
 
-        # Project context layer
+        # Sub-layer breakdown (for display)
+        # Project context tokens
         project_text_parts = []
         custom_context = project_context.get("custom_context")
         if custom_context and isinstance(custom_context, str) and custom_context.strip():
@@ -230,10 +237,15 @@ class PromptBuilder:
             project_text_parts.append("\n".join(f"- {f}" for f in important_files if f))
         project_context_tokens = tc.count_tokens("\n".join(project_text_parts)) if project_text_parts else 0
 
-        # Chat instructions layer
+        # Chat instructions tokens
         chat_instructions_tokens = (
             tc.count_tokens(chat_instructions) if chat_instructions else 0
         )
+
+        # System prompt tokens = assembled total minus the sub-layers counted separately.
+        # This intentionally absorbs section header overhead (e.g. "\n\nProject Context:\n")
+        # into the system_prompt bucket so the sub-fields still sum to assembled_tokens.
+        system_prompt_tokens = assembled_tokens - project_context_tokens - chat_instructions_tokens
 
         # Compaction summary
         compaction_summary_tokens = 0
@@ -252,13 +264,7 @@ class PromptBuilder:
             [{"role": m.get("role", ""), "content": m.get("content", "")} for m in active_msgs]
         )
 
-        total = (
-            system_prompt_tokens
-            + project_context_tokens
-            + chat_instructions_tokens
-            + compaction_summary_tokens
-            + conversation_tokens
-        )
+        total = assembled_tokens + compaction_summary_tokens + conversation_tokens
 
         context_window = tc.estimate_model_context_window(model_name)
         fill_ratio = total / context_window if context_window > 0 else 0.0
@@ -270,7 +276,7 @@ class PromptBuilder:
             system_prompt_tokens=system_prompt_tokens,
             project_context_tokens=project_context_tokens,
             chat_instructions_tokens=chat_instructions_tokens,
-            kb_results_tokens=0,  # Would need KB results to compute
+            kb_results_tokens=0,
             compaction_summary_tokens=compaction_summary_tokens,
             conversation_tokens=conversation_tokens,
             total=total,
