@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useParams } from "next/navigation";
-import { useAuth, useImageGeneration, useSettings } from "@workstation/api/hooks";
+import { useAuth, useImageGeneration, useServiceStatus, useSettings } from "@workstation/api/hooks";
 import type { UserPreferences } from "@workstation/api/types";
 import { GenerationForm } from "@/components/workspace/image-gen/generation-form";
 import { ImageGallery } from "@/components/workspace/image-gen/image-gallery";
@@ -11,7 +11,12 @@ export default function ImageGenerationPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { userId } = useAuth();
   const imageHook = useImageGeneration(projectId);
+  const { services } = useServiceStatus();
   const { preferences, preferencesLoading, updatePreferences } = useSettings(userId);
+
+  const comfyuiAvailable = services.find(
+    (s) => s.name === "comfyui_client"
+  )?.detail?.healthy ?? undefined;
 
   const handleSaveAsDefault = useCallback(
     async (defaults: Partial<UserPreferences>) => {
@@ -37,6 +42,7 @@ export default function ImageGenerationPage() {
             hookState={imageHook}
             userPreferences={preferences}
             onSaveAsDefault={handleSaveAsDefault}
+            comfyuiAvailable={comfyuiAvailable}
           />
         </div>
         <div className="flex-1 min-w-0 overflow-auto rounded-md border p-4">

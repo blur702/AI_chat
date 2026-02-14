@@ -8,9 +8,14 @@ Provides REST endpoints for:
 - Listing and deleting generations
 """
 
+import base64
+import hashlib
+import hmac
+import json
 import logging
 import os
 import shutil
+import time
 from typing import Optional
 from uuid import UUID
 
@@ -18,6 +23,7 @@ from arq import create_pool
 from fastapi import (
     APIRouter,
     Depends,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -27,8 +33,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
+from app.auth import SECRET_KEY, get_current_user_payload
 from app.api.context_deps import validate_project_access
+
+# Derive a separate signing key for image tokens so a JWT compromise
+# does not automatically compromise image token signing and vice versa.
+_IMAGE_TOKEN_KEY = hmac.new(
+    SECRET_KEY.encode(), b"image-token-v1", hashlib.sha256
+).hexdigest()
 from app.database import get_db_session
 from app.models.image_generation import ImageGeneration
 from app.schemas.image import (
@@ -68,6 +80,38 @@ def _get_comfyui_client(request: Request) -> ComfyUIClient:
     return svc
 
 
+def _create_image_token(generation_id: str, filename: str, ttl: int = 3600) -> str:
+    """Create an HMAC-signed token for unauthenticated image download."""
+    payload = json.dumps(
+        {"gid": generation_id, "fn": filename, "exp": int(time.time()) + ttl},
+        separators=(",", ":"),
+    )
+    payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode()
+    sig = hmac.new(_IMAGE_TOKEN_KEY.encode(), payload_b64.encode(), hashlib.sha256).digest()
+    sig_b64 = base64.urlsafe_b64encode(sig).decode()
+    return f"{payload_b64}.{sig_b64}"
+
+
+def _verify_image_token(token: str, generation_id: str, filename: str) -> bool:
+    """Verify an HMAC-signed image download token."""
+    try:
+        payload_b64, sig_b64 = token.split(".", 1)
+        expected_sig = hmac.new(
+            _IMAGE_TOKEN_KEY.encode(), payload_b64.encode(), hashlib.sha256
+        ).digest()
+        actual_sig = base64.urlsafe_b64decode(sig_b64)
+        if not hmac.compare_digest(expected_sig, actual_sig):
+            return False
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        if payload.get("gid") != generation_id or payload.get("fn") != filename:
+            return False
+        if int(time.time()) > payload.get("exp", 0):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def _generation_to_response(gen: ImageGeneration, request: Request) -> ImageGenerationResponse:
     """Convert an ImageGeneration ORM instance to a response schema.
 
@@ -76,10 +120,12 @@ def _generation_to_response(gen: ImageGeneration, request: Request) -> ImageGene
     """
     generation_id = str(gen.id)
     base_url = str(request.base_url).rstrip("/")
-    download_urls = [
-        f"{base_url}/api/image/download/{generation_id}/{fname}"
-        for fname in (gen.result_images or [])
-    ]
+    download_urls = []
+    for fname in gen.result_images or []:
+        token = _create_image_token(generation_id, fname)
+        download_urls.append(
+            f"{base_url}/api/image/download/{generation_id}/{fname}?token={token}"
+        )
 
     return ImageGenerationResponse(
         id=generation_id,
@@ -115,6 +161,15 @@ async def generate_image(
 ) -> ImageGenerationResponse:
     """Submit an image generation job to ComfyUI via the background worker."""
     user_id = payload.get("user_id") or payload.get("sub", "")
+
+    # Check ComfyUI availability before doing any work
+    comfyui = _get_comfyui_client(request)
+    healthy, message = await comfyui.health_check()
+    if not healthy:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"ComfyUI is not available: {message}",
+        )
 
     if body.project_id:
         await validate_project_access(body.project_id, user_id, db)
@@ -265,29 +320,66 @@ async def get_generation_result(
 async def download_image(
     job_id: UUID,
     filename: str,
-    payload: dict = Depends(get_current_user_payload),
+    token: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db_session),
+    authorization: Optional[str] = Header(default=None),
 ) -> FileResponse:
-    """Download a specific generated image file by filename."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    """Download a specific generated image file by filename.
 
-    result = await db.execute(
-        select(ImageGeneration).where(ImageGeneration.id == job_id)
-    )
-    generation = result.scalar_one_or_none()
+    Supports two auth modes:
+    - Signed token via ``?token=`` query param (used by ``<img>`` tags)
+    - JWT via ``Authorization: Bearer`` header (standard API auth)
+    """
+    generation_id_str = str(job_id)
+    generation = None
+
+    if token:
+        if _verify_image_token(token, generation_id_str, filename):
+            # Token-based access — fetch generation for filename validation only
+            result = await db.execute(
+                select(ImageGeneration).where(ImageGeneration.id == job_id)
+            )
+            generation = result.scalar_one_or_none()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired image token",
+            )
+    elif authorization:
+        # Fall back to standard JWT auth
+        try:
+            payload = get_current_user_payload(authorization=authorization)
+        except HTTPException:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+        user_id = payload.get("user_id") or payload.get("sub", "")
+        result = await db.execute(
+            select(ImageGeneration).where(ImageGeneration.id == job_id)
+        )
+        generation = result.scalar_one_or_none()
+        if generation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Generation '{job_id}' not found",
+            )
+        if str(generation.user_id) != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
     if generation is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Generation '{job_id}' not found",
         )
-
-    if str(generation.user_id) != str(user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-
-    # Validate filename is in the result set
     if filename not in (generation.result_images or []):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -9,6 +9,7 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  image_outputs:
 
 services:
   postgres:
@@ -66,11 +67,13 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:9080}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
+      - image_outputs:/data/comfyui_outputs
     networks:
       - workstation-network
       - workstation-preview-network
@@ -102,8 +105,10 @@ services:
       DEBUG: ${DEBUG:-true}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
     volumes:
       - ./backend:/app
+      - image_outputs:/data/comfyui_outputs
     networks:
       - workstation-network
     depends_on:

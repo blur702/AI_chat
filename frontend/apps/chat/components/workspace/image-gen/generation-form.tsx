@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workstation/ui";
-import { AlertCircle, Info, Loader2, RotateCcw, Save, Wand2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Info, Loader2, RotateCcw, Save, Wand2 } from "lucide-react";
 import type { UseImageGenerationReturn } from "@workstation/api/hooks";
 import type {
   ImageGenerationRequest,
@@ -26,6 +26,7 @@ interface GenerationFormProps {
   hookState: UseImageGenerationReturn;
   userPreferences?: UserPreferences | null;
   onSaveAsDefault?: (defaults: Partial<UserPreferences>) => void;
+  comfyuiAvailable?: boolean;
 }
 
 interface FormState {
@@ -56,7 +57,7 @@ const DEFAULT_FORM: FormState = {
   denoise: 0.75,
 };
 
-export function GenerationForm({ projectId, hookState, userPreferences, onSaveAsDefault }: GenerationFormProps) {
+export function GenerationForm({ projectId, hookState, userPreferences, onSaveAsDefault, comfyuiAvailable }: GenerationFormProps) {
   const prefsDefaults = useMemo<Partial<FormState>>(() => {
     if (!userPreferences) return {};
     const d: Partial<FormState> = {};
@@ -254,6 +255,13 @@ export function GenerationForm({ projectId, hookState, userPreferences, onSaveAs
             </Badge>
           )}
         </div>
+
+        {comfyuiAvailable === false && (
+          <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>ComfyUI is currently unavailable. Generation requests may fail.</span>
+          </div>
+        )}
 
         <Tabs
           value={form.workflow_type}
