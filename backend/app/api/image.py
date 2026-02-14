@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 import time
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -35,12 +36,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import SECRET_KEY, get_current_user_payload
 from app.api.context_deps import validate_project_access
-
-# Derive a separate signing key for image tokens so a JWT compromise
-# does not automatically compromise image token signing and vice versa.
-_IMAGE_TOKEN_KEY = hmac.new(
-    SECRET_KEY.encode(), b"image-token-v1", hashlib.sha256
-).hexdigest()
 from app.database import get_db_session
 from app.models.image_generation import ImageGeneration
 from app.schemas.image import (
@@ -52,6 +47,12 @@ from app.services.comfyui_client import COMFYUI_OUTPUT_DIR, ComfyUIClient
 from app.worker import get_redis_settings
 
 logger = logging.getLogger(__name__)
+
+# Derive a separate signing key for image tokens so a JWT compromise
+# does not automatically compromise image token signing and vice versa.
+_IMAGE_TOKEN_KEY = hmac.new(
+    SECRET_KEY.encode(), b"image-token-v1", hashlib.sha256
+).digest()
 
 router = APIRouter(prefix="/image", tags=["image"])
 
@@ -87,7 +88,7 @@ def _create_image_token(generation_id: str, filename: str, ttl: int = 3600) -> s
         separators=(",", ":"),
     )
     payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode()
-    sig = hmac.new(_IMAGE_TOKEN_KEY.encode(), payload_b64.encode(), hashlib.sha256).digest()
+    sig = hmac.new(_IMAGE_TOKEN_KEY, payload_b64.encode(), hashlib.sha256).digest()
     sig_b64 = base64.urlsafe_b64encode(sig).decode()
     return f"{payload_b64}.{sig_b64}"
 
@@ -97,7 +98,7 @@ def _verify_image_token(token: str, generation_id: str, filename: str) -> bool:
     try:
         payload_b64, sig_b64 = token.split(".", 1)
         expected_sig = hmac.new(
-            _IMAGE_TOKEN_KEY.encode(), payload_b64.encode(), hashlib.sha256
+            _IMAGE_TOKEN_KEY, payload_b64.encode(), hashlib.sha256
         ).digest()
         actual_sig = base64.urlsafe_b64decode(sig_b64)
         if not hmac.compare_digest(expected_sig, actual_sig):
@@ -250,7 +251,10 @@ async def get_generation_status(
     user_id = payload.get("user_id") or payload.get("sub", "")
 
     result = await db.execute(
-        select(ImageGeneration).where(ImageGeneration.id == job_id)
+        select(ImageGeneration).where(
+            ImageGeneration.id == job_id,
+            ImageGeneration.is_deleted == False,
+        )
     )
     generation = result.scalar_one_or_none()
     if generation is None:
@@ -287,7 +291,10 @@ async def get_generation_result(
     user_id = payload.get("user_id") or payload.get("sub", "")
 
     result = await db.execute(
-        select(ImageGeneration).where(ImageGeneration.id == job_id)
+        select(ImageGeneration).where(
+            ImageGeneration.id == job_id,
+            ImageGeneration.is_deleted == False,
+        )
     )
     generation = result.scalar_one_or_none()
     if generation is None:
@@ -337,7 +344,10 @@ async def download_image(
         if _verify_image_token(token, generation_id_str, filename):
             # Token-based access — fetch generation for filename validation only
             result = await db.execute(
-                select(ImageGeneration).where(ImageGeneration.id == job_id)
+                select(ImageGeneration).where(
+                    ImageGeneration.id == job_id,
+                    ImageGeneration.is_deleted == False,
+                )
             )
             generation = result.scalar_one_or_none()
         else:
@@ -356,7 +366,10 @@ async def download_image(
             )
         user_id = payload.get("user_id") or payload.get("sub", "")
         result = await db.execute(
-            select(ImageGeneration).where(ImageGeneration.id == job_id)
+            select(ImageGeneration).where(
+                ImageGeneration.id == job_id,
+                ImageGeneration.is_deleted == False,
+            )
         )
         generation = result.scalar_one_or_none()
         if generation is None:
@@ -401,11 +414,13 @@ async def download_image(
             detail="Image file not found on disk",
         )
 
-    return FileResponse(
+    response = FileResponse(
         path=file_path,
         media_type="image/png",
         filename=filename,
     )
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 # -------------------------------------------------------------------------
@@ -436,7 +451,10 @@ async def list_generations(
             detail=f"Invalid status filter. Allowed values: {', '.join(sorted(_allowed_statuses))}",
         )
 
-    filters = [ImageGeneration.user_id == UUID(user_id)]
+    filters = [
+        ImageGeneration.user_id == UUID(user_id),
+        ImageGeneration.is_deleted == False,
+    ]
 
     if project_id:
         await validate_project_access(project_id, user_id, db)
@@ -484,11 +502,14 @@ async def delete_generation(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    """Delete an image generation job and clean up result files."""
+    """Soft-delete an image generation job and clean up result files."""
     user_id = payload.get("user_id") or payload.get("sub", "")
 
     result = await db.execute(
-        select(ImageGeneration).where(ImageGeneration.id == job_id)
+        select(ImageGeneration).where(
+            ImageGeneration.id == job_id,
+            ImageGeneration.is_deleted == False,
+        )
     )
     generation = result.scalar_one_or_none()
     if generation is None:
@@ -511,5 +532,6 @@ async def delete_generation(
         except OSError:
             logger.warning("Failed to remove output directory %s", output_dir)
 
-    await db.delete(generation)
+    generation.is_deleted = True
+    generation.deleted_at = datetime.now(timezone.utc)
     await db.commit()
