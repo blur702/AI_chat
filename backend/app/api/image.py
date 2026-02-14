@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import SECRET_KEY, get_current_user_payload
+from app.auth import SECRET_KEY, get_current_user_payload, validate_bearer_token
 from app.api.context_deps import validate_project_access
 from app.database import get_db_session
 from app.models.image_generation import ImageGeneration
@@ -350,6 +350,11 @@ async def download_image(
                 )
             )
             generation = result.scalar_one_or_none()
+            if generation is not None:
+                logger.debug(
+                    "Token-based image access: generation=%s file=%s",
+                    generation_id_str, filename,
+                )
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -358,7 +363,7 @@ async def download_image(
     elif authorization:
         # Fall back to standard JWT auth
         try:
-            payload = get_current_user_payload(authorization=authorization)
+            payload = validate_bearer_token(authorization)
         except HTTPException:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

@@ -16,7 +16,7 @@ export default function ImageGenerationPage() {
 
   const comfyuiAvailable = services.find(
     (s) => s.name === "comfyui_client"
-  )?.detail?.healthy ?? undefined;
+  )?.detail?.healthy;
 
   const handleSaveAsDefault = useCallback(
     async (defaults: Partial<UserPreferences>) => {

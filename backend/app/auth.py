@@ -124,16 +124,16 @@ def create_websocket_token(user_id: UUID, expires_minutes: int = 60) -> str:
 # -------------------------------------------------------------------------
 
 
-def get_current_user_payload(
-    authorization: Optional[str] = Header(None),
-) -> dict:
-    """
-    Dependency to extract and verify JWT from the Authorization header.
+def validate_bearer_token(authorization: Optional[str]) -> dict:
+    """Validate a raw Authorization header value and return the JWT payload.
 
-    Returns the decoded token payload.
+    This is a standalone helper that does not depend on FastAPI's DI.
+    Use this when you need to verify a Bearer token outside of a
+    ``Depends()`` context (e.g. endpoints with dual auth modes).
 
     Raises:
-        HTTPException 401: If token is missing or invalid.
+        HTTPException 401: If the header is missing, malformed, or the
+            token is invalid/expired.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -154,6 +154,20 @@ def get_current_user_payload(
     return payload
 
 
+def get_current_user_payload(
+    authorization: Optional[str] = Header(None),
+) -> dict:
+    """
+    FastAPI dependency to extract and verify JWT from the Authorization header.
+
+    Returns the decoded token payload.
+
+    Raises:
+        HTTPException 401: If token is missing or invalid.
+    """
+    return validate_bearer_token(authorization)
+
+
 def require_admin(
     authorization: Optional[str] = Header(None),
 ) -> dict:
@@ -167,7 +181,7 @@ def require_admin(
         HTTPException 401: If token is missing or invalid.
         HTTPException 403: If authenticated user is not an admin.
     """
-    payload = get_current_user_payload(authorization)
+    payload = validate_bearer_token(authorization)
 
     if payload.get("role") != "admin":
         raise HTTPException(
