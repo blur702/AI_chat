@@ -121,7 +121,7 @@ class ComfyUIClient(BaseKernelService):
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": random.randint(0, 2**63),
+                    "seed": random.randint(0, 2**63 - 1),
                     "steps": steps,
                     "cfg": cfg_scale,
                     "sampler_name": "euler",
@@ -191,7 +191,7 @@ class ComfyUIClient(BaseKernelService):
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": random.randint(0, 2**63),
+                    "seed": random.randint(0, 2**63 - 1),
                     "steps": steps,
                     "cfg": cfg_scale,
                     "sampler_name": "euler",
