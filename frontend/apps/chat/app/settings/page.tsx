@@ -859,7 +859,7 @@ export default function SettingsPage() {
                     type="url"
                     value={comfyuiBaseUrl}
                     onChange={(e) => setComfyuiBaseUrl(e.target.value)}
-                    placeholder="http://host.docker.internal:8188"
+                    placeholder="http://localhost:8188"
                   />
                   <p className="text-xs text-muted-foreground">
                     Override the default ComfyUI server URL. Leave blank to use server default.

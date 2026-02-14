@@ -21,7 +21,7 @@ class EmbeddingService(BaseKernelService):
     compatible with the pgvector IVFFlat index on KBChunk.embedding.
     """
 
-    def __init__(self, base_url: str = "http://host.docker.internal:11434") -> None:
+    def __init__(self, base_url: str = "http://ollama:11434") -> None:
         self._base_url = base_url.rstrip("/")
         self._running = False
         self._client: Optional[httpx.AsyncClient] = None

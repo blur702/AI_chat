@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
 
     # Register OllamaClient for LLM chat completion
     ollama_client = OllamaClient(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     )
     kernel.register_service(ollama_client)
     logger.info("OllamaClient registered with kernel")
@@ -107,14 +107,14 @@ async def lifespan(app: FastAPI):
 
     # Register EmbeddingService for vector embedding generation
     embedding_service = EmbeddingService(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     )
     kernel.register_service(embedding_service)
     logger.info("EmbeddingService registered with kernel")
 
     # Register ComfyUIClient for image generation
     comfyui_client = ComfyUIClient(
-        base_url=os.getenv("COMFYUI_BASE_URL", "http://host.docker.internal:8188")
+        base_url=os.getenv("COMFYUI_BASE_URL", "http://comfyui:8188")
     )
     kernel.register_service(comfyui_client)
     logger.info("ComfyUIClient registered with kernel")

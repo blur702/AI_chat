@@ -2,6 +2,7 @@
 
 import logging
 import os
+import random
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -21,7 +22,7 @@ class ComfyUIClient(BaseKernelService):
     and image downloading with connection pooling.
     """
 
-    def __init__(self, base_url: str = "http://host.docker.internal:8188") -> None:
+    def __init__(self, base_url: str = "http://comfyui:8188") -> None:
         self._base_url = base_url.rstrip("/")
         self._running = False
         self._client: Optional[httpx.AsyncClient] = None
@@ -120,7 +121,7 @@ class ComfyUIClient(BaseKernelService):
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": -1,
+                    "seed": random.randint(0, 2**63),
                     "steps": steps,
                     "cfg": cfg_scale,
                     "sampler_name": "euler",
@@ -190,7 +191,7 @@ class ComfyUIClient(BaseKernelService):
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": -1,
+                    "seed": random.randint(0, 2**63),
                     "steps": steps,
                     "cfg": cfg_scale,
                     "sampler_name": "euler",

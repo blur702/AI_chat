@@ -124,7 +124,7 @@ async def generate_embeddings_task(ctx, source_id: str) -> dict:
     logger.info("Starting embedding generation for source %s", source_id)
 
     svc = EmbeddingService(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     )
     await svc.startup()
 
@@ -238,7 +238,7 @@ async def generate_image_task(ctx, generation_id: str) -> dict:
     logger.info("Starting image generation for %s", generation_id)
 
     client = ComfyUIClient(
-        base_url=os.getenv("COMFYUI_BASE_URL", "http://host.docker.internal:8188")
+        base_url=os.getenv("COMFYUI_BASE_URL", "http://comfyui:8188")
     )
     await client.startup()
 

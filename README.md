@@ -110,10 +110,12 @@ Used for sandboxed preview containers:
 - Preview containers are isolated from core services
 - Backend has access to both networks to manage and communicate with previews
 
-### External Services
-Ollama and ComfyUI run on the host machine and are accessed via `host.docker.internal`:
-- Ollama: `http://host.docker.internal:11434`
-- ComfyUI: `http://host.docker.internal:8188`
+### GPU Services
+Ollama and ComfyUI run as Docker Compose services with NVIDIA GPU passthrough:
+- Ollama: `http://ollama:11434` (host port: `OLLAMA_PORT`, default 11434)
+- ComfyUI: `http://comfyui:8188` (host port: `COMFYUI_PORT`, default 8188)
+
+Set `OLLAMA_MODELS_DIR` in `.env` to bind-mount your existing Ollama models directory.
 
 ## Development Workflow
 
@@ -245,11 +247,9 @@ If the backend cannot reach Ollama or ComfyUI:
    curl http://localhost:8188/system_stats  # ComfyUI
    ```
 
-2. On Linux, `host.docker.internal` may not work by default. Add to your `docker-compose.yml`:
-   ```yaml
-   backend:
-     extra_hosts:
-       - "host.docker.internal:host-gateway"
+2. Ollama and ComfyUI require the NVIDIA Container Toolkit for GPU passthrough. Install it:
+   ```bash
+   # See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
    ```
 
 ### Volume Permission Issues

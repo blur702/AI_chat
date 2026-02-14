@@ -120,7 +120,7 @@ class OllamaService(BaseKernelService):
       GET {OLLAMA_BASE_URL}/api/tags, return (True, "ok") or (False, error)
 
     Config:
-    - OLLAMA_BASE_URL from env (default: http://host.docker.internal:11434)
+    - OLLAMA_BASE_URL from env (default: http://ollama:11434)
     - Use httpx.AsyncClient for HTTP (already in requirements)
     - Timeout: 120s for chat, 600s for pull
 ```

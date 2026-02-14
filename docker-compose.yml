@@ -10,8 +10,60 @@ volumes:
   postgres_data:
   redis_data:
   image_outputs:
+  comfyui_data:
+  comfyui_models:
 
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: workstation-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-./.ollama}:/root/.ollama
+    networks:
+      - workstation-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  comfyui:
+    image: mmartial/comfyui-nvidia-docker:ubuntu24_cuda12.6-latest
+    container_name: workstation-comfyui
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - comfyui_data:/comfy/mnt
+      - comfyui_models:/basedir
+      - image_outputs:/basedir/output
+    networks:
+      - workstation-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8188/system_stats || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    restart: unless-stopped
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: workstation-postgres
@@ -65,8 +117,8 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:9080}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -79,6 +131,13 @@ services:
     networks:
       - workstation-network
       - workstation-preview-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [utility]
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,8 +164,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:-generate_random_secret_key_here}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-true}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
     volumes:
       - ./backend:/app

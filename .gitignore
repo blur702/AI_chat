@@ -18,6 +18,7 @@ data/
 .data/
 postgres_data/
 redis_data/
+.ollama/
 
 # -----------------------------------------------------------------------------
 # IDE and Editor

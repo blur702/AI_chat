@@ -77,15 +77,17 @@ docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping
 
 | Service | Internal | Host | Tech |
 |---------|----------|------|------|
+| Ollama | 11434 | 11434 | ollama/ollama (GPU passthrough) |
+| ComfyUI | 8188 | 8188 | comfyui-nvidia-docker (GPU passthrough) |
 | PostgreSQL | 5432 | 5433 | pgvector/pgvector:pg16 |
 | Redis | 6379 | 6380 | redis:7-alpine (AOF) |
-| Backend | 8000 | 8001 | FastAPI + SQLAlchemy async |
-| Worker | - | - | ARQ (Redis-backed, max 10 jobs, 300s timeout) |
+| Backend | 8000 | 8001 | FastAPI + SQLAlchemy async (GPU: utility for pynvml) |
+| Worker | - | - | ARQ (Redis-backed, max 20 jobs, 600s timeout) |
 | Chat App | 3000 | 3001 | Next.js 14 |
 | Sandbox App | 3000 | 3002 | Next.js 14 + Monaco + xterm.js |
 | Nginx | 80/443 | 80/443 | Reverse proxy + SSL + Let's Encrypt |
 
-External services on host: Ollama (11434), ComfyUI (8188) via `host.docker.internal`.
+All GPU services (Ollama, ComfyUI) run as Docker Compose services with NVIDIA GPU passthrough. Backend has `utility` GPU capability for pynvml VRAM monitoring.
 
 ### Networks
 - **workstation-network**: Core service communication
@@ -365,11 +367,12 @@ Key variables in `.env` (copy from `.env.example`):
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection string
 - `SECRET_KEY`: JWT signing key
-- `OLLAMA_BASE_URL`, `COMFYUI_BASE_URL`: External service URLs
+- `OLLAMA_BASE_URL`, `COMFYUI_BASE_URL`: GPU service URLs (default: `http://ollama:11434`, `http://comfyui:8188`)
+- `OLLAMA_MODELS_DIR`: Host path to Ollama models (bind-mounted into container)
 - `MASTER_USERNAMES`, `MASTER_PASSWORD`: Protected admin accounts (comma-separated usernames)
 - `CORS_ORIGINS`: Allowed CORS origins
 - `NEXT_PUBLIC_API_URL`: Frontend API base URL
-- Port mappings: `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`
+- Port mappings: `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `OLLAMA_PORT`, `COMFYUI_PORT`
 
 ## Windows Development Notes
 
