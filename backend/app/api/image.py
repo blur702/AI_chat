@@ -524,14 +524,14 @@ async def delete_generation(
             detail="Access denied",
         )
 
-    # Clean up output directory
+    generation.is_deleted = True
+    generation.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    # Clean up output directory after soft-delete is persisted
     output_dir = os.path.join(COMFYUI_OUTPUT_DIR, str(job_id))
     if os.path.isdir(output_dir):
         try:
             shutil.rmtree(output_dir)
         except OSError:
             logger.warning("Failed to remove output directory %s", output_dir)
-
-    generation.is_deleted = True
-    generation.deleted_at = datetime.now(timezone.utc)
-    await db.commit()
