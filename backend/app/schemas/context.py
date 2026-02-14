@@ -447,3 +447,44 @@ class TokenBreakdownResponse(BaseModel):
     message_count: int = 0
     excluded_count: int = 0
     pinned_count: int = 0
+
+
+# -------------------------------------------------------------------------
+# Assembled Context
+# -------------------------------------------------------------------------
+
+
+class AssembledContextLayer(BaseModel):
+    """A single layer of the assembled context as the LLM sees it."""
+
+    name: str
+    role: str
+    content: str
+    tokens: int
+
+
+class AssembledContextResponse(BaseModel):
+    """Full assembled context with per-layer token counts."""
+
+    layers: List[AssembledContextLayer]
+    total_tokens: int
+    context_window: int
+    fill_ratio: float
+    model_name: str
+
+
+# -------------------------------------------------------------------------
+# Compaction / Chat Instructions Edit
+# -------------------------------------------------------------------------
+
+
+class CompactionUpdateRequest(BaseModel):
+    """Request body for editing a compaction summary."""
+
+    summary: str = Field(..., min_length=1, max_length=50000)
+
+
+class ChatInstructionsUpdateRequest(BaseModel):
+    """Request body for editing per-chat instructions."""
+
+    chat_instructions: str = Field(..., max_length=50000)

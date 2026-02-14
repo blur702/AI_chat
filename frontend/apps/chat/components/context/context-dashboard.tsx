@@ -158,7 +158,7 @@ export function ContextDashboard({
               </div>
               <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>{breakdown.total.toLocaleString()} / {breakdown.context_window.toLocaleString()}</span>
-                <span className={breakdown.fill_ratio > 0.8 ? "text-red-500 font-medium" : ""}>
+                <span className={breakdown.fill_ratio > 0.9 ? "text-red-500 font-medium" : ""}>
                   {Math.round(breakdown.fill_ratio * 100)}% used
                 </span>
               </div>

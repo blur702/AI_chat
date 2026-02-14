@@ -7,11 +7,15 @@ import { MessageThread } from "@/components/message-thread";
 import { MessageInput } from "@/components/message-input";
 import { TokenUsageBar } from "@/components/chat/token-usage-bar";
 import { ContextDashboard } from "@/components/context/context-dashboard";
+import { ContextEditor } from "@/components/context/context-editor";
 import { useConversation } from "@workstation/api";
 import { ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "@workstation/api/hooks";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
 
 const DASHBOARD_KEY = "workstation_context_dashboard_open";
+const SIDEBAR_VIEW_KEY = "workstation_sidebar_view";
+
+type SidebarView = "dashboard" | "editor";
 
 export default function ChatPage() {
   const params = useParams();
@@ -53,12 +57,24 @@ export default function ChatPage() {
     return localStorage.getItem(DASHBOARD_KEY) === "true";
   });
 
+  const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
+    if (typeof window === "undefined") return "dashboard";
+    return (localStorage.getItem(SIDEBAR_VIEW_KEY) as SidebarView) || "dashboard";
+  });
+
   const toggleDashboard = () => {
     setDashboardOpen((prev) => {
       const next = !prev;
       localStorage.setItem(DASHBOARD_KEY, String(next));
       return next;
     });
+  };
+
+  const switchView = (view: SidebarView) => {
+    setSidebarView(view);
+    try {
+      localStorage.setItem(SIDEBAR_VIEW_KEY, view);
+    } catch { /* ignore */ }
   };
 
   // Global Escape key listener to stop streaming even when textarea isn't focused
@@ -90,7 +106,7 @@ export default function ChatPage() {
             variant="ghost"
             className="h-7 w-7 p-0"
             onClick={toggleDashboard}
-            title={dashboardOpen ? "Close context dashboard" : "Open context dashboard"}
+            title={dashboardOpen ? "Close sidebar" : "Open sidebar"}
           >
             {dashboardOpen ? (
               <PanelRightClose className="h-4 w-4" />
@@ -114,16 +130,55 @@ export default function ChatPage() {
         <MessageInput onSend={sendMessage} processing={processing} onStop={cancelStream} />
       </div>
 
-      {/* Context Dashboard sidebar */}
+      {/* Sidebar */}
       {dashboardOpen && (
-        <div className="w-72 shrink-0 border-l bg-background overflow-hidden">
-          <ContextDashboard
-            chatId={chatId}
-            compactions={conversation?.compactions}
-            messageCount={messages.length}
-            chatInstructions={conversation?.chat_instructions}
-            systemPromptId={conversation?.system_prompt_id}
-          />
+        <div className="w-80 shrink-0 border-l bg-background overflow-hidden flex flex-col">
+          {/* View toggle tabs */}
+          <div className="flex border-b">
+            <button
+              onClick={() => switchView("dashboard")}
+              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                sidebarView === "dashboard"
+                  ? "text-foreground border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => switchView("editor")}
+              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                sidebarView === "editor"
+                  ? "text-foreground border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Context Editor
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-hidden">
+            {sidebarView === "dashboard" ? (
+              <ContextDashboard
+                chatId={chatId}
+                compactions={conversation?.compactions}
+                messageCount={messages.length}
+                chatInstructions={conversation?.chat_instructions}
+                systemPromptId={conversation?.system_prompt_id}
+              />
+            ) : (
+              <ContextEditor
+                chatId={chatId}
+                compactions={conversation?.compactions}
+                messageCount={messages.length}
+                chatInstructions={conversation?.chat_instructions}
+                systemPromptId={conversation?.system_prompt_id}
+                activeModel={activeModel}
+                onClose={() => switchView("dashboard")}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

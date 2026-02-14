@@ -333,3 +333,28 @@ export interface TokenBreakdownResponse {
   excluded_count: number;
   pinned_count: number;
 }
+
+// Assembled Context
+export interface AssembledContextLayer {
+  name: string;
+  role: string;
+  content: string;
+  tokens: number;
+}
+
+export interface AssembledContextResponse {
+  layers: AssembledContextLayer[];
+  total_tokens: number;
+  context_window: number;
+  fill_ratio: number;
+  model_name: string;
+}
+
+// Context Edit Requests
+export interface CompactionUpdateRequest {
+  summary: string;
+}
+
+export interface ChatInstructionsUpdateRequest {
+  chat_instructions: string;
+}

@@ -13,7 +13,7 @@ import {
   Input,
 } from "@workstation/ui";
 import { useContextEditor, useContextDashboard } from "@workstation/api";
-import type { CompactionSummary, AssembledContextLayer } from "@workstation/api";
+import type { CompactionSummary, TokenBreakdownResponse } from "@workstation/api";
 import {
   X,
   Search,
@@ -46,26 +46,35 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-// Layer display names
-const LAYER_LABELS: Record<string, string> = {
-  system_prompt: "System Prompt",
-  project_context: "Project Context",
-  chat_instructions: "Chat Instructions",
-  compaction_summary: "Compaction Summary",
-  conversation: "Conversation",
-};
+// Resolve display label for a layer name (handles indexed names like compaction_summary_0)
+function getLayerLabel(name: string): string {
+  const labels: Record<string, string> = {
+    system_prompt: "System Prompt",
+    project_context: "Project Context",
+    chat_instructions: "Chat Instructions",
+    conversation: "Conversation",
+  };
+  if (labels[name]) return labels[name];
+  if (name.startsWith("compaction_summary")) return "Compaction Summary";
+  return name;
+}
 
-function LayerBadge({ name }: { name: string }) {
+function getLayerColor(name: string): string {
   const colors: Record<string, string> = {
     system_prompt: "bg-blue-500/10 text-blue-600",
     project_context: "bg-purple-500/10 text-purple-600",
     chat_instructions: "bg-cyan-500/10 text-cyan-600",
-    compaction_summary: "bg-orange-500/10 text-orange-600",
     conversation: "bg-green-500/10 text-green-600",
   };
+  if (colors[name]) return colors[name];
+  if (name.startsWith("compaction_summary")) return "bg-orange-500/10 text-orange-600";
+  return "";
+}
+
+function LayerBadge({ name }: { name: string }) {
   return (
-    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${colors[name] ?? ""}`}>
-      {LAYER_LABELS[name] ?? name}
+    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${getLayerColor(name)}`}>
+      {getLayerLabel(name)}
     </Badge>
   );
 }
@@ -224,7 +233,7 @@ function renderMarkdownLine(line: string) {
     return <span className="text-muted-foreground">{line}</span>;
   }
   // Bold spans
-  const boldRegex = /\*\*(.*?)\*\*/g;
+  const boldRegex = /\*\*(.*?)\*\*/;
   if (boldRegex.test(line)) {
     const parts = line.split(/(\*\*.*?\*\*)/);
     return (
@@ -279,7 +288,6 @@ export function ContextEditor({
   const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
   const [editContent, setEditContent] = useState("");
   const [editingCompactionId, setEditingCompactionId] = useState<string | null>(null);
-  const [compactionsExpanded, setCompactionsExpanded] = useState(true);
   const compactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -301,14 +309,14 @@ export function ContextEditor({
   }, [assembledContext, selectedLayerIndex]);
 
   const selectedLayer = assembledContext?.layers[selectedLayerIndex];
-  const isEditable = selectedLayer?.name === "chat_instructions" || selectedLayer?.name === "compaction_summary";
+  const isEditable = selectedLayer?.name === "chat_instructions" || selectedLayer?.name.startsWith("compaction_summary");
 
   const handleSave = async () => {
     if (!selectedLayer) return;
 
     if (selectedLayer.name === "chat_instructions") {
       await updateInstructions(editContent);
-    } else if (selectedLayer.name === "compaction_summary" && editingCompactionId) {
+    } else if (selectedLayer.name.startsWith("compaction_summary") && editingCompactionId) {
       await updateCompaction(editingCompactionId, editContent);
       setEditingCompactionId(null);
     }
@@ -324,9 +332,11 @@ export function ContextEditor({
   };
 
   const openCompactionInEditor = (compaction: CompactionSummary) => {
-    // Find the compaction_summary layer
     if (!assembledContext) return;
-    const idx = assembledContext.layers.findIndex(l => l.name === "compaction_summary");
+    // Match by content to handle multiple compaction layers
+    const idx = assembledContext.layers.findIndex(
+      l => l.name.startsWith("compaction_summary") && l.content === compaction.summary
+    );
     if (idx >= 0) {
       setSelectedLayerIndex(idx);
       setEditContent(compaction.summary);
@@ -431,14 +441,22 @@ export function ContextEditor({
               <select
                 value={selectedLayerIndex}
                 onChange={(e) => {
-                  setSelectedLayerIndex(Number(e.target.value));
-                  setEditingCompactionId(null);
+                  const newIndex = Number(e.target.value);
+                  setSelectedLayerIndex(newIndex);
+                  // Resolve compaction ID if the selected layer is a compaction summary
+                  const layer = assembledContext?.layers[newIndex];
+                  if (layer && layer.name.startsWith("compaction_summary")) {
+                    const match = compactions.find(c => c.summary === layer.content);
+                    setEditingCompactionId(match?.id ?? null);
+                  } else {
+                    setEditingCompactionId(null);
+                  }
                 }}
                 className="w-full h-7 text-xs rounded-md border bg-background px-2"
               >
                 {assembledContext?.layers.map((layer, idx) => (
                   <option key={idx} value={idx}>
-                    {LAYER_LABELS[layer.name] ?? layer.name} ({layer.tokens.toLocaleString()} tokens)
+                    {getLayerLabel(layer.name)} ({layer.tokens.toLocaleString()} tokens)
                   </option>
                 )) ?? <option>Loading...</option>}
               </select>
@@ -626,7 +644,7 @@ function TokenBar({
 }
 
 interface OverviewTabProps {
-  breakdown: any;
+  breakdown: TokenBreakdownResponse | null;
   loading: boolean;
   compacting: boolean;
   messageCount?: number;
@@ -657,6 +675,7 @@ function OverviewTab({
             {/* Fill bar */}
             <div>
               <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+                {breakdown.context_window > 0 && (
                 <div className="flex h-full">
                   {breakdown.system_prompt_tokens > 0 && (
                     <div
@@ -695,6 +714,7 @@ function OverviewTab({
                     />
                   )}
                 </div>
+                )}
               </div>
               <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>{breakdown.total.toLocaleString()} / {breakdown.context_window.toLocaleString()}</span>

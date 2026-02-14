@@ -23,8 +23,14 @@ from app.kernel.context_manager import ContextManager
 from app.kernel.prompt_builder import PromptBuilder
 from app.kernel.token_counter import TokenCounter
 from app.models.automation_action import AutomationAction
+from app.models.chat import Chat
+from app.models.context_compaction import ContextCompaction
 from app.models.message import Message
 from app.schemas.context import (
+    AssembledContextLayer,
+    AssembledContextResponse,
+    ChatInstructionsUpdateRequest,
+    CompactionUpdateRequest,
     ConversationStateResponse,
     ConversationStateUpdateRequest,
     MessageSubmitRequest,
@@ -325,6 +331,216 @@ async def get_token_breakdown(
         messages=state.get("messages", []),
         compactions=state.get("compactions", []),
     )
+
+
+# -------------------------------------------------------------------------
+# Assembled Context Preview
+# -------------------------------------------------------------------------
+
+
+@router.get(
+    "/conversations/{chat_id}/assembled-context",
+    response_model=AssembledContextResponse,
+)
+async def get_assembled_context(
+    chat_id: UUID,
+    model: Optional[str] = None,
+    cm: ContextManager = Depends(get_context_manager),
+    ollama: OllamaClient = Depends(get_ollama_client),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> AssembledContextResponse:
+    """Get the fully assembled context exactly as the LLM would see it."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    state = await cm.get_conversation_state(chat_id)
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat '{chat_id}' not found",
+        )
+
+    prefs = await cm.get_user_preferences(user_id)
+    project_id = state.get("project_id")
+    project_context = {}
+    if project_id:
+        project_context = await cm.get_project_context(UUID(str(project_id))) or {}
+
+    system_prompt_content = await cm.resolve_system_prompt_content(
+        chat_id=chat_id,
+        project_id=UUID(str(project_id)) if project_id else None,
+        user_id=UUID(str(user_id)),
+    )
+    chat_instructions = state.get("chat_instructions")
+
+    resolved_model = model or await ollama.get_default_model()
+
+    # Build layers
+    layers: list[AssembledContextLayer] = []
+
+    # System prompt layer
+    system_prompt = _prompt_builder.build_system_prompt(
+        prefs, project_context,
+        system_prompt_content=system_prompt_content,
+        chat_instructions=chat_instructions,
+    )
+    layers.append(AssembledContextLayer(
+        name="system_prompt",
+        role="system",
+        content=system_prompt,
+        tokens=_token_counter.count_tokens(system_prompt),
+    ))
+
+    # Project context layer (extracted separately for visibility)
+    project_text_parts = []
+    custom_ctx = project_context.get("custom_context")
+    if custom_ctx and isinstance(custom_ctx, str) and custom_ctx.strip():
+        project_text_parts.append(custom_ctx.strip())
+    important_files = project_context.get("important_files")
+    if important_files and isinstance(important_files, list):
+        project_text_parts.append("\n".join(f"- {f}" for f in important_files if f))
+    if project_text_parts:
+        project_text = "\n".join(project_text_parts)
+        layers.append(AssembledContextLayer(
+            name="project_context",
+            role="system",
+            content=project_text,
+            tokens=_token_counter.count_tokens(project_text),
+        ))
+
+    # Chat instructions layer
+    if chat_instructions:
+        layers.append(AssembledContextLayer(
+            name="chat_instructions",
+            role="system",
+            content=chat_instructions,
+            tokens=_token_counter.count_tokens(chat_instructions),
+        ))
+
+    # Compaction summaries layer
+    compactions = state.get("compactions", [])
+    for i, c in enumerate(compactions):
+        summary = c.get("summary", "")
+        if summary and summary != "[Pending compaction — awaiting LLM summarization]":
+            layers.append(AssembledContextLayer(
+                name=f"compaction_summary_{i}",
+                role="system",
+                content=summary,
+                tokens=_token_counter.count_tokens(summary),
+            ))
+
+    # Conversation messages layer
+    active_msgs = [
+        m for m in state.get("messages", [])
+        if not m.get("is_excluded", False) and m.get("role") in ("user", "assistant")
+    ]
+    if active_msgs:
+        conversation_text = "\n\n".join(
+            f"[{m.get('role', 'unknown')}]: {m.get('content', '')}" for m in active_msgs
+        )
+        layers.append(AssembledContextLayer(
+            name="conversation",
+            role="mixed",
+            content=conversation_text,
+            tokens=_token_counter.count_messages(
+                [{"role": m.get("role", ""), "content": m.get("content", "")} for m in active_msgs]
+            ),
+        ))
+
+    total_tokens = sum(layer.tokens for layer in layers)
+    context_window = _token_counter.estimate_model_context_window(resolved_model)
+
+    return AssembledContextResponse(
+        layers=layers,
+        total_tokens=total_tokens,
+        context_window=context_window,
+        fill_ratio=round(total_tokens / context_window, 4) if context_window > 0 else 0.0,
+        model_name=resolved_model,
+    )
+
+
+# -------------------------------------------------------------------------
+# Compaction Summary Edit
+# -------------------------------------------------------------------------
+
+
+@router.patch(
+    "/conversations/{chat_id}/compactions/{compaction_id}",
+)
+async def update_compaction_summary(
+    chat_id: UUID,
+    compaction_id: UUID,
+    body: CompactionUpdateRequest,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Update a compaction summary's text."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    compaction = await db.get(ContextCompaction, compaction_id)
+    if compaction is None or compaction.chat_id != chat_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Compaction '{compaction_id}' not found in chat '{chat_id}'",
+        )
+
+    compaction.summary = body.summary
+    await db.commit()
+
+    await cm.invalidate_conversation_cache(chat_id)
+
+    return {
+        "id": str(compaction.id),
+        "summary": compaction.summary,
+        "status": compaction.status,
+    }
+
+
+# -------------------------------------------------------------------------
+# Chat Instructions Edit
+# -------------------------------------------------------------------------
+
+
+@router.patch(
+    "/conversations/{chat_id}/chat-instructions",
+)
+async def update_chat_instructions(
+    chat_id: UUID,
+    body: ChatInstructionsUpdateRequest,
+    cm: ContextManager = Depends(get_context_manager),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Update the per-chat instructions."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(Chat).where(
+            Chat.id == chat_id,
+            Chat.is_deleted == False,  # noqa: E712
+        )
+    )
+    chat = result.scalar_one_or_none()
+    if chat is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat '{chat_id}' not found",
+        )
+
+    chat.chat_instructions = body.chat_instructions
+    await db.commit()
+
+    await cm.invalidate_conversation_cache(chat_id)
+
+    return {
+        "id": str(chat.id),
+        "chat_instructions": chat.chat_instructions,
+    }
 
 
 # -------------------------------------------------------------------------

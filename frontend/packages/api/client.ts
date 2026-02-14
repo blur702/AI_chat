@@ -44,6 +44,7 @@ import type {
   MessageUpdateRequest,
   MessageUpdateResponse,
   TokenBreakdownResponse,
+  AssembledContextResponse,
   ProjectCreateRequest,
   ProjectCreateResponse,
   ProjectListResponse,
@@ -683,6 +684,27 @@ export class WorkstationClient {
 
   async getTokenBreakdown(chatId: string): Promise<TokenBreakdownResponse> {
     return this.request(`/api/context/conversations/${chatId}/token-breakdown`);
+  }
+
+  async getAssembledContext(chatId: string, model?: string): Promise<AssembledContextResponse> {
+    const params = new URLSearchParams();
+    if (model) params.set("model", model);
+    const query = params.toString();
+    return this.request(`/api/context/conversations/${chatId}/assembled-context${query ? `?${query}` : ""}`);
+  }
+
+  async updateCompactionSummary(chatId: string, compactionId: string, summary: string): Promise<{ id: string; summary: string; status: string }> {
+    return this.request(`/api/context/conversations/${chatId}/compactions/${compactionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ summary }),
+    });
+  }
+
+  async updateChatInstructions(chatId: string, instructions: string): Promise<{ id: string; chat_instructions: string }> {
+    return this.request(`/api/context/conversations/${chatId}/chat-instructions`, {
+      method: "PATCH",
+      body: JSON.stringify({ chat_instructions: instructions }),
+    });
   }
 
   // Streaming

@@ -5,7 +5,7 @@ This module provides:
 - Conversation state management with Redis caching
 - Project-level context access with caching
 - User preferences caching
-- Token usage tracking with compaction triggering at 80% threshold
+- Token usage tracking with compaction triggering at 90% threshold
 
 The ContextManager integrates with the kernel lifecycle and provides
 unified access to Chat, Message, Project, UserPreference, and
@@ -42,7 +42,7 @@ class ContextManager(BaseKernelService):
     - Conversation state caching (Chat + Messages + Compactions)
     - Project context caching (Project metadata + chat list)
     - User preferences caching
-    - Token usage tracking with 80% compaction threshold
+    - Token usage tracking with 90% compaction threshold
     - Redis-backed with configurable TTLs
     """
 
@@ -58,7 +58,7 @@ class ContextManager(BaseKernelService):
     USER_PREFS_CACHE_TTL = 86400     # 24 hours
 
     # Token threshold for compaction
-    COMPACTION_THRESHOLD = 0.8  # 80%
+    COMPACTION_THRESHOLD = 0.9  # 90%
 
     def __init__(
         self,
@@ -505,9 +505,19 @@ class ContextManager(BaseKernelService):
                     {
                         "role": "system",
                         "content": (
-                            "Summarize the following conversation history concisely, "
-                            "preserving key context, decisions, and important details. "
-                            "Output only the summary."
+                            "You are a conversation summarizer. Analyze the following conversation "
+                            "and produce a structured summary using EXACTLY these markdown sections. "
+                            "Each section should be concise and use bullet points.\n\n"
+                            "## Key Decisions\n"
+                            "Decisions made, approaches chosen, and rationale.\n\n"
+                            "## Completed Work\n"
+                            "What was accomplished, files created/modified, features implemented.\n\n"
+                            "## Unresolved Issues\n"
+                            "Open questions, pending tasks, known bugs. Write 'None' if all resolved.\n\n"
+                            "## Current State\n"
+                            "Where things stand now, what the user was last working on.\n\n"
+                            "Output ONLY the structured summary with these four sections. "
+                            "Do not include any preamble or explanation."
                         ),
                     },
                     {"role": "user", "content": truncated_history},
