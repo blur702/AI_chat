@@ -246,11 +246,14 @@ async def generate_image_task(ctx, generation_id: str) -> dict:
         async with AsyncSessionLocal() as db:
             # Load generation record
             result = await db.execute(
-                select(ImageGeneration).where(ImageGeneration.id == gen_uuid)
+                select(ImageGeneration).where(
+                    ImageGeneration.id == gen_uuid,
+                    ImageGeneration.is_deleted == False,  # noqa: E712
+                )
             )
             generation = result.scalar_one_or_none()
             if generation is None:
-                logger.error("ImageGeneration %s not found", generation_id)
+                logger.error("ImageGeneration %s not found or deleted", generation_id)
                 return {"generation_id": generation_id, "status": "failed", "image_count": 0}
 
             generation.status = "processing"

@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import shutil
 import time
@@ -55,6 +56,8 @@ _IMAGE_TOKEN_KEY = hmac.new(
 ).digest()
 
 router = APIRouter(prefix="/image", tags=["image"])
+
+_ALLOWED_STATUSES = frozenset({"pending", "processing", "completed", "failed"})
 
 
 # -------------------------------------------------------------------------
@@ -253,7 +256,7 @@ async def get_generation_status(
     result = await db.execute(
         select(ImageGeneration).where(
             ImageGeneration.id == job_id,
-            ImageGeneration.is_deleted == False,
+            ImageGeneration.is_deleted == False,  # noqa: E712
         )
     )
     generation = result.scalar_one_or_none()
@@ -293,7 +296,7 @@ async def get_generation_result(
     result = await db.execute(
         select(ImageGeneration).where(
             ImageGeneration.id == job_id,
-            ImageGeneration.is_deleted == False,
+            ImageGeneration.is_deleted == False,  # noqa: E712
         )
     )
     generation = result.scalar_one_or_none()
@@ -329,7 +332,7 @@ async def download_image(
     filename: str,
     token: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db_session),
-    authorization: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(None),
 ) -> FileResponse:
     """Download a specific generated image file by filename.
 
@@ -346,7 +349,7 @@ async def download_image(
             result = await db.execute(
                 select(ImageGeneration).where(
                     ImageGeneration.id == job_id,
-                    ImageGeneration.is_deleted == False,
+                    ImageGeneration.is_deleted == False,  # noqa: E712
                 )
             )
             generation = result.scalar_one_or_none()
@@ -367,13 +370,14 @@ async def download_image(
         except HTTPException:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
+                detail="Invalid or expired authorization token",
+                headers={"WWW-Authenticate": "Bearer"},
             )
         user_id = payload.get("user_id") or payload.get("sub", "")
         result = await db.execute(
             select(ImageGeneration).where(
                 ImageGeneration.id == job_id,
-                ImageGeneration.is_deleted == False,
+                ImageGeneration.is_deleted == False,  # noqa: E712
             )
         )
         generation = result.scalar_one_or_none()
@@ -419,12 +423,13 @@ async def download_image(
             detail="Image file not found on disk",
         )
 
+    content_type = mimetypes.guess_type(filename)[0] or "image/png"
     response = FileResponse(
         path=file_path,
-        media_type="image/png",
+        media_type=content_type,
         filename=filename,
     )
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -449,16 +454,15 @@ async def list_generations(
     """List image generation jobs for the current user."""
     user_id = payload.get("user_id") or payload.get("sub", "")
 
-    _allowed_statuses = {"pending", "processing", "completed", "failed"}
-    if status_filter is not None and status_filter not in _allowed_statuses:
+    if status_filter is not None and status_filter not in _ALLOWED_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid status filter. Allowed values: {', '.join(sorted(_allowed_statuses))}",
+            detail=f"Invalid status filter. Allowed values: {', '.join(sorted(_ALLOWED_STATUSES))}",
         )
 
     filters = [
         ImageGeneration.user_id == UUID(user_id),
-        ImageGeneration.is_deleted == False,
+        ImageGeneration.is_deleted == False,  # noqa: E712
     ]
 
     if project_id:
@@ -513,7 +517,7 @@ async def delete_generation(
     result = await db.execute(
         select(ImageGeneration).where(
             ImageGeneration.id == job_id,
-            ImageGeneration.is_deleted == False,
+            ImageGeneration.is_deleted == False,  # noqa: E712
         )
     )
     generation = result.scalar_one_or_none()

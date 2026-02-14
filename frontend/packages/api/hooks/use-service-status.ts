@@ -58,7 +58,6 @@ export function useServiceStatus(): UseServiceStatusReturn {
   const [criticalReady, setCriticalReady] = useState(false);
   const [allReady, setAllReady] = useState(false);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
   const poll = useCallback(async () => {
