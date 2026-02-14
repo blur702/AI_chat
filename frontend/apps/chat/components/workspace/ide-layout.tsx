@@ -439,9 +439,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           setShowTools(true);
         }}
       />
-      <Group orientation="horizontal" className="flex-1">
+      <Group orientation="horizontal" id="ide-main" className="flex-1">
         {/* File Explorer */}
-        <Panel defaultSize={15} minSize={10} maxSize={30}>
+        <Panel id="file-explorer" defaultSize="15%" minSize="10%" maxSize="30%">
           <PanelErrorBoundary panelName="File Explorer">
             <FileExplorer {...fileExplorerProps} />
           </PanelErrorBoundary>
@@ -450,10 +450,10 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
 
         {/* Main Editor + Terminal */}
-        <Panel defaultSize={showChat ? 55 : 85} minSize={30}>
-          <Group orientation="vertical">
+        <Panel id="editor-main" defaultSize={showChat ? "55%" : "85%"} minSize="30%">
+          <Group orientation="vertical" id="editor-vertical">
             {/* Editor Area */}
-            <Panel defaultSize={65} minSize={30}>
+            <Panel id="editor-area" defaultSize="65%" minSize="30%">
               <PanelErrorBoundary panelName="Editor">
                 <EditorPane {...editorProps} />
               </PanelErrorBoundary>
@@ -462,9 +462,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors" />
 
             {/* Terminal + Preview */}
-            <Panel defaultSize={35} minSize={15}>
-              <Group orientation="horizontal">
-                <Panel defaultSize={60} minSize={30}>
+            <Panel id="terminal-preview" defaultSize="35%" minSize="15%">
+              <Group orientation="horizontal" id="terminal-horizontal">
+                <Panel id="terminal" defaultSize="60%" minSize="30%">
                   <PanelErrorBoundary panelName="Terminal">
                     <TerminalPane
                       projectId={projectId}
@@ -474,7 +474,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
                   </PanelErrorBoundary>
                 </Panel>
                 <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-                <Panel defaultSize={40} minSize={20}>
+                <Panel id="preview" defaultSize="40%" minSize="20%">
                   <PanelErrorBoundary panelName="Preview">
                     <PreviewPane />
                   </PanelErrorBoundary>
@@ -488,7 +488,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {showChat && (
           <>
             <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
-            <Panel defaultSize={30} minSize={20} maxSize={40}>
+            <Panel id="chat-panel" defaultSize="30%" minSize="20%" maxSize="40%">
               <PanelErrorBoundary panelName="Chat">
                 <ChatPanel
                   {...chatPanelProps}
