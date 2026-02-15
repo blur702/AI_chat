@@ -122,8 +122,10 @@ services:
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      MASTER_USERNAMES: ${MASTER_USERNAMES:-kevin}
+      MASTER_USERNAMES: ${MASTER_USERNAMES:-}
       MASTER_PASSWORD: ${MASTER_PASSWORD:-}
+      MASTER_FIRST_NAME: ${MASTER_FIRST_NAME:-}
+      MASTER_SCREEN_NAME: ${MASTER_SCREEN_NAME:-}
     volumes:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
@@ -238,3 +240,4 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     networks:
       - workstation-network
+    restart: unless-stopped

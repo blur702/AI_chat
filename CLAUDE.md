@@ -37,10 +37,8 @@ arq app.worker.WorkerSettings
 ```bash
 cd frontend
 pnpm install                 # Install all workspace dependencies
-pnpm dev                     # Run chat (3001) + sandbox (3002) in parallel
-pnpm dev:chat                # Chat app only (port 3001)
-pnpm dev:sandbox             # Sandbox app only (port 3002)
-pnpm build                   # Production build (both apps)
+pnpm dev                     # Run chat app (port 3001)
+pnpm build                   # Production build
 pnpm lint                    # ESLint across all packages
 pnpm type-check              # TypeScript validation across all packages
 ```
@@ -83,9 +81,9 @@ docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping
 | Redis | 6379 | 6380 | redis:7-alpine (AOF) |
 | Backend | 8000 | 8001 | FastAPI + SQLAlchemy async (GPU: utility for pynvml) |
 | Worker | - | - | ARQ (Redis-backed, max 20 jobs, 600s timeout) |
-| Chat App | 3000 | 3001 | Next.js 14 |
-| Sandbox App | 3000 | 3002 | Next.js 14 + Monaco + xterm.js |
+| Chat App | 3001 | 3001 | Next.js 14 (includes workspace/IDE/terminal/image-gen) |
 | Nginx | 80/443 | 80/443 | Reverse proxy + SSL + Let's Encrypt |
+| Certbot | - | - | Let's Encrypt certificate renewal (every 12h) |
 
 All GPU services (Ollama, ComfyUI) run as Docker Compose services with NVIDIA GPU passthrough. Backend has `utility` GPU capability for pynvml VRAM monitoring.
 
@@ -96,7 +94,7 @@ All GPU services (Ollama, ComfyUI) run as Docker Compose services with NVIDIA GP
 ### Data Flow
 ```
 Browser → Nginx → /api,/ws → Backend → PostgreSQL/Redis/Ollama/ComfyUI
-                → /       → Frontend (chat or sandbox)
+                → /       → Chat App (includes workspace)
 ```
 
 ## Kernel Architecture
@@ -108,11 +106,13 @@ The backend uses a **WorkstationKernel** singleton (`app/kernel/__init__.py`) th
 2. **ResourceManager** — GPU VRAM tracking (pynvml), priority-based model loading queue, LRU preemption, CPU offloading, operation state recovery via Redis
 3. **ToolRegistry** — Tool registration with JSON Schema validation, permission checking, Redis result caching (5min TTL), per-chat sequential execution queues, LRU eviction (100 results/chat)
 4. **ContextManager** — Conversation/project/user preference caching via Redis, token usage tracking with 80% threshold compaction trigger
-5. **OllamaClient** — LLM chat completion via Ollama API
-6. **KBIngestionService** — Document processing for knowledge base
-7. **EmbeddingService** — Vector embedding generation via Ollama (1024-dim vectors)
-8. **ComfyUIClient** — Image generation via ComfyUI
-9. **SandboxManager** — Docker container sandbox lifecycle management
+5. **TokenCounter** — Accurate token counting via tiktoken (cl100k_base encoding), context window lookup for known model families
+6. **OllamaClient** — LLM chat completion via Ollama API
+7. **KBIngestionService** — Document processing for knowledge base
+8. **EmbeddingService** — Vector embedding generation via Ollama (1024-dim vectors)
+9. **ComfyUIClient** — Image generation via ComfyUI
+10. **SandboxManager** — Docker container sandbox lifecycle management
+11. **DrupalMCPService** — Remote Drupal site management via MCP protocol, Fernet-encrypted API keys (conditional — skipped if unavailable)
 
 ### Key Patterns
 - All services extend `BaseKernelService` (ABC in `app/kernel/base.py`) with `startup()`, `shutdown()`, `health_check()` lifecycle
@@ -139,11 +139,16 @@ All routers mounted under `/api` prefix in `app/main.py`:
 | `api/projects.py` | `/projects` | Project CRUD |
 | `api/chats.py` | `/chats` | Chat operations |
 | `api/messages.py` | `/context` | Conversation state (`/conversations/{id}`), message streaming |
+| `api/system_prompts.py` | `/system-prompts` | System prompt library (CRUD, set default) |
 | `api/image.py` | `/image` | Image generation, status, download, listing |
 | `api/kb.py` | `/kb` | Knowledge base sources, search, chunks |
 | `api/sandbox.py` | `/sandbox` | Container sandbox management |
 | `api/automation.py` | `/automation` | Automation action execution |
 | `api/yolo.py` | `/yolo` | YoloEdit operations |
+| `api/templates.py` | `/templates` | Sandbox template registry and listing |
+| `api/project_import.py` | `/project-import` | Project import jobs (git clone, archive upload) |
+| `api/drupal.py` | `/drupal` | Drupal site connection management |
+| `api/models.py` | `/models` | LLM model listing and management |
 | `api/websocket.py` | `/ws` | WebSocket real-time event stream |
 | `api/operations.py` | `/operations` | Operation state tracking |
 | `api/admin.py` | `/admin/kernel` | Admin kernel debug/metrics endpoints |
@@ -198,14 +203,17 @@ All routers mounted under `/api` prefix in `app/main.py`:
 `backend/app/models/` — Import new models in `__init__.py` for Alembic detection.
 
 ### Core Models
-- **User** → UserPreference (1:1), Projects (1:N). Security fields: `failed_login_attempts`, `locked_until`, `password_reset_token/expires`
-- **Project** → Chats (1:N), KBSources (1:N)
+- **User** → UserPreference (1:1), Projects (1:N), SystemPrompts (1:N). Security fields: `failed_login_attempts`, `locked_until`, `password_reset_token/expires`
+- **Project** → Chats (1:N), KBSources (1:N), DrupalSite (1:1), ProjectImports (1:N)
 - **Chat** → Messages (1:N), ContextCompactions (1:N)
 - **KBSource** → KBChunks (1:N) with vector embeddings (1024-dim, IVFFlat index)
 - **Resource** — VRAM tracking, priority, status, user lock
 - **Event** — Audit log with severity, source, optional user/chat/resource foreign keys
 - **AuditLog** — Security event logging: action, status, IP, user_agent, details JSON
 - **ImageGeneration** — ComfyUI job tracking: workflow_data, result_images, status
+- **SystemPrompt** — Reusable system prompt templates per user (name, content, is_default, soft delete)
+- **DrupalSite** — Remote Drupal site connections per project (site_url, encrypted API key, sync config)
+- **ProjectImport** — Async project import jobs: git clone or archive upload (status: pending→cloning→detecting→importing→completed/failed)
 - **AutomationAction**, **Archive**, **YoloEdit** — Supporting models
 
 ### Extensions
@@ -231,6 +239,11 @@ backend/
 │   ├── worker.py            # ARQ worker settings
 │   ├── api/                 # Route handlers (see API Routes table)
 │   │   ├── context_deps.py  # Shared deps: project/chat access validation
+│   │   ├── system_prompts.py
+│   │   ├── templates.py
+│   │   ├── project_import.py
+│   │   ├── drupal.py
+│   │   ├── models.py
 │   │   └── ...
 │   ├── kernel/              # Core service orchestration
 │   │   ├── __init__.py      # WorkstationKernel singleton
@@ -239,6 +252,8 @@ backend/
 │   │   ├── event_bus.py
 │   │   ├── tool_registry.py
 │   │   ├── context_manager.py
+│   │   ├── token_counter.py # TokenCounter service (tiktoken)
+│   │   ├── prompt_builder.py # Prompt assembly utility (not a service)
 │   │   ├── tool_base.py     # BaseTool ABC
 │   │   └── event_types.py   # Event type & severity constants
 │   ├── services/            # External service clients
@@ -246,12 +261,26 @@ backend/
 │   │   ├── comfyui_client.py
 │   │   ├── embedding_service.py
 │   │   ├── kb_ingestion.py
-│   │   └── sandbox_manager.py
+│   │   ├── sandbox_manager.py
+│   │   ├── drupal_mcp.py    # Drupal MCP protocol client
+│   │   ├── project_detector.py # Auto-detect project type from file structure
+│   │   ├── automation_executor.py # Execute automation actions in sandboxes
+│   │   └── templates/       # Sandbox template system
+│   │       ├── registry.py  # Template registry
+│   │       └── definitions/ # Template JSON definitions
+│   │           ├── python-blank.json, python-fastapi.json, python-flask.json
+│   │           ├── node-blank.json, node-nextjs.json, node-react-vite.json
+│   │           └── drupal.json + drupal/
 │   ├── middleware/           # Rate limiting
 │   ├── models/              # ORM models (base.py has mixins)
 │   └── schemas/             # Pydantic request/response schemas
+│       ├── auth.py, context.py, resource.py, event.py, tool.py
+│       ├── image.py, kb.py, sandbox.py, automation.py, yolo.py, admin.py
+│       ├── drupal.py, models.py, project_import.py
+│       └── __init__.py
 ├── tests/
 │   ├── conftest.py          # Shared fixtures
+│   ├── test_security.py     # Security-focused tests
 │   └── kernel/
 │       ├── test_helpers.py  # MockTool, model factories, assertion helpers
 │       └── test_*.py        # Per-service test files
@@ -266,32 +295,41 @@ backend/
 
 ## Frontend Structure
 
-pnpm monorepo (`pnpm-workspace.yaml`) with 2 apps and 2 shared packages. Packages have **no build step** — they are consumed as TypeScript source via `transpilePackages` in each app's `next.config.js`.
+pnpm monorepo (`pnpm-workspace.yaml`) with 1 app and 2 shared packages. The chat app includes all functionality (chat, workspace/IDE, terminal, image generation, admin). Packages have **no build step** — they are consumed as TypeScript source via `transpilePackages` in the app's `next.config.js`.
 
 ```
 frontend/
 ├── pnpm-workspace.yaml
 ├── package.json              # Workspace scripts: dev, build, lint, type-check
 ├── apps/
-│   ├── chat/                 # Port 3001 — Chat UI, admin panel, settings
-│   │   ├── app/              # Next.js App Router pages
-│   │   │   ├── admin/        # Admin dashboard
-│   │   │   ├── chat/[chatId] # Chat detail
-│   │   │   ├── login/
-│   │   │   └── settings/
-│   │   └── components/
-│   │       ├── admin/        # User mgmt, audit logs, kernel debug
-│   │       ├── chat/         # Chat UI components
-│   │       └── resources/    # GPU resource management
-│   └── sandbox/              # Port 3002 — IDE, terminal, image gen
-│       ├── app/
-│       │   ├── projects/
-│       │   └── workspace/[projectId]/
+│   └── chat/                 # Port 3001 — All UI: chat, workspace, admin, settings
+│       ├── app/              # Next.js App Router pages
+│       │   ├── admin/        # Admin dashboard
+│       │   ├── chat/[chatId] # Chat detail
+│       │   ├── login/        # Authentication
+│       │   ├── projects/     # Project listing
+│       │   ├── settings/     # User settings
+│       │   └── workspace/    # Integrated workspace (IDE, terminal, image gen)
+│       │       └── [projectId]/
+│       │           └── image-gen/
 │       └── components/
-│           ├── events/       # Event viewer, create modal
-│           ├── image-gen/    # Generation form, gallery, viewer
-│           ├── tools/        # Tool execution panel
-│           └── ide-layout.tsx
+│           ├── admin/        # User mgmt, audit logs, kernel debug
+│           ├── chat/         # Chat UI components
+│           ├── context/      # Context management UI
+│           ├── resources/    # GPU resource management
+│           └── workspace/    # Workspace-specific components
+│               ├── chat-panel/    # Workspace chat integration
+│               ├── drupal/        # Drupal MCP UI
+│               ├── editor/        # Monaco editor
+│               ├── events/        # Event viewer
+│               ├── file-explorer/ # File browser
+│               ├── image-gen/     # Image generation UI
+│               ├── kb/            # Knowledge base UI
+│               ├── preview/       # Sandbox preview
+│               ├── resources/     # Resource management
+│               ├── snapshots/     # State snapshots
+│               ├── terminal/      # xterm.js terminal
+│               └── tools/         # Tool execution panel
 └── packages/
     ├── ui/                   # @workstation/ui — shadcn/ui components
     │   ├── index.ts          # Exports: Button, Dialog, Tabs, Badge, cn(), ThemeProvider, etc.
@@ -302,12 +340,23 @@ frontend/
         ├── index.ts          # Exports: WorkstationClient, getClient(), ApiError
         ├── client.ts         # HTTP client with JWT management
         ├── types/            # TypeScript types mirroring backend Pydantic schemas
-        └── hooks/            # React hooks per domain (useAuth, useResources, useTools, etc.)
+        │   └── auth, context, resource, event, tool, image, kb, sandbox,
+        │     automation, yolo, admin, drupal, models, project-import, terminal
+        └── hooks/            # React hooks per domain
+            └── use-auth, use-chats, use-projects, use-resources, use-tools,
+              use-events, use-image-generation, use-knowledge-base, use-kb-sources,
+              use-websocket, use-terminal-websocket, use-conversation,
+              use-workspace-conversation, use-settings, use-admin, use-audit-logs,
+              use-user-management, use-automation-actions, use-yolo-edits,
+              use-file-explorer, use-context-dashboard, use-context-editor,
+              use-drupal, use-model-switcher, use-project-import,
+              use-service-status, use-system-prompts, use-templates,
+              use-token-usage, use-project
 ```
 
 ### Frontend Key Patterns
 - **Package consumption**: `transpilePackages: ["@workstation/ui", "@workstation/api"]` in next.config.js
-- **Tailwind**: Each app extends `@workstation/ui/tailwind.config` and includes `../../packages/ui/components/**/*.tsx` in content paths
+- **Tailwind**: App extends `@workstation/ui/tailwind.config` and includes `../../packages/ui/components/**/*.tsx` in content paths
 - **Auth**: `AuthProvider` context stores JWT in `localStorage` key `workstation_token`, parses claims from payload
 - **401 handling**: API client auto-clears token and redirects to `/login` on 401 responses (expired tokens)
 - **API client**: `getClient()` singleton; uses `NEXT_PUBLIC_API_URL` env var for base URL
@@ -366,13 +415,15 @@ coderabbit review --prompt-only   # Minimal output for token efficiency
 Key variables in `.env` (copy from `.env.example`):
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection string
-- `SECRET_KEY`: JWT signing key
+- `SECRET_KEY`: JWT signing key (also used to derive Fernet key for Drupal API key encryption)
 - `OLLAMA_BASE_URL`, `COMFYUI_BASE_URL`: GPU service URLs (default: `http://ollama:11434`, `http://comfyui:8188`)
 - `OLLAMA_MODELS_DIR`: Host path to Ollama models (bind-mounted into container)
 - `MASTER_USERNAMES`, `MASTER_PASSWORD`: Protected admin accounts (comma-separated usernames)
+- `MASTER_FIRST_NAME`, `MASTER_SCREEN_NAME`: Optional display names for master users
 - `CORS_ORIGINS`: Allowed CORS origins
 - `NEXT_PUBLIC_API_URL`: Frontend API base URL
-- Port mappings: `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `OLLAMA_PORT`, `COMFYUI_PORT`
+- `NEXT_PUBLIC_WS_URL`: Frontend WebSocket URL
+- Port mappings: `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `CHAT_PORT`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `OLLAMA_PORT`, `COMFYUI_PORT`
 
 ## Windows Development Notes
 

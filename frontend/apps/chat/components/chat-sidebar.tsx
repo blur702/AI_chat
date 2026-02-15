@@ -72,7 +72,11 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
   }, [logout, router]);
 
   const handleNewChat = useCallback(() => {
-    if (!projectId) return;
+    setOperationError(null);
+    if (!projectId) {
+      setOperationError("No project selected. Please select a project first.");
+      return;
+    }
     router.push("/chat/new");
     if (isMobile) onMobileClose();
   }, [projectId, router, isMobile, onMobileClose]);
@@ -304,7 +308,10 @@ function SidebarContent({
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (error || operationError) ? (
-          <p className="px-3 py-4 text-xs text-destructive">{operationError ?? error}</p>
+          <div className="px-3 py-4 space-y-1">
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {operationError && <p className="text-xs text-destructive">{operationError}</p>}
+          </div>
         ) : chats.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
             No chats yet. Click + to create one.
@@ -427,57 +434,70 @@ function ChatItem({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Link
-          href={`/chat/${chat.id}`}
+        <div
           role="listitem"
-          aria-current={isActive ? "page" : undefined}
-          onClick={onSelect}
           className={cn(
-            "group flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "group relative flex items-center gap-2 rounded-md text-sm transition-colors min-h-[44px]",
             isActive
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
               : "text-sidebar-foreground hover:bg-sidebar-accent/50"
           )}
         >
-          <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">{chat.title}</span>
-          {chat.is_pinned && (
-            <Pin className="ml-auto h-3 w-3 shrink-0 text-muted-foreground group-hover:hidden" aria-label="Pinned" />
-          )}
+          <Link
+            href={`/chat/${chat.id}`}
+            aria-current={isActive ? "page" : undefined}
+            onClick={onSelect}
+            className="flex items-center gap-2 px-3 py-2.5 pr-[4.5rem] flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+          >
+            <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{chat.title}</span>
+            {chat.is_pinned && (
+              <Pin className="ml-auto h-3 w-3 shrink-0 text-muted-foreground group-hover:hidden" aria-label="Pinned" />
+            )}
+          </Link>
           <div
-            className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0"
-            onClick={(e) => e.preventDefault()}
+            role="toolbar"
+            aria-label="Chat actions"
+            className="absolute right-1 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0"
           >
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRename(chat.id, chat.title); }}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRename(chat.id, chat.title); }}
               className="p-1 rounded hover:bg-sidebar-accent"
               title="Rename"
+              aria-label="Rename"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTogglePin(chat.id, !!chat.is_pinned); }}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onTogglePin(chat.id, !!chat.is_pinned); }}
               className="p-1 rounded hover:bg-sidebar-accent"
               title={chat.is_pinned ? "Unpin" : "Pin"}
+              aria-label={chat.is_pinned ? "Unpin" : "Pin"}
             >
               <Pin className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleArchive(chat.id, !!chat.is_archived); }}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleArchive(chat.id, !!chat.is_archived); }}
               className="p-1 rounded hover:bg-sidebar-accent"
               title={chat.is_archived ? "Unarchive" : "Archive"}
+              aria-label={chat.is_archived ? "Unarchive" : "Archive"}
             >
               <Archive className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(chat.id, chat.title); }}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(chat.id, chat.title); }}
               className="p-1 rounded hover:bg-sidebar-accent text-destructive"
               title="Delete"
+              aria-label="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
-        </Link>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={() => onRename(chat.id, chat.title)}>

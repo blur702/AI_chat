@@ -144,7 +144,7 @@ async def lifespan(app: FastAPI):
             event_bus_service.set_websocket_manager(get_websocket_manager())
             logger.info("WebSocket manager connected to EventBus")
     except Exception as e:
-        logger.error(f"Kernel startup failed: {e}")
+        logger.error("Kernel startup failed: %s", e)
         raise
 
     yield
@@ -154,7 +154,7 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down kernel...")
         await kernel.shutdown()
     except Exception as e:
-        logger.error(f"Kernel shutdown error: {e}")
+        logger.error("Kernel shutdown error: %s", e)
 
     logger.info("Closing database connections...")
     await close_db()
@@ -207,14 +207,33 @@ async def _seed_master_user() -> None:
 
     This user has full admin privileges and cannot be modified or
     deactivated by other users through the API.
-    Reads MASTER_PASSWORD from environment variables.
+    Reads MASTER_USERNAMES and MASTER_PASSWORD from environment variables.
+    In production, both are required; in development, seeding is silently skipped.
     """
     from app.models.user import User, MASTER_USERNAMES
     from app.models.utils import hash_password, validate_password_strength
 
+    env = os.getenv("ENVIRONMENT", "development").lower()
+
     master_password = os.getenv("MASTER_PASSWORD")
     if not master_password:
+        if env == "production":
+            logger.error(
+                "MASTER_PASSWORD is required in production but not set — "
+                "set MASTER_PASSWORD in your environment to proceed"
+            )
+            raise RuntimeError("MASTER_PASSWORD must be set in production")
         logger.warning("MASTER_PASSWORD not set, skipping master user seed")
+        return
+
+    if not MASTER_USERNAMES:
+        if env == "production":
+            logger.error(
+                "MASTER_USERNAMES is required in production but not set — "
+                "set MASTER_USERNAMES (comma-separated) in your environment"
+            )
+            raise RuntimeError("MASTER_USERNAMES must be set in production")
+        logger.warning("MASTER_USERNAMES not set, skipping master user seed")
         return
 
     is_valid, error_msg = validate_password_strength(master_password)
@@ -450,7 +469,7 @@ async def kernel_health(request: Request):
             }
         )
     except Exception as e:
-        logger.error(f"Kernel health check failed: {e}")
+        logger.error("Kernel health check failed: %s", e)
         return JSONResponse(
             status_code=503,
             content={
