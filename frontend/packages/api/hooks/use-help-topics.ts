@@ -42,9 +42,8 @@ export function useHelpTopics(): UseHelpTopicsReturn {
     setLoading(true);
     setError(null);
     try {
-      const client = getClient();
-      const data = await client.get<{ topics: HelpTopic[]; count: number }>("/help");
-      setTopics(data.topics);
+      const data = await getClient().listHelpTopics();
+      setTopics(data.topics as HelpTopic[]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load help topics";
       setError(message);
@@ -58,12 +57,8 @@ export function useHelpTopics(): UseHelpTopicsReturn {
   }, [fetchTopics]);
 
   const search = useCallback(async (query: string): Promise<HelpSearchResult[]> => {
-    const client = getClient();
-    const data = await client.post<{ results: HelpSearchResult[]; query: string; count: number }>(
-      "/help/search",
-      { query, top_k: 10 }
-    );
-    return data.results;
+    const data = await getClient().searchHelpTopics(query);
+    return data.results as HelpSearchResult[];
   }, []);
 
   return { topics, loading, error, search, refresh: fetchTopics };

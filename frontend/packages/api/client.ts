@@ -1356,6 +1356,19 @@ export class WorkstationClient {
     );
     return response.blob();
   }
+
+  // ---- Help Topics ----
+
+  async listHelpTopics(): Promise<{ topics: any[]; count: number }> {
+    return this.request("/api/help");
+  }
+
+  async searchHelpTopics(query: string, topK = 10): Promise<{ results: any[]; query: string; count: number }> {
+    return this.request("/api/help/search", {
+      method: "POST",
+      body: JSON.stringify({ query, top_k: topK }),
+    });
+  }
 }
 
 // Singleton client instance

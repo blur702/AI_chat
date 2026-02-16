@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Skill(coderabbit:review)"
+      "Skill(coderabbit:review)",
+      "Bash(docker exec:*)",
+      "Bash(bash:*)"
     ]
   }
 }
