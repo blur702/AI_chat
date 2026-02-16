@@ -30,6 +30,7 @@ from app.schemas.context import (
     AssembledContextLayer,
     AssembledContextResponse,
     ChatInstructionsUpdateRequest,
+    CompactionStatusResponse,
     CompactionUpdateRequest,
     ConversationStateResponse,
     ConversationStateUpdateRequest,
@@ -502,6 +503,41 @@ async def update_compaction_summary(
         "summary": compaction.summary,
         "status": compaction.status,
     }
+
+
+# -------------------------------------------------------------------------
+# Compaction Status
+# -------------------------------------------------------------------------
+
+
+@router.get(
+    "/conversations/{chat_id}/compactions/{compaction_id}/status",
+    response_model=CompactionStatusResponse,
+)
+async def get_compaction_status(
+    chat_id: UUID,
+    compaction_id: UUID,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> CompactionStatusResponse:
+    """Get the current status of a compaction operation."""
+    user_id = payload.get("user_id", "")
+    await validate_chat_access(chat_id, user_id, db)
+
+    compaction = await db.get(ContextCompaction, compaction_id)
+    if compaction is None or compaction.chat_id != chat_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Compaction '{compaction_id}' not found in chat '{chat_id}'",
+        )
+
+    return CompactionStatusResponse(
+        id=str(compaction.id),
+        status=compaction.status or "pending",
+        original_message_count=compaction.original_message_count or 0,
+        compacted_message_count=compaction.compacted_message_count or 0,
+        created_at=compaction.created_at.isoformat() if compaction.created_at else None,
+    )
 
 
 # -------------------------------------------------------------------------

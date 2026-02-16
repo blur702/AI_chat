@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckSquare,
@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -22,8 +23,10 @@ import {
 } from "@workstation/ui";
 import {
   useImageGeneration,
+  useServiceStatus,
   type UseImageGenerationReturn,
 } from "@workstation/api/hooks";
+import { getClient } from "@workstation/api";
 import type {
   ImageGenerationResponse,
   ImageGenerationStatus,
@@ -54,6 +57,7 @@ function getFilenameFromUrl(url: string): string {
 
 export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
   const internalHook = useImageGeneration(hookState ? null : projectId);
+  const { services, refresh: refreshServiceStatus } = useServiceStatus();
   const hook = hookState ?? internalHook;
   const {
     generations,
@@ -80,6 +84,14 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [startingComfyUI, setStartingComfyUI] = useState(false);
+  const [comfyuiMessage, setComfyuiMessage] = useState<string | null>(null);
+  const [comfyuiError, setComfyuiError] = useState<string | null>(null);
+  const [comfyuiStartupSeconds, setComfyuiStartupSeconds] = useState(0);
+
+  const comfyuiDetail = services.find((s) => s.name === "comfyui_client")?.detail ?? null;
+  const comfyuiHealthy = comfyuiDetail?.healthy === true;
+  const comfyuiHealthMessage = comfyuiDetail?.message ?? null;
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -144,6 +156,45 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const startComfyUI = useCallback(async () => {
+    if (startingComfyUI) return;
+    setComfyuiError(null);
+    setComfyuiStartupSeconds(0);
+    setComfyuiMessage("Starting ComfyUI container...");
+    setStartingComfyUI(true);
+    try {
+      const result = await getClient().startComfyUI();
+      setComfyuiMessage(result.message);
+      await refreshServiceStatus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to start ComfyUI";
+      setComfyuiError(message);
+      setStartingComfyUI(false);
+    }
+  }, [refreshServiceStatus, startingComfyUI]);
+
+  useEffect(() => {
+    if (!startingComfyUI) return;
+    if (comfyuiHealthy) {
+      setStartingComfyUI(false);
+      setComfyuiMessage("ComfyUI is ready.");
+      setComfyuiError(null);
+      return;
+    }
+    if (comfyuiHealthMessage) setComfyuiMessage(comfyuiHealthMessage);
+  }, [comfyuiHealthMessage, comfyuiHealthy, startingComfyUI]);
+
+  useEffect(() => {
+    if (!startingComfyUI) return;
+    const timer = setInterval(() => {
+      setComfyuiStartupSeconds((seconds) => seconds + 2);
+      refreshServiceStatus();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [refreshServiceStatus, startingComfyUI]);
+
+  const comfyuiStatusMessage = comfyuiError ?? comfyuiMessage ?? comfyuiHealthMessage;
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     await deleteGeneration(deleteTarget.id);
@@ -181,6 +232,32 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="h-8 text-[11px] capitalize gap-1"
+              title={comfyuiStatusMessage ?? undefined}
+            >
+              {comfyuiHealthy ? (
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              ) : startingComfyUI ? (
+                <RefreshCw className="h-3 w-3 animate-spin" />
+              ) : (
+                <span className="h-2 w-2 rounded-full bg-yellow-500" />
+              )}
+              {comfyuiHealthy ? "ComfyUI ready" : startingComfyUI ? "Starting..." : "ComfyUI down"}
+            </Badge>
+            {!comfyuiHealthy && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void startComfyUI();
+                }}
+                disabled={startingComfyUI}
+              >
+                {startingComfyUI ? "Starting..." : "Start ComfyUI"}
+              </Button>
+            )}
             <select
               value={sortOrder}
               onChange={(event) => setSortOrder(event.target.value as SortOrder)}
@@ -204,6 +281,14 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
             </Button>
           </div>
         </div>
+
+        {!comfyuiHealthy && comfyuiStatusMessage && (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-[11px] text-yellow-700 dark:text-yellow-400">
+            {startingComfyUI
+              ? `Starting ComfyUI${comfyuiStartupSeconds > 0 ? ` (${comfyuiStartupSeconds}s)` : ""}: ${comfyuiStatusMessage}`
+              : comfyuiStatusMessage}
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">

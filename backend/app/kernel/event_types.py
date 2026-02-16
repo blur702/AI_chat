@@ -21,6 +21,9 @@ KERNEL_SHUTDOWN = "kernel_shutdown"
 SERVICE_HEALTH_CHANGED = "service_health_changed"
 MODEL_LOADING = "model_loading"
 MODEL_PULLING = "model_pulling"
+COMPACTION_STARTED = "compaction_started"
+COMPACTION_COMPLETED = "compaction_completed"
+COMPACTION_FAILED = "compaction_failed"
 
 # Severity Levels
 INFO = "info"
@@ -45,6 +48,9 @@ ALL_EVENT_TYPES = [
     SERVICE_HEALTH_CHANGED,
     MODEL_LOADING,
     MODEL_PULLING,
+    COMPACTION_STARTED,
+    COMPACTION_COMPLETED,
+    COMPACTION_FAILED,
 ]
 
 # All severity levels for validation
@@ -72,6 +78,9 @@ __all__ = [
     "SERVICE_HEALTH_CHANGED",
     "MODEL_LOADING",
     "MODEL_PULLING",
+    "COMPACTION_STARTED",
+    "COMPACTION_COMPLETED",
+    "COMPACTION_FAILED",
     # Severity levels
     "INFO",
     "WARNING",

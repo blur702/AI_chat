@@ -14,6 +14,7 @@ import { useAuth, useSettings, useResources } from "@workstation/api/hooks";
 import { ArrowLeft, Loader2, Check, AlertCircle, Eye, EyeOff, ImageIcon, HardDrive } from "lucide-react";
 import { OffloadPreferences } from "@/components/resources/offload-preferences";
 import { PromptLibrary } from "@/components/context/prompt-library";
+import { SnippetLibrary } from "@/components/context/snippet-library";
 import Link from "next/link";
 
 function StatusMessage({ message, type }: { message: string; type: "success" | "error" }) {
@@ -270,12 +271,13 @@ export default function SettingsPage() {
         </div>
       ) : (
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList aria-label="Settings sections" className="w-full grid grid-cols-8">
+          <TabsList aria-label="Settings sections" className="w-full flex flex-wrap gap-1">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="ai">AI</TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
+            <TabsTrigger value="snippets">Snippets</TabsTrigger>
             <TabsTrigger value="image-gen">Image Gen</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
@@ -611,6 +613,17 @@ export default function SettingsPage() {
             <PromptLibrary />
           </TabsContent>
 
+          {/* Snippets Tab */}
+          <TabsContent value="snippets" className="space-y-6 pt-6">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Context Snippets</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Create reusable text snippets to quickly insert into context layers.
+              </p>
+            </div>
+            <SnippetLibrary />
+          </TabsContent>
+
           {/* Image Generation Tab */}
           <TabsContent value="image-gen" className="space-y-6 pt-6">
             <div>
@@ -633,6 +646,8 @@ export default function SettingsPage() {
                 >
                   <option value="text-to-image">Text to Image</option>
                   <option value="image-to-image">Image to Image</option>
+                  <option value="inpainting">Inpainting</option>
+                  <option value="face-morph">Face Morph</option>
                 </select>
               </div>
 

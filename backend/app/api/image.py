@@ -8,6 +8,7 @@ Provides REST endpoints for:
 - Listing and deleting generations
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -21,7 +22,9 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
+import docker
 from arq import create_pool
+from docker.errors import DockerException, NotFound
 from fastapi import (
     APIRouter,
     Depends,
@@ -40,6 +43,8 @@ from app.api.context_deps import validate_project_access
 from app.database import get_db_session
 from app.models.image_generation import ImageGeneration
 from app.schemas.image import (
+    ComfyUIStartResponse,
+    ImageGenerationOptionsResponse,
     ImageGenerationListResponse,
     ImageGenerationRequest,
     ImageGenerationResponse,
@@ -58,6 +63,8 @@ _IMAGE_TOKEN_KEY = hmac.new(
 router = APIRouter(prefix="/image", tags=["image"])
 
 _ALLOWED_STATUSES = frozenset({"pending", "processing", "completed", "failed"})
+_COMFYUI_CONTAINER_NAME = os.getenv("COMFYUI_CONTAINER_NAME", "workstation-comfyui")
+_COMFYUI_COMPOSE_SERVICE = os.getenv("COMFYUI_DOCKER_SERVICE", "comfyui")
 
 
 # -------------------------------------------------------------------------
@@ -147,6 +154,135 @@ def _generation_to_response(gen: ImageGeneration, request: Request) -> ImageGene
     )
 
 
+async def _resolve_comfyui_container(client: docker.DockerClient):
+    """Find the ComfyUI container by explicit name or compose service label."""
+    try:
+        return await asyncio.to_thread(client.containers.get, _COMFYUI_CONTAINER_NAME)
+    except NotFound:
+        pass
+
+    compose_matches = await asyncio.to_thread(
+        client.containers.list,
+        all=True,
+        filters={"label": f"com.docker.compose.service={_COMFYUI_COMPOSE_SERVICE}"},
+    )
+    if compose_matches:
+        return compose_matches[0]
+
+    name_matches = await asyncio.to_thread(
+        client.containers.list,
+        all=True,
+        filters={"name": "comfyui"},
+    )
+    if name_matches:
+        return name_matches[0]
+
+    raise NotFound("ComfyUI container not found")
+
+
+# -------------------------------------------------------------------------
+# ComfyUI Startup
+# -------------------------------------------------------------------------
+
+
+@router.post(
+    "/comfyui/start",
+    response_model=ComfyUIStartResponse,
+)
+async def start_comfyui(
+    request: Request,
+    _payload: dict = Depends(get_current_user_payload),
+) -> ComfyUIStartResponse:
+    """Attempt to start the ComfyUI Docker container."""
+    docker_client = None
+    try:
+        docker_client = await asyncio.to_thread(docker.from_env)
+        container = await _resolve_comfyui_container(docker_client)
+        await asyncio.to_thread(container.reload)
+
+        state = container.attrs.get("State", {})
+        status_str = str(state.get("Status", "unknown"))
+
+        if status_str == "running":
+            comfyui = _get_comfyui_client(request)
+            healthy, health_message = await comfyui.health_check()
+            return ComfyUIStartResponse(
+                started=False,
+                already_running=True,
+                healthy=healthy,
+                message="ComfyUI container is already running",
+                container_status=status_str,
+                health_status=health_message,
+            )
+
+        if status_str == "paused":
+            await asyncio.to_thread(container.unpause)
+        else:
+            await asyncio.to_thread(container.start)
+
+        await asyncio.to_thread(container.reload)
+        state = container.attrs.get("State", {})
+        status_str = str(state.get("Status", "unknown"))
+        health_state = state.get("Health", {}) if isinstance(state.get("Health"), dict) else {}
+        health_status = health_state.get("Status")
+
+        return ComfyUIStartResponse(
+            started=True,
+            already_running=False,
+            healthy=False,
+            message="ComfyUI startup requested. Waiting for health check...",
+            container_status=status_str,
+            health_status=str(health_status) if health_status is not None else None,
+        )
+    except NotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"ComfyUI container not found. Looked for '{_COMFYUI_CONTAINER_NAME}' "
+                f"and compose service '{_COMFYUI_COMPOSE_SERVICE}'."
+            ),
+        ) from exc
+    except DockerException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Docker is unavailable: {exc}",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed to start ComfyUI container: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start ComfyUI: {exc}",
+        ) from exc
+    finally:
+        if docker_client is not None:
+            await asyncio.to_thread(docker_client.close)
+
+
+# -------------------------------------------------------------------------
+# Options
+# -------------------------------------------------------------------------
+
+
+@router.get(
+    "/options",
+    response_model=ImageGenerationOptionsResponse,
+)
+async def get_generation_options(
+    request: Request,
+    _payload: dict = Depends(get_current_user_payload),
+) -> ImageGenerationOptionsResponse:
+    """List discoverable model/LoRA/sampler options from ComfyUI."""
+    comfyui = _get_comfyui_client(request)
+    healthy, message = await comfyui.health_check()
+    if not healthy:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"ComfyUI is not available: {message}",
+        )
+    options = await comfyui.get_generation_options()
+    return ImageGenerationOptionsResponse(**options)
+
+
 # -------------------------------------------------------------------------
 # Generate
 # -------------------------------------------------------------------------
@@ -178,15 +314,70 @@ async def generate_image(
     if body.project_id:
         await validate_project_access(body.project_id, user_id, db)
 
+    async def _resolve_image_value(image_value: Optional[str], prefix: str) -> Optional[str]:
+        if not image_value:
+            return None
+        trimmed = image_value.strip()
+        if trimmed.startswith("data:"):
+            try:
+                return await comfyui.upload_base64_image(trimmed, prefix=prefix)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid or unreadable uploaded image for '{prefix}': {exc}",
+                ) from exc
+        return trimmed
+
     # Build workflow JSON based on workflow_type
     if body.workflow_type == "image-to-image":
+        input_image = await _resolve_image_value(body.input_image, "img2img")
         workflow_data = ComfyUIClient.get_image_to_image_workflow(
             prompt=body.prompt,
-            input_image_path=body.input_image,
+            input_image_path=input_image or "",
             negative_prompt=body.negative_prompt or "",
             denoise=body.denoise,
             steps=body.steps,
             cfg_scale=body.cfg_scale,
+            seed=body.seed,
+            sampler_name=body.sampler_name,
+            scheduler=body.scheduler,
+            model_name=body.model_name,
+            loras=body.loras,
+        )
+    elif body.workflow_type == "inpainting":
+        input_image = await _resolve_image_value(body.input_image, "inpaint-input")
+        mask_image = await _resolve_image_value(body.mask_image, "inpaint-mask")
+        workflow_data = ComfyUIClient.get_inpainting_workflow(
+            prompt=body.prompt,
+            input_image_path=input_image or "",
+            mask_image_path=mask_image or "",
+            negative_prompt=body.negative_prompt or "",
+            denoise=body.denoise,
+            steps=body.steps,
+            cfg_scale=body.cfg_scale,
+            seed=body.seed,
+            sampler_name=body.sampler_name,
+            scheduler=body.scheduler,
+            model_name=body.model_name,
+            loras=body.loras,
+        )
+    elif body.workflow_type == "face-morph":
+        source_image = await _resolve_image_value(body.input_image, "morph-source")
+        target_image = await _resolve_image_value(body.target_image, "morph-target")
+        workflow_data = ComfyUIClient.get_face_morph_workflow(
+            prompt=body.prompt,
+            source_image_path=source_image or "",
+            target_image_path=target_image or "",
+            negative_prompt=body.negative_prompt or "",
+            morph_strength=body.morph_strength,
+            denoise=body.denoise,
+            steps=body.steps,
+            cfg_scale=body.cfg_scale,
+            seed=body.seed,
+            sampler_name=body.sampler_name,
+            scheduler=body.scheduler,
+            model_name=body.model_name,
+            loras=body.loras,
         )
     else:
         workflow_data = ComfyUIClient.get_text_to_image_workflow(
@@ -196,6 +387,12 @@ async def generate_image(
             height=body.height,
             steps=body.steps,
             cfg_scale=body.cfg_scale,
+            seed=body.seed,
+            sampler_name=body.sampler_name,
+            scheduler=body.scheduler,
+            batch_size=body.batch_size,
+            model_name=body.model_name,
+            loras=body.loras,
         )
 
     # Create database record

@@ -359,3 +359,43 @@ export interface CompactionUpdateRequest {
 export interface ChatInstructionsUpdateRequest {
   chat_instructions: string;
 }
+
+// Context Snippets
+export interface ContextSnippet {
+  id: string;
+  name: string;
+  content: string;
+  description?: string;
+  tags: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ContextSnippetCreateRequest {
+  name: string;
+  content: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface ContextSnippetUpdateRequest {
+  name?: string;
+  content?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface ContextSnippetListResponse {
+  snippets: ContextSnippet[];
+  count: number;
+}
+
+// Compaction Status
+export interface CompactionStatusResponse {
+  id: string;
+  status: string;
+  original_message_count: number;
+  compacted_message_count: number;
+  summary?: string;
+  created_at?: string;
+}

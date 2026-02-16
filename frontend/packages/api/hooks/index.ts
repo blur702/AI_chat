@@ -44,3 +44,7 @@ export { useContextEditor } from "./use-context-editor";
 export type { UseContextEditorReturn, ContextSearchResult } from "./use-context-editor";
 export { useModelSwitcher, ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "./use-model-switcher";
 export type { UseModelSwitcherReturn } from "./use-model-switcher";
+export { useSnippets } from "./use-snippets";
+export type { UseSnippetsReturn } from "./use-snippets";
+export { useHelpTopics } from "./use-help-topics";
+export type { UseHelpTopicsReturn } from "./use-help-topics";

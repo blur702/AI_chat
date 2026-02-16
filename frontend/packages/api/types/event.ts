@@ -11,7 +11,10 @@ export type EventType =
   | "chat_message"
   | "kernel_startup"
   | "kernel_shutdown"
-  | "service_health_changed";
+  | "service_health_changed"
+  | "compaction_started"
+  | "compaction_completed"
+  | "compaction_failed";
 
 export type EventSeverity = "info" | "warning" | "error" | "critical";
 

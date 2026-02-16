@@ -19,6 +19,7 @@ import { EventsPanel } from "./events/events-panel";
 import { DrupalPanel } from "./drupal/drupal-panel";
 import { KBPanel } from "./kb/kb-panel";
 import { SnapshotsPanel } from "./snapshots/snapshots-panel";
+import { ContextEditorPanel } from "../context/context-editor-panel";
 import { WorkspaceToolbar } from "./workspace-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
 import { PanelErrorBoundary } from "./panel-error-boundary";
@@ -58,6 +59,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showDrupal, setShowDrupal] = useState(false);
   const [showKB, setShowKB] = useState(false);
   const [showSnapshots, setShowSnapshots] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closing, setClosing] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
@@ -189,6 +191,14 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       setMobileTab("snapshots");
     } else {
       setShowSnapshots((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleContextClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("context");
+    } else {
+      setShowContext((prev) => !prev);
     }
   }, [isMobile]);
 
@@ -353,6 +363,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onDrupalClick={handleDrupalClick}
           onKBClick={handleKBClick}
           onSnapshotsClick={handleSnapshotsClick}
+          onContextClick={handleContextClick}
           onToolsClick={handleToolsClick}
           onCloseProject={() => setShowCloseConfirm(true)}
           onSettingsClick={handleSettingsClick}
@@ -429,6 +440,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               onClose={() => setMobileTab("editor")}
             />
           )}
+          {mobileTab === "context" && (
+            <ContextEditorPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
       </div>
@@ -449,17 +466,13 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onDrupalClick={handleDrupalClick}
         onKBClick={handleKBClick}
         onSnapshotsClick={handleSnapshotsClick}
+        onContextClick={handleContextClick}
         onToolsClick={handleToolsClick}
         onCloseProject={() => setShowCloseConfirm(true)}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
         toolsCount={tools.length}
-        pinnedTools={tools.filter((t) => {
-          try {
-            const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
-            return pinned.includes(t.name);
-          } catch { return false; }
-        })}
+        pinnedTools={tools.filter((t) => pinnedToolNames.includes(t.name))}
         onQuickExecuteTool={(toolName) => {
           setToolsPrefillFile(null);
           setToolsFilterForFile(false);
@@ -637,6 +650,18 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <SnapshotsPanel
               projectId={projectId}
               onClose={() => setShowSnapshots(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showContext} onOpenChange={setShowContext}>
+        <SheetContent className="w-[520px]">
+          <SheetTitle className="sr-only">Context Editor</SheetTitle>
+          <PanelErrorBoundary panelName="Context Editor">
+            <ContextEditorPanel
+              projectId={projectId}
+              onClose={() => setShowContext(false)}
             />
           </PanelErrorBoundary>
         </SheetContent>

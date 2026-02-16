@@ -11,8 +11,10 @@ from app.models.audit_log import AuditLog
 from app.models.automation_action import AutomationAction
 from app.models.base import TimestampMixin, UUIDMixin
 from app.models.chat import Chat
+from app.models.context_snippet import ContextSnippet
 from app.models.drupal_site import DrupalSite
 from app.models.event import Event
+from app.models.help_topic import HelpTopic
 from app.models.image_generation import ImageGeneration
 from app.models.context_compaction import ContextCompaction
 from app.models.kb_chunk import KBChunk
@@ -34,8 +36,10 @@ __all__ = [
     "Base",
     "Chat",
     "ContextCompaction",
+    "ContextSnippet",
     "DrupalSite",
     "Event",
+    "HelpTopic",
     "ImageGeneration",
     "KBChunk",
     "KBSource",

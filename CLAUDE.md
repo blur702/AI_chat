@@ -362,6 +362,7 @@ frontend/
 - **API client**: `getClient()` singleton; uses `NEXT_PUBLIC_API_URL` env var for base URL
 - **Project auto-discovery**: Chat layout (`apps/chat/app/chat/layout.tsx`) auto-fetches user's first project from API if `workstation_chat_project_id` is not in localStorage, creating a "Default Project" if none exists. Waits for `isAuthenticated` before calling API.
 - **Type safety**: `packages/api/types/` mirrors backend `schemas/` 1:1 — update both when changing API contracts
+- **Help system**: `HelpProvider` context (`components/help/help-provider.tsx`) exposes `openHelp(sectionSlug?)` and `closeHelp()`. `HelpModal` (`components/help/help-modal.tsx`) scrolls to `[data-section="<slug>"]` elements on open. All control tooltips in `workspace-toolbar.tsx`, `chat-sidebar.tsx`, and `message-input.tsx` include a "Learn more" button that calls `openHelp(<slug>)` to deep-link into the help modal. Section slugs use the pattern `workspace-*` (toolbar), `sidebar-*` (sidebar), `chat-*` (message input). Backend help topics are fetched via `useHelpTopics` hook (`/api/help`).
 
 ### API Route Naming Convention
 - All conversation endpoints use **plural** `/conversations/{chat_id}` (not singular `/conversation/`)

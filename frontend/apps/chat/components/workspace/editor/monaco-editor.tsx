@@ -16,6 +16,8 @@ interface MonacoWrapperProps {
   language: string;
   onChange?: (value: string | undefined) => void;
   readOnly?: boolean;
+  minimap?: boolean;
+  wordWrap?: "off" | "on" | "wordWrapColumn" | "bounded";
 }
 
 export function MonacoWrapper({
@@ -23,6 +25,8 @@ export function MonacoWrapper({
   language,
   onChange,
   readOnly = false,
+  minimap = false,
+  wordWrap = "off",
 }: MonacoWrapperProps) {
   return (
     <Editor
@@ -32,7 +36,7 @@ export function MonacoWrapper({
       onChange={onChange}
       theme="vs-dark"
       options={{
-        minimap: { enabled: false },
+        minimap: { enabled: minimap },
         fontSize: 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         lineNumbers: "on",
@@ -40,6 +44,7 @@ export function MonacoWrapper({
         automaticLayout: true,
         tabSize: 2,
         readOnly,
+        wordWrap,
         padding: { top: 8 },
         renderLineHighlight: "line",
         bracketPairColorization: { enabled: true },

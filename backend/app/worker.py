@@ -365,11 +365,18 @@ async def compact_conversation_task(ctx, chat_id: str) -> dict:
 
     Creates a pending compaction record, then runs actual summarization via
     the OllamaClient to produce a real summary of older messages.
+    Publishes compaction lifecycle events via EventBus.
     """
     import redis.asyncio as aioredis
 
     from app.database import AsyncSessionLocal
     from app.kernel.context_manager import ContextManager
+    from app.kernel.event_bus import EventBus
+    from app.kernel.event_types import (
+        COMPACTION_COMPLETED,
+        COMPACTION_FAILED,
+        COMPACTION_STARTED,
+    )
 
     chat_uuid = UUID(chat_id)
     logger.info("Starting compaction task for chat %s", chat_id)
@@ -380,9 +387,17 @@ async def compact_conversation_task(ctx, chat_id: str) -> dict:
     cm = ContextManager(
         session_factory=AsyncSessionLocal, redis_client=redis_client
     )
-    await cm.startup()
+    event_bus = None
 
     try:
+        await cm.startup()
+
+        # Create a lightweight EventBus sharing the same Redis connection
+        event_bus = EventBus(
+            session_factory=AsyncSessionLocal, redis_client=redis_client
+        )
+        await event_bus.startup()
+
         compaction_id = await cm.trigger_compaction(chat_uuid)
         if compaction_id is None:
             logger.info(
@@ -391,16 +406,72 @@ async def compact_conversation_task(ctx, chat_id: str) -> dict:
             )
             return {"chat_id": chat_id, "status": "skipped"}
 
+        # Publish COMPACTION_STARTED
+        await event_bus.publish_event(
+            event_type=COMPACTION_STARTED,
+            event_data={
+                "chat_id": chat_id,
+                "compaction_id": str(compaction_id),
+            },
+            severity="info",
+            source="worker",
+            chat_id=chat_uuid,
+        )
+
         result = await cm.perform_compaction(chat_uuid, compaction_id)
         logger.info("Compaction result for chat %s: %s", chat_id, result)
+
+        # Publish COMPACTION_COMPLETED
+        await event_bus.publish_event(
+            event_type=COMPACTION_COMPLETED,
+            event_data={
+                "chat_id": chat_id,
+                "compaction_id": str(compaction_id),
+                **result,
+            },
+            severity="info",
+            source="worker",
+            chat_id=chat_uuid,
+        )
+
         return {"chat_id": chat_id, **result}
 
     except Exception as exc:
         logger.error("Compaction task failed for chat %s: %s", chat_id, exc)
-        return {"chat_id": chat_id, "status": "failed", "error": str(exc)}
+
+        # Publish COMPACTION_FAILED (sanitize error message)
+        error_msg = str(exc)[:200] if exc else "Unknown error"
+        try:
+            if event_bus is not None:
+                await event_bus.publish_event(
+                    event_type=COMPACTION_FAILED,
+                    event_data={
+                        "chat_id": chat_id,
+                        "error": error_msg,
+                    },
+                    severity="error",
+                    source="worker",
+                    chat_id=chat_uuid,
+                )
+        except Exception:
+            logger.warning("Failed to publish COMPACTION_FAILED event")
+
+        return {"chat_id": chat_id, "status": "failed", "error": error_msg}
 
     finally:
-        await cm.shutdown()
+        try:
+            await cm.shutdown()
+        except Exception:
+            logger.warning("Failed to shut down ContextManager in compaction task")
+        if event_bus is not None:
+            try:
+                await event_bus.shutdown()
+            except Exception:
+                logger.warning("Failed to shut down EventBus in compaction task")
+        try:
+            await redis_client.aclose()
+        except Exception:
+            logger.warning("Failed to close Redis client in compaction task")
 
 
 async def execute_automation_action_task(ctx, action_id: str) -> dict:

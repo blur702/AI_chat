@@ -122,7 +122,9 @@ services:
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      MASTER_USERNAMES: ${MASTER_USERNAMES:-}
+      # MASTER_USERNAMES and MASTER_PASSWORD are required in production;
+      # backend raises RuntimeError on startup if either is missing.
+      MASTER_USERNAMES: ${MASTER_USERNAMES:-kevin}
       MASTER_PASSWORD: ${MASTER_PASSWORD:-}
       MASTER_FIRST_NAME: ${MASTER_FIRST_NAME:-}
       MASTER_SCREEN_NAME: ${MASTER_SCREEN_NAME:-}

@@ -12,6 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
   Badge,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
 } from "@workstation/ui";
 import {
   Code2,
@@ -31,8 +35,11 @@ import {
   BookOpen,
   Camera,
   Power,
+  Layers,
+  HelpCircle,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
+import { useHelp } from "../help/help-provider";
 
 interface WorkspaceToolbarProps {
   onFilesClick?: () => void;
@@ -47,6 +54,7 @@ interface WorkspaceToolbarProps {
   onDrupalClick?: () => void;
   onKBClick?: () => void;
   onSnapshotsClick?: () => void;
+  onContextClick?: () => void;
   onCloseProject?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
@@ -68,6 +76,7 @@ export function WorkspaceToolbar({
   onDrupalClick,
   onKBClick,
   onSnapshotsClick,
+  onContextClick,
   onCloseProject,
   onSettingsClick,
   pendingActionsCount = 0,
@@ -76,145 +85,284 @@ export function WorkspaceToolbar({
   onQuickExecuteTool,
 }: WorkspaceToolbarProps) {
   const { isMobile } = useBreakpoint();
+  const { openHelp } = useHelp();
 
   return (
-    <div className="flex items-center gap-1 md:gap-2 border-b bg-muted/30 px-2 md:px-3 py-1.5 overflow-x-auto">
-      <Link href="/chat" className="flex items-center gap-2 mr-2 md:mr-4 shrink-0">
-        <Code2 className="h-5 w-5 text-primary" />
-        {!isMobile && (
-          <span className="text-sm font-semibold">AI Workstation</span>
-        )}
-      </Link>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onFilesClick}>
-        <FolderOpen className="h-4 w-4" />
-        {!isMobile && "Files"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onRunClick}>
-        <Play className="h-4 w-4" />
-        {!isMobile && "Run"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0 relative" onClick={onActionsClick}>
-        <ListChecks className="h-4 w-4" />
-        {!isMobile && "Actions"}
-        {pendingActionsCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-            {pendingActionsCount > 9 ? "9+" : pendingActionsCount}
-          </span>
-        )}
-      </Button>
-
-      {!isMobile && (
-        <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onHistoryClick}>
-          <History className="h-4 w-4" />
-          History
-        </Button>
-      )}
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onImageGenClick} title="Image Gallery">
-        <ImageIcon className="h-4 w-4" />
-        {!isMobile && "Images"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onResourcesClick} title="GPU Resources">
-        <HardDrive className="h-4 w-4" />
-        {!isMobile && "Resources"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onEventsClick} title="Events">
-        <Zap className="h-4 w-4" />
-        {!isMobile && "Events"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onDrupalClick} title="Drupal">
-        <Globe className="h-4 w-4" />
-        {!isMobile && "Drupal"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onKBClick} title="Knowledge Base">
-        <BookOpen className="h-4 w-4" />
-        {!isMobile && "KB"}
-      </Button>
-
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onSnapshotsClick} title="Snapshots">
-        <Camera className="h-4 w-4" />
-        {!isMobile && "Snapshots"}
-      </Button>
-
-      {/* Tools dropdown with count badge */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1 shrink-0 relative">
-            <Wrench className="h-4 w-4" />
-            {!isMobile && "Tools"}
-            {toolsCount > 0 && (
-              <Badge variant="secondary" className="h-4 text-[9px] px-1 ml-0.5">
-                {toolsCount}
-              </Badge>
-            )}
-            <ChevronDown className="h-3 w-3 ml-0.5 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onClick={onToolsClick}>
-            <Wrench className="mr-2 h-3.5 w-3.5" />
-            Quick Execute
-            <span className="ml-auto text-[10px] text-muted-foreground">
-              {isMobile ? "" : "Ctrl+T"}
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onToolsClick}>
-            <ListChecks className="mr-2 h-3.5 w-3.5" />
-            All Tools
-            <span className="ml-auto text-[10px] text-muted-foreground">
-              {isMobile ? "" : "Ctrl+Shift+T"}
-            </span>
-          </DropdownMenuItem>
-          {pinnedTools.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px]">Pinned Tools</DropdownMenuLabel>
-              {pinnedTools.map((tool) => (
-                <DropdownMenuItem
-                  key={tool.name}
-                  onClick={() => onQuickExecuteTool?.(tool.name)}
-                >
-                  <Star className="mr-2 h-3 w-3 text-yellow-500 fill-yellow-500" />
-                  <span className="truncate">{tool.name}</span>
-                </DropdownMenuItem>
-              ))}
-            </>
+    <TooltipProvider delayDuration={400}>
+      <div className="flex items-center gap-1 md:gap-2 border-b bg-muted/30 px-2 md:px-3 py-1.5 overflow-x-auto">
+        <Link href="/chat" className="flex items-center gap-2 mr-2 md:mr-4 shrink-0">
+          <Code2 className="h-5 w-5 text-primary" />
+          {!isMobile && (
+            <span className="text-sm font-semibold">AI Workstation</span>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </Link>
 
-      <div className="flex-1" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onFilesClick}>
+              <FolderOpen className="h-4 w-4" />
+              {!isMobile && "Files"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Browse and edit project files</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-files"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
 
-      <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onChatClick}>
-        <MessageSquare className="h-4 w-4" />
-        {!isMobile && "AI Chat"}
-      </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onRunClick}>
+              <Play className="h-4 w-4" />
+              {!isMobile && "Run"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Run commands in the sandbox terminal</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-run"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
 
-      <ThemeToggle />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0 relative" onClick={onActionsClick}>
+              <ListChecks className="h-4 w-4" />
+              {!isMobile && "Actions"}
+              {pendingActionsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                  {pendingActionsCount > 9 ? "9+" : pendingActionsCount}
+                </span>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Review and execute pending automation actions</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-actions"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
 
-      {onCloseProject && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close Project"
-          onClick={onCloseProject}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          title="Close Project"
-        >
-          <Power className="h-4 w-4" />
-        </Button>
-      )}
+        {!isMobile && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onHistoryClick}>
+                <History className="h-4 w-4" />
+                History
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>View event and action history</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-history"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
-      <Button variant="ghost" size="icon" aria-label="Settings" onClick={onSettingsClick}>
-        <Settings className="h-4 w-4" />
-      </Button>
-    </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onImageGenClick}>
+              <ImageIcon className="h-4 w-4" />
+              {!isMobile && "Images"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Generate and browse AI images</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-images"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onResourcesClick}>
+              <HardDrive className="h-4 w-4" />
+              {!isMobile && "Resources"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Monitor GPU VRAM and loaded models</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-resources"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onEventsClick}>
+              <Zap className="h-4 w-4" />
+              {!isMobile && "Events"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View system events and notifications</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-events"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onDrupalClick}>
+              <Globe className="h-4 w-4" />
+              {!isMobile && "Drupal"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Manage connected Drupal sites</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-drupal"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onKBClick}>
+              <BookOpen className="h-4 w-4" />
+              {!isMobile && "KB"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Upload documents and search the knowledge base</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-kb"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onSnapshotsClick}>
+              <Camera className="h-4 w-4" />
+              {!isMobile && "Snapshots"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Save and restore workspace snapshots</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-snapshots"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onContextClick}>
+              <Layers className="h-4 w-4" />
+              {!isMobile && "Context"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Edit context layers sent to the AI</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-context"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Tools dropdown with count badge */}
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1 shrink-0 relative">
+                  <Wrench className="h-4 w-4" />
+                  {!isMobile && "Tools"}
+                  {toolsCount > 0 && (
+                    <Badge variant="secondary" className="h-4 text-[9px] px-1 ml-0.5">
+                      {toolsCount}
+                    </Badge>
+                  )}
+                  <ChevronDown className="h-3 w-3 ml-0.5 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Registered tools and quick execution</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-tools"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onClick={onToolsClick}>
+              <Wrench className="mr-2 h-3.5 w-3.5" />
+              Quick Execute
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {isMobile ? "" : "Ctrl+T"}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onToolsClick}>
+              <ListChecks className="mr-2 h-3.5 w-3.5" />
+              All Tools
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {isMobile ? "" : "Ctrl+Shift+T"}
+              </span>
+            </DropdownMenuItem>
+            {pinnedTools.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px]">Pinned Tools</DropdownMenuLabel>
+                {pinnedTools.map((tool) => (
+                  <DropdownMenuItem
+                    key={tool.name}
+                    onClick={() => onQuickExecuteTool?.(tool.name)}
+                  >
+                    <Star className="mr-2 h-3 w-3 text-yellow-500 fill-yellow-500" />
+                    <span className="truncate">{tool.name}</span>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex-1" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onChatClick}>
+              <MessageSquare className="h-4 w-4" />
+              {!isMobile && "AI Chat"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Open the AI chat panel</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-chat"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Help" onClick={() => openHelp()}>
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Browse help topics and search for answers</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-help"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <ThemeToggle />
+
+        {onCloseProject && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close Project"
+                onClick={onCloseProject}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Power className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Close this project and return to chat</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-close"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Settings" onClick={onSettingsClick}>
+              <Settings className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Workspace settings and preferences</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-settings"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Button, Badge, Separator, ScrollArea } from "@workstation/ui";
 import { useContextDashboard } from "@workstation/api";
 import type { CompactionSummary } from "@workstation/api";
@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
+import { CompactionProgress } from "./compaction-progress";
 
 interface ContextDashboardProps {
   chatId: string;
@@ -55,32 +56,18 @@ export function ContextDashboard({
   chatInstructions,
   systemPromptId,
 }: ContextDashboardProps) {
-  const { breakdown, loading, compacting, error, fetchBreakdown, triggerCompaction } =
+  const { breakdown, loading, compacting, error, fetchBreakdown, triggerCompaction, compactionStatus } =
     useContextDashboard(chatId);
 
   const [compactionsExpanded, setCompactionsExpanded] = useState(false);
-  const compactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetchBreakdown();
   }, [fetchBreakdown]);
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (compactTimerRef.current) {
-        clearTimeout(compactTimerRef.current);
-      }
-    };
-  }, []);
-
   const handleCompact = async () => {
     await triggerCompaction();
-    // Re-fetch breakdown after compaction completes server-side
-    compactTimerRef.current = setTimeout(() => {
-      fetchBreakdown();
-      compactTimerRef.current = null;
-    }, 2000);
+    // CompactionProgress component handles status polling via useContextDashboard
   };
 
   return (
@@ -280,6 +267,8 @@ export function ContextDashboard({
           {compactionsExpanded && compactions.length === 0 && (
             <p className="text-xs text-muted-foreground">No compactions yet.</p>
           )}
+
+          <CompactionProgress compacting={compacting} compactionStatus={compactionStatus} />
 
           <Button
             size="sm"

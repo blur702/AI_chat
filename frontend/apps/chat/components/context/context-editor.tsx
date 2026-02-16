@@ -11,8 +11,15 @@ import {
   TabsTrigger,
   TabsContent,
   Input,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@workstation/ui";
-import { useContextEditor, useContextDashboard } from "@workstation/api";
+import { useContextEditor, useContextDashboard, useSnippets } from "@workstation/api";
 import type { CompactionSummary, TokenBreakdownResponse } from "@workstation/api";
 import {
   X,
@@ -28,7 +35,14 @@ import {
   Eye,
   WrapText,
   Hash,
+  Maximize2,
+  BookOpen,
+  Scissors,
 } from "lucide-react";
+import { ContextEditorFullscreen } from "./context-editor-fullscreen";
+import { SnippetBrowser } from "./snippet-browser";
+import { CompactionProgress } from "./compaction-progress";
+import { estimateTokens, getLayerLabel, getLayerColor } from "./context-utils";
 
 interface ContextEditorProps {
   chatId: string;
@@ -40,45 +54,6 @@ interface ContextEditorProps {
   onClose: () => void;
 }
 
-// Estimate tokens: ~4 chars per token
-function estimateTokens(text: string): number {
-  if (!text) return 0;
-  return Math.ceil(text.length / 4);
-}
-
-// Resolve display label for a layer name (handles indexed names like compaction_summary_0)
-function getLayerLabel(name: string): string {
-  const labels: Record<string, string> = {
-    system_prompt: "System Prompt",
-    project_context: "Project Context",
-    chat_instructions: "Chat Instructions",
-    conversation: "Conversation",
-  };
-  if (labels[name]) return labels[name];
-  if (name.startsWith("compaction_summary")) return "Compaction Summary";
-  return name;
-}
-
-function getLayerColor(name: string): string {
-  const colors: Record<string, string> = {
-    system_prompt: "bg-blue-500/10 text-blue-600",
-    project_context: "bg-purple-500/10 text-purple-600",
-    chat_instructions: "bg-cyan-500/10 text-cyan-600",
-    conversation: "bg-green-500/10 text-green-600",
-  };
-  if (colors[name]) return colors[name];
-  if (name.startsWith("compaction_summary")) return "bg-orange-500/10 text-orange-600";
-  return "";
-}
-
-function LayerBadge({ name }: { name: string }) {
-  return (
-    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${getLayerColor(name)}`}>
-      {getLayerLabel(name)}
-    </Badge>
-  );
-}
-
 // ---------- Markdown Editor ----------
 
 interface MarkdownEditorProps {
@@ -86,12 +61,17 @@ interface MarkdownEditorProps {
   readOnly: boolean;
   searchQuery: string;
   onChange: (content: string) => void;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  gutterRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-function MarkdownEditor({ content, readOnly, searchQuery, onChange }: MarkdownEditorProps) {
+function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef: externalRef, gutterRef: externalGutterRef }: MarkdownEditorProps) {
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
   const [wordWrap, setWordWrap] = useState(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalRef = useRef<HTMLTextAreaElement | null>(null);
+  const internalGutterRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = externalRef ?? internalRef;
+  const gutterRef = externalGutterRef ?? internalGutterRef;
 
   const lines = useMemo(() => content.split("\n"), [content]);
   const lowerQuery = searchQuery.toLowerCase();
@@ -161,68 +141,96 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange }: MarkdownEd
       </div>
 
       {/* Editor body */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Line numbers + checkboxes gutter */}
-        <div className="shrink-0 border-r bg-muted/20 overflow-y-auto select-none" style={{ minWidth: readOnly ? 40 : 60 }}>
-          {lines.map((line, idx) => {
-            const isHighlighted = lowerQuery && line.toLowerCase().includes(lowerQuery);
-            return (
-              <div
-                key={idx}
-                className={`flex items-center gap-0.5 px-1 text-[10px] text-muted-foreground leading-[20px] ${
-                  isHighlighted ? "bg-yellow-500/20" : ""
-                }`}
-              >
-                {!readOnly && (
-                  <input
-                    type="checkbox"
-                    className="h-2.5 w-2.5 rounded-sm"
-                    checked={selectedLines.has(idx)}
-                    onChange={() => toggleLine(idx)}
-                  />
-                )}
-                <span className="tabular-nums text-right" style={{ minWidth: 24 }}>
-                  {idx + 1}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Content area */}
-        {readOnly ? (
-          <ScrollArea className="flex-1">
+      {readOnly ? (
+        /* Read-only: single scroll container for gutter + content sync */
+        <div className="flex-1 overflow-auto">
+          <div className="flex">
+            <div className="shrink-0 border-r bg-muted/20 select-none sticky left-0" style={{ minWidth: 40 }}>
+              {lines.map((line, idx) => {
+                const isHighlighted = lowerQuery && line.toLowerCase().includes(lowerQuery);
+                return (
+                  <div
+                    key={`line-${idx}`}
+                    className={`px-1 text-[10px] text-muted-foreground leading-[20px] ${
+                      isHighlighted ? "bg-yellow-500/20" : ""
+                    }`}
+                  >
+                    <span className="tabular-nums text-right block" style={{ minWidth: 24 }}>
+                      {idx + 1}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
             <pre
-              className={`p-2 text-xs font-mono leading-[20px] ${wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}
+              className={`flex-1 p-2 text-xs font-mono leading-[20px] ${wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}
             >
               {lines.map((line, idx) => {
                 const isHighlighted = lowerQuery && line.toLowerCase().includes(lowerQuery);
                 return (
-                  <div key={idx} className={isHighlighted ? "bg-yellow-500/20" : ""}>
+                  <div key={`content-${idx}`} className={isHighlighted ? "bg-yellow-500/20" : ""}>
                     {renderMarkdownLine(line)}
                   </div>
                 );
               })}
             </pre>
-          </ScrollArea>
-        ) : (
+          </div>
+        </div>
+      ) : (
+        /* Edit mode: separate gutter synced via onScroll */
+        <div className="flex flex-1 overflow-hidden">
+          <div
+            ref={(el) => { (gutterRef as React.MutableRefObject<HTMLDivElement | null>).current = el; }}
+            className="shrink-0 border-r bg-muted/20 overflow-y-hidden select-none"
+            style={{ minWidth: 60 }}
+          >
+            {lines.map((line, idx) => {
+              const isHighlighted = lowerQuery && line.toLowerCase().includes(lowerQuery);
+              return (
+                <div
+                  key={`line-${idx}`}
+                  className={`flex items-center gap-0.5 px-1 text-[10px] text-muted-foreground leading-[20px] ${
+                    isHighlighted ? "bg-yellow-500/20" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-2.5 w-2.5 rounded-sm"
+                    checked={selectedLines.has(idx)}
+                    onChange={() => toggleLine(idx)}
+                    aria-label={`Select line ${idx + 1}`}
+                  />
+                  <span className="tabular-nums text-right" style={{ minWidth: 24 }}>
+                    {idx + 1}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
           <textarea
-            ref={textareaRef}
+            ref={(el) => { (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
             value={content}
             onChange={handleTextChange}
+            onScroll={(e) => {
+              const gutter = gutterRef.current;
+              if (gutter) gutter.scrollTop = e.currentTarget.scrollTop;
+            }}
             className={`flex-1 p-2 text-xs font-mono leading-[20px] bg-transparent resize-none border-0 outline-none ${
               wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre overflow-x-auto"
             }`}
             spellCheck={false}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // Simple markdown line rendering for read-only view
 function renderMarkdownLine(line: string) {
+  if (line.startsWith("### ")) {
+    return <span className="font-semibold text-foreground text-xs">{line}</span>;
+  }
   if (line.startsWith("## ")) {
     return <span className="font-bold text-foreground">{line}</span>;
   }
@@ -282,13 +290,25 @@ export function ContextEditor({
     compacting,
     fetchBreakdown,
     triggerCompaction,
+    compactionStatus,
   } = useContextDashboard(chatId);
 
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedLayerIndex, setSelectedLayerIndex] = useState(0);
+  const [selectedLayerIndex, setSelectedLayerIndex] = useState<number | "combined">(0);
   const [editContent, setEditContent] = useState("");
   const [editingCompactionId, setEditingCompactionId] = useState<string | null>(null);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [showSnippets, setShowSnippets] = useState(false);
+  const [saveSnippetOpen, setSaveSnippetOpen] = useState(false);
+  const [snippetName, setSnippetName] = useState("");
+  const [snippetSelection, setSnippetSelection] = useState("");
+  const [snippetSaving, setSnippetSaving] = useState(false);
+  const [snippetError, setSnippetError] = useState<string | null>(null);
+  const [snippetRefreshKey, setSnippetRefreshKey] = useState(0);
+  const { createSnippet: createSnippetViaHook } = useSnippets();
   const compactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchContext(activeModel ?? undefined);
@@ -303,13 +323,19 @@ export function ContextEditor({
 
   // Sync edit content with selected layer
   useEffect(() => {
-    if (assembledContext && assembledContext.layers[selectedLayerIndex]) {
+    if (!assembledContext) return;
+    if (selectedLayerIndex === "combined") {
+      const combined = assembledContext.layers
+        .map((l) => `--- ${getLayerLabel(l.name)} (${l.tokens.toLocaleString()} tokens) ---\n${l.content}`)
+        .join("\n\n");
+      setEditContent(combined);
+    } else if (assembledContext.layers[selectedLayerIndex]) {
       setEditContent(assembledContext.layers[selectedLayerIndex].content);
     }
   }, [assembledContext, selectedLayerIndex]);
 
-  const selectedLayer = assembledContext?.layers[selectedLayerIndex];
-  const isEditable = selectedLayer?.name === "chat_instructions" || selectedLayer?.name.startsWith("compaction_summary");
+  const selectedLayer = selectedLayerIndex === "combined" ? null : assembledContext?.layers[selectedLayerIndex] ?? null;
+  const isEditable = selectedLayerIndex !== "combined" && !!selectedLayer && (selectedLayer.name === "chat_instructions" || selectedLayer.name.startsWith("compaction_summary"));
 
   const handleSave = async () => {
     if (!selectedLayer) return;
@@ -324,12 +350,34 @@ export function ContextEditor({
 
   const handleCompact = async () => {
     await triggerCompaction();
+    // CompactionProgress component handles status polling via useContextDashboard
+    // Refresh context after a short delay to pick up initial state
+    if (compactTimerRef.current) clearTimeout(compactTimerRef.current);
     compactTimerRef.current = setTimeout(() => {
-      fetchBreakdown();
       fetchContext(activeModel ?? undefined);
       compactTimerRef.current = null;
-    }, 2000);
+    }, 3000);
   };
+
+  const handleSaveAsSnippet = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    if (start === end) return;
+    const selected = editContent.slice(start, end);
+    setSnippetSelection(selected);
+    setSnippetName("");
+    setSaveSnippetOpen(true);
+  };
+
+  const handleInsertSnippet = useCallback(
+    (content: string) => {
+      if (selectedLayerIndex === "combined" || !isEditable) return;
+      setEditContent((prev) => prev + "\n" + content);
+    },
+    [selectedLayerIndex, isEditable]
+  );
 
   const openCompactionInEditor = (compaction: CompactionSummary) => {
     if (!assembledContext) return;
@@ -358,6 +406,15 @@ export function ContextEditor({
           )}
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => setShowFullscreen(true)}
+            title="Fullscreen editor"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -426,6 +483,7 @@ export function ContextEditor({
             breakdown={breakdown}
             loading={dashboardLoading}
             compacting={compacting}
+            compactionStatus={compactionStatus}
             messageCount={messageCount}
             chatInstructions={chatInstructions}
             systemPromptId={systemPromptId}
@@ -437,13 +495,18 @@ export function ContextEditor({
         <TabsContent value="editor" className="flex-1 overflow-hidden m-0">
           <div className="flex flex-col h-full">
             {/* Layer selector */}
-            <div className="border-b px-3 py-1.5">
+            <div className="border-b px-3 py-1.5 flex items-center gap-1">
               <select
-                value={selectedLayerIndex}
+                value={selectedLayerIndex === "combined" ? "combined" : selectedLayerIndex}
                 onChange={(e) => {
-                  const newIndex = Number(e.target.value);
+                  const val = e.target.value;
+                  if (val === "combined") {
+                    setSelectedLayerIndex("combined");
+                    setEditingCompactionId(null);
+                    return;
+                  }
+                  const newIndex = Number(val);
                   setSelectedLayerIndex(newIndex);
-                  // Resolve compaction ID if the selected layer is a compaction summary
                   const layer = assembledContext?.layers[newIndex];
                   if (layer && layer.name.startsWith("compaction_summary")) {
                     const match = compactions.find(c => c.summary === layer.content);
@@ -452,24 +515,45 @@ export function ContextEditor({
                     setEditingCompactionId(null);
                   }
                 }}
-                className="w-full h-7 text-xs rounded-md border bg-background px-2"
+                className="flex-1 h-7 text-xs rounded-md border bg-background px-2"
               >
+                <option value="combined">
+                  Combined View ({assembledContext?.total_tokens.toLocaleString() ?? 0} tokens)
+                </option>
                 {assembledContext?.layers.map((layer, idx) => (
                   <option key={idx} value={idx}>
                     {getLayerLabel(layer.name)} ({layer.tokens.toLocaleString()} tokens)
                   </option>
-                )) ?? <option>Loading...</option>}
+                )) ?? null}
               </select>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => setShowSnippets(!showSnippets)}
+                title="Toggle snippets"
+              >
+                <BookOpen className={`h-3.5 w-3.5 ${showSnippets ? "text-primary" : ""}`} />
+              </Button>
             </div>
+
+            {/* Snippet browser panel */}
+            {showSnippets && (
+              <div className="border-b h-40">
+                <SnippetBrowser onInsert={handleInsertSnippet} refreshKey={snippetRefreshKey} />
+              </div>
+            )}
 
             {/* Editor */}
             <div className="flex-1 overflow-hidden">
-              {selectedLayer ? (
+              {selectedLayer || selectedLayerIndex === "combined" ? (
                 <MarkdownEditor
                   content={editContent}
                   readOnly={!isEditable}
                   searchQuery={searchQuery}
                   onChange={setEditContent}
+                  textareaRef={isEditable ? textareaRef : undefined}
+                  gutterRef={gutterRef}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
@@ -482,12 +566,12 @@ export function ContextEditor({
               )}
             </div>
 
-            {/* Save button */}
+            {/* Save / Save-as-snippet buttons */}
             {isEditable && (
-              <div className="border-t px-3 py-2">
+              <div className="border-t px-3 py-2 flex gap-1">
                 <Button
                   size="sm"
-                  className="w-full h-7 text-xs"
+                  className="flex-1 h-7 text-xs"
                   onClick={handleSave}
                   disabled={saving}
                 >
@@ -497,6 +581,16 @@ export function ContextEditor({
                     <Save className="h-3 w-3 mr-1.5" />
                   )}
                   Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs px-2"
+                  onClick={handleSaveAsSnippet}
+                  title="Save selection as snippet"
+                >
+                  <Scissors className="h-3 w-3 mr-1" />
+                  Snippet
                 </Button>
               </div>
             )}
@@ -547,6 +641,87 @@ export function ContextEditor({
           </ScrollArea>
         </TabsContent>
       </Tabs>
+
+      {/* Fullscreen editor dialog */}
+      <ContextEditorFullscreen
+        chatId={chatId}
+        open={showFullscreen}
+        onOpenChange={setShowFullscreen}
+        activeModel={activeModel}
+        compactions={compactions}
+      />
+
+      {/* Save-as-Snippet dialog */}
+      <Dialog
+        open={saveSnippetOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSaveSnippetOpen(false);
+            setSnippetError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save as Snippet</DialogTitle>
+            <DialogDescription>
+              Save the selected text as a reusable context snippet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input
+              value={snippetName}
+              onChange={(e) => setSnippetName(e.target.value)}
+              placeholder="Snippet name"
+              className="h-8 text-xs"
+              maxLength={255}
+              autoFocus
+            />
+            <pre className="text-[10px] text-muted-foreground bg-muted/30 p-2 rounded max-h-24 overflow-y-auto whitespace-pre-wrap break-words font-mono">
+              {snippetSelection.slice(0, 300)}
+              {snippetSelection.length > 300 ? "..." : ""}
+            </pre>
+            {snippetError && (
+              <p className="text-[10px] text-destructive" role="alert">{snippetError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button size="sm" variant="ghost" className="h-7 text-xs">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              disabled={!snippetName.trim() || snippetSaving}
+              onClick={async () => {
+                setSnippetSaving(true);
+                setSnippetError(null);
+                try {
+                  const result = await createSnippetViaHook({
+                    name: snippetName.trim(),
+                    content: snippetSelection,
+                  });
+                  if (result) {
+                    setSaveSnippetOpen(false);
+                    setSnippetRefreshKey((k) => k + 1);
+                  } else {
+                    setSnippetError("Failed to save snippet. Please try again.");
+                  }
+                } catch {
+                  setSnippetError("Failed to save snippet. Please try again.");
+                } finally {
+                  setSnippetSaving(false);
+                }
+              }}
+            >
+              {snippetSaving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -647,6 +822,7 @@ interface OverviewTabProps {
   breakdown: TokenBreakdownResponse | null;
   loading: boolean;
   compacting: boolean;
+  compactionStatus?: import("@workstation/api").CompactionStatusResponse | null;
   messageCount?: number;
   chatInstructions?: string;
   systemPromptId?: string;
@@ -657,6 +833,7 @@ function OverviewTab({
   breakdown,
   loading,
   compacting,
+  compactionStatus,
   messageCount = 0,
   chatInstructions,
   systemPromptId,
@@ -788,7 +965,9 @@ function OverviewTab({
 
         <Separator />
 
-        {/* Compact Now */}
+        {/* Compaction progress + Compact Now */}
+        <CompactionProgress compacting={compacting} compactionStatus={compactionStatus ?? null} />
+
         <Button
           size="sm"
           variant="outline"

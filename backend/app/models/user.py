@@ -16,6 +16,7 @@ from app.models.base import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.audit_log import AuditLog
+    from app.models.context_snippet import ContextSnippet
     from app.models.event import Event
     from app.models.image_generation import ImageGeneration
     from app.models.project import Project
@@ -171,6 +172,12 @@ class User(UUIDMixin, TimestampMixin, Base):
 
     system_prompts: Mapped[List["SystemPrompt"]] = relationship(
         "SystemPrompt",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    context_snippets: Mapped[List["ContextSnippet"]] = relationship(
+        "ContextSnippet",
         back_populates="user",
         cascade="all, delete-orphan",
     )

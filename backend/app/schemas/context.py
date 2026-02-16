@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # -------------------------------------------------------------------------
@@ -488,3 +488,99 @@ class ChatInstructionsUpdateRequest(BaseModel):
     """Request body for editing per-chat instructions."""
 
     chat_instructions: str = Field(..., max_length=50000)
+
+
+# -------------------------------------------------------------------------
+# Context Snippets
+# -------------------------------------------------------------------------
+
+
+class ContextSnippetCreateRequest(BaseModel):
+    """Request body for creating a context snippet."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Snippet name")
+    content: str = Field(..., min_length=1, max_length=50000, description="Snippet content")
+    description: Optional[str] = Field(None, max_length=500)
+    tags: List[str] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Name must not be blank")
+        return v.strip()
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: List[str]) -> List[str]:
+        if len(v) > 20:
+            raise ValueError("At most 20 tags are allowed")
+        cleaned = [t.strip() for t in v if t.strip()]
+        for t in cleaned:
+            if len(t) > 100:
+                raise ValueError("Each tag must be at most 100 characters")
+        return cleaned
+
+
+class ContextSnippetUpdateRequest(BaseModel):
+    """Request body for updating a context snippet."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    content: Optional[str] = Field(None, min_length=1, max_length=50000)
+    description: Optional[str] = Field(None, max_length=500)
+    tags: Optional[List[str]] = None
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.strip():
+            raise ValueError("Name must not be blank")
+        return v.strip() if v is not None else v
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return v
+        if len(v) > 20:
+            raise ValueError("At most 20 tags are allowed")
+        cleaned = [t.strip() for t in v if t.strip()]
+        for t in cleaned:
+            if len(t) > 100:
+                raise ValueError("Each tag must be at most 100 characters")
+        return cleaned
+
+
+class ContextSnippetResponse(BaseModel):
+    """Response for a single context snippet."""
+
+    id: str
+    name: str
+    content: str
+    description: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ContextSnippetListResponse(BaseModel):
+    """List of context snippets belonging to a user."""
+
+    snippets: List[ContextSnippetResponse] = Field(default_factory=list)
+    count: int = 0
+
+
+# -------------------------------------------------------------------------
+# Compaction Status
+# -------------------------------------------------------------------------
+
+
+class CompactionStatusResponse(BaseModel):
+    """Status of a context compaction operation."""
+
+    id: str
+    status: str
+    original_message_count: int = 0
+    compacted_message_count: int = 0
+    summary: Optional[str] = None
+    created_at: Optional[str] = None

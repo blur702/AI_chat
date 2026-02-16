@@ -17,12 +17,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
   cn,
   useBreakpoint,
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, HelpCircle } from "lucide-react";
+import { useHelp } from "./help/help-provider";
 
 interface ChatSidebarProps {
   projectId: string | null;
@@ -34,6 +39,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const { openHelp } = useHelp();
   const { chats, loading, error, refresh, updateChat, deleteChat } = useChats(projectId);
   const { isMobile } = useBreakpoint();
   const sidebarRef = useRef<HTMLElement>(null);
@@ -157,6 +163,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       onDelete={(id, title) => setDeleteTarget({ id, title })}
       onTogglePin={handleTogglePin}
       onToggleArchive={handleToggleArchive}
+      onHelp={openHelp}
     />
   );
 
@@ -263,6 +270,7 @@ interface SidebarContentProps {
   onChatSelect?: () => void;
   onNewChat: () => void;
   onLogout: () => void;
+  onHelp: (sectionId?: string) => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string, title: string) => void;
   onTogglePin: (id: string, currentlyPinned: boolean) => void;
@@ -279,6 +287,7 @@ function SidebarContent({
   onChatSelect,
   onNewChat,
   onLogout,
+  onHelp,
   onRename,
   onDelete,
   onTogglePin,
@@ -303,14 +312,15 @@ function SidebarContent({
       </div>
 
       <ScrollArea className="flex-1 px-2">
+        {(error || operationError) && (
+          <div className="px-3 py-2 space-y-1">
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {operationError && <p className="text-xs text-destructive">{operationError}</p>}
+          </div>
+        )}
         {loading && chats.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (error || operationError) ? (
-          <div className="px-3 py-4 space-y-1">
-            {error && <p className="text-xs text-destructive">{error}</p>}
-            {operationError && <p className="text-xs text-destructive">{operationError}</p>}
           </div>
         ) : chats.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
@@ -375,41 +385,90 @@ function SidebarContent({
         )}
       </ScrollArea>
 
-      <div className="border-t p-2 mt-2 space-y-1">
-        <Link
-          href="/projects"
-          onClick={onChatSelect}
-          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <Code2 className="h-4 w-4" aria-hidden="true" />
-          <span className="text-sm">Projects</span>
-        </Link>
-        {projectId && (
-          <Link
-            href={`/workspace/${projectId}`}
-            onClick={onChatSelect}
-            className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <Monitor className="h-4 w-4" aria-hidden="true" />
-            <span className="text-sm">Open IDE</span>
-          </Link>
-        )}
-        <Link
-          href="/settings"
-          onClick={onChatSelect}
-          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <Settings className="h-4 w-4" aria-hidden="true" />
-          <span className="text-sm">Settings</span>
-        </Link>
-        <button
-          onClick={onLogout}
-          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          <span className="text-sm">Log out</span>
-        </button>
-      </div>
+      <TooltipProvider delayDuration={300}>
+        <div className="border-t p-2 mt-2 space-y-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/projects"
+                onClick={onChatSelect}
+                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Code2 className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Projects</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Manage your projects</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-projects"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+          {projectId && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/workspace/${projectId}`}
+                  onClick={onChatSelect}
+                  className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <Monitor className="h-4 w-4" aria-hidden="true" />
+                  <span className="text-sm">Open IDE</span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Open the workspace IDE with editor, terminal, and tools</p>
+                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-ide"); }}>Learn more</button>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/settings"
+                onClick={onChatSelect}
+                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Settings</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>User preferences and configuration</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-settings"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onHelp()}
+                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <HelpCircle className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Help</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Browse help topics and search for answers</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-help"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onLogout}
+                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Log out</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Sign out of your account</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-logout"); }}>Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     </>
   );
 }

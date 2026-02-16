@@ -81,6 +81,8 @@ import type {
   ImageGenerationRequest,
   ImageGenerationResponse,
   ImageGenerationListResponse,
+  ComfyUIStartResponse,
+  ImageGenerationOptionsResponse,
   KBChunk,
   KBSourceListResponse,
   KBSource,
@@ -111,6 +113,11 @@ import type {
   OllamaModelListResponse,
   ModelActionResponse,
   ModelPullProgress,
+  ContextSnippet,
+  ContextSnippetCreateRequest,
+  ContextSnippetUpdateRequest,
+  ContextSnippetListResponse,
+  CompactionStatusResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -662,6 +669,42 @@ export class WorkstationClient {
     });
   }
 
+  // Context Snippets
+  async listSnippets(): Promise<ContextSnippetListResponse> {
+    return this.request("/api/context/snippets");
+  }
+
+  async createSnippet(data: ContextSnippetCreateRequest): Promise<ContextSnippet> {
+    return this.request("/api/context/snippets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSnippet(snippetId: string): Promise<ContextSnippet> {
+    return this.request(`/api/context/snippets/${encodeURIComponent(snippetId)}`);
+  }
+
+  async updateSnippet(snippetId: string, data: ContextSnippetUpdateRequest): Promise<ContextSnippet> {
+    return this.request(`/api/context/snippets/${encodeURIComponent(snippetId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSnippet(snippetId: string): Promise<void> {
+    return this.request(`/api/context/snippets/${encodeURIComponent(snippetId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Compaction Status
+  async getCompactionStatus(chatId: string, compactionId: string): Promise<CompactionStatusResponse> {
+    return this.request(
+      `/api/context/conversations/${chatId}/compactions/${encodeURIComponent(compactionId)}/status`
+    );
+  }
+
   // Message Actions
   async updateMessage(chatId: string, messageId: string, data: MessageUpdateRequest): Promise<MessageUpdateResponse> {
     return this.request(`/api/context/conversations/${chatId}/messages/${messageId}`, {
@@ -960,13 +1003,26 @@ export class WorkstationClient {
       steps: data.steps,
       cfg_scale: data.cfg_scale,
       ...(data.input_image ? { input_image: data.input_image } : {}),
+      ...(data.mask_image ? { mask_image: data.mask_image } : {}),
+      ...(data.target_image ? { target_image: data.target_image } : {}),
       ...(data.denoise !== undefined ? { denoise: data.denoise } : {}),
+      ...(data.morph_strength !== undefined ? { morph_strength: data.morph_strength } : {}),
+      ...(data.seed !== undefined ? { seed: data.seed } : {}),
+      ...(data.sampler_name ? { sampler_name: data.sampler_name } : {}),
+      ...(data.scheduler ? { scheduler: data.scheduler } : {}),
+      ...(data.batch_size !== undefined ? { batch_size: data.batch_size } : {}),
+      ...(data.model_name ? { model_name: data.model_name } : {}),
+      ...(data.loras && data.loras.length > 0 ? { loras: data.loras } : {}),
     };
 
     return this.request("/api/image/generate", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  }
+
+  async getImageGenerationOptions(): Promise<ImageGenerationOptionsResponse> {
+    return this.request("/api/image/options");
   }
 
   async getGenerationStatus(jobId: string): Promise<ImageGenerationResponse> {
@@ -1003,6 +1059,12 @@ export class WorkstationClient {
   async deleteGeneration(jobId: string): Promise<void> {
     return this.request(`/api/image/generations/${encodeURIComponent(jobId)}`, {
       method: "DELETE",
+    });
+  }
+
+  async startComfyUI(): Promise<ComfyUIStartResponse> {
+    return this.request("/api/image/comfyui/start", {
+      method: "POST",
     });
   }
 
