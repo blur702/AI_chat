@@ -351,7 +351,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setPushing(true);
         setError(null);
         const result = await getClient().pushDrupalToProduction(projectId, opts);
-        await fetchSyncStatus();
+        await Promise.all([fetchSyncStatus(), fetchStagingStatus()]);
         return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Push failed");
@@ -360,7 +360,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setPushing(false);
       }
     },
-    [projectId, fetchSyncStatus]
+    [projectId, fetchSyncStatus, fetchStagingStatus]
   );
 
   const startStaging = useCallback(async () => {

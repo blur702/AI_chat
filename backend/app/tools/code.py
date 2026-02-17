@@ -1,5 +1,6 @@
 """Code editing tools for reading, writing, and patching files in sandbox containers."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
@@ -7,6 +8,7 @@ from uuid import UUID
 from app.kernel.tool_base import BaseTool
 
 logger = logging.getLogger(__name__)
+RUN_COMMAND_TIMEOUT_SECONDS = 120
 
 
 def _get_sandbox_manager():
@@ -66,7 +68,7 @@ class CodeReadTool(BaseTool):
         # Normalize and validate path stays within /workspace
         import posixpath
         path = posixpath.normpath(path)
-        if not path.startswith("/workspace/") and path != "/workspace":
+        if not path.startswith("/workspace/"):
             return {"error": f"Path escapes workspace: {parameters['path']}"}
 
         project_id = (context or {}).get("project_id")
@@ -136,7 +138,7 @@ class CodeWriteTool(BaseTool):
             path = f"/workspace/{path}"
         import posixpath
         path = posixpath.normpath(path)
-        if not path.startswith("/workspace/") and path != "/workspace":
+        if not path.startswith("/workspace/"):
             return {"error": f"Path escapes workspace: {parameters['path']}"}
 
         project_id = (context or {}).get("project_id")
@@ -209,7 +211,7 @@ class CodePatchTool(BaseTool):
             path = f"/workspace/{path}"
         import posixpath
         path = posixpath.normpath(path)
-        if not path.startswith("/workspace/") and path != "/workspace":
+        if not path.startswith("/workspace/"):
             return {"error": f"Path escapes workspace: {parameters['path']}"}
 
         project_id = (context or {}).get("project_id")
@@ -289,16 +291,36 @@ class RunCommandTool(BaseTool):
         container_id = await sm.get_or_create_container(UUID(str(project_id)))
 
         try:
-            exec_info = await sm.execute_command(container_id, command)
+            exec_info: Dict[str, Any] = {}
             stdout = ""
             stderr = ""
-            async for stream_type, chunk in sm.stream_exec_output(exec_info["exec_id"]):
-                if stream_type == "stdout":
-                    stdout += chunk
-                else:
-                    stderr += chunk
 
-            exit_code = await sm.get_exec_exit_code(exec_info["exec_id"])
+            async def _run() -> int:
+                nonlocal exec_info, stdout, stderr
+                exec_info = await sm.execute_command(container_id, command)
+                async for stream_type, chunk in sm.stream_exec_output(exec_info["exec_id"]):
+                    if stream_type == "stdout":
+                        stdout += chunk
+                    else:
+                        stderr += chunk
+                return await sm.get_exec_exit_code(exec_info["exec_id"])
+
+            try:
+                exit_code = await asyncio.wait_for(_run(), timeout=RUN_COMMAND_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
+                if exec_info.get("exec_id"):
+                    terminate = getattr(sm, "terminate_exec", None)
+                    if callable(terminate):
+                        try:
+                            await terminate(container_id, exec_info["exec_id"])
+                        except Exception:
+                            logger.warning("Failed to terminate timed-out exec %s", exec_info["exec_id"])
+                return {
+                    "command": command,
+                    "exit_code": -1,
+                    "stdout": stdout,
+                    "stderr": f"Command timed out after {RUN_COMMAND_TIMEOUT_SECONDS} seconds",
+                }
 
             # Truncate long outputs
             max_len = 8000

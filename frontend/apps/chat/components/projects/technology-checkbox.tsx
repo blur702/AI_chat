@@ -38,7 +38,11 @@ export function TechnologyCheckbox({
               : "border-muted hover:border-primary/30"
           }`}
         >
-          {selected && (
+          {disabled && conflictReason ? (
+            <div className="absolute top-2 right-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            </div>
+          ) : selected ? (
             <div className="absolute top-2 right-2">
               {autoSelected ? (
                 <Link2 className="h-3.5 w-3.5 text-primary/60" />
@@ -46,12 +50,7 @@ export function TechnologyCheckbox({
                 <Check className="h-3.5 w-3.5 text-primary" />
               )}
             </div>
-          )}
-          {disabled && conflictReason && (
-            <div className="absolute top-2 right-2">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            </div>
-          )}
+          ) : null}
           <div className="font-medium text-sm pr-5">{technology.name}</div>
           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
             {technology.description}

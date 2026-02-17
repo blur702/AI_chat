@@ -96,7 +96,7 @@ class EmbeddingService(BaseKernelService):
         truncated = text[:MAX_EMBED_CHARS] if len(text) > MAX_EMBED_CHARS else text
         resp = await self._client.post(
             "/api/embeddings",
-            json={"model": model, "prompt": truncated, "options": {"num_ctx": 8192}},
+            json={"model": model, "prompt": truncated},
         )
         resp.raise_for_status()
         data = resp.json()

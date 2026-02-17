@@ -45,6 +45,14 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const safePreviewUrl = isSafeUrl(url) ? url : "about:blank";
+  const getTargetOrigin = useCallback((): string | null => {
+    if (!url || !isSafeUrl(url)) return null;
+    try {
+      return new URL(url).origin;
+    } catch {
+      return null;
+    }
+  }, [url]);
 
   const handleOpenExternal = () => {
     if (isSafeUrl(url)) {
@@ -95,7 +103,8 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
     }
 
     try {
-      const targetOrigin = url ? new URL(url).origin : "*";
+      const targetOrigin = getTargetOrigin();
+      if (!targetOrigin) return;
       iframe.contentWindow.postMessage(
         { type: "enable-edit-mode" },
         targetOrigin
@@ -103,14 +112,15 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
     } catch {
       // Cross-origin — can't communicate
     }
-  }, [url]);
+  }, [getTargetOrigin, url]);
 
   const disableEditMode = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
 
     try {
-      const targetOrigin = url ? new URL(url).origin : "*";
+      const targetOrigin = getTargetOrigin();
+      if (!targetOrigin) return;
       iframe.contentWindow.postMessage(
         { type: "disable-edit-mode" },
         targetOrigin
@@ -119,7 +129,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
       // Cross-origin
     }
     setSelectedPath(null);
-  }, [url]);
+  }, [getTargetOrigin, url]);
 
   const handleModeToggle = useCallback(() => {
     if (mode === "view") {
@@ -136,7 +146,8 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
     try {
-      const targetOrigin = url ? new URL(url).origin : "*";
+      const targetOrigin = getTargetOrigin();
+      if (!targetOrigin) return;
       iframe.contentWindow.postMessage(
         { type: "builder-update", action, html },
         targetOrigin
@@ -144,7 +155,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, { defaultUrl?: string }
     } catch {
       // Cross-origin
     }
-  }, [url]);
+  }, [getTargetOrigin]);
 
   useImperativeHandle(ref, () => ({ postBuilderUpdate }), [postBuilderUpdate]);
 

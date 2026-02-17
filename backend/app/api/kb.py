@@ -490,12 +490,15 @@ async def bulk_upload(
         fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             os.write(fd, file_bytes)
-        except OSError:
+        except OSError as e:
             os.close(fd)
-            logger.error("Failed to write KB upload file %s", file_path)
-            if os.path.exists(file_path):
-                os.unlink(file_path)
-            continue
+            logger.error("Failed to write KB upload file %s: %s", file_path, e)
+            try:
+                if os.path.exists(file_path):
+                    os.unlink(file_path)
+            except OSError as unlink_err:
+                logger.error("Failed to remove partial KB upload file %s: %s", file_path, unlink_err)
+            raise
         else:
             os.close(fd)
 

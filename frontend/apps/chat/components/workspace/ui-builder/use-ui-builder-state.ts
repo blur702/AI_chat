@@ -26,11 +26,6 @@ export interface UseUIBuilderStateReturn {
   syncToPreview: () => void;
 }
 
-let nextId = 1;
-function generateId(): string {
-  return `node-${nextId++}`;
-}
-
 function findNode(nodes: BuilderNode[], id: string): BuilderNode | null {
   for (const node of nodes) {
     if (node.id === id) return node;
@@ -92,6 +87,13 @@ export function useUIBuilderState(
   const [tree, setTree] = useState<BuilderNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const componentMap = useRef(new Map<string, UIComponentInfo>());
+  const idRef = useRef(1);
+
+  const generateId = useCallback((): string => {
+    const id = `node-${idRef.current}`;
+    idRef.current += 1;
+    return id;
+  }, []);
 
   // Keep component map in sync
   useEffect(() => {
@@ -139,7 +141,7 @@ export function useUIBuilderState(
       setSelectedNodeId(id);
       return id;
     },
-    []
+    [generateId]
   );
 
   const removeNode = useCallback((nodeId: string) => {

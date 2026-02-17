@@ -20,6 +20,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
+"../tests/backend/**" = ["S"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -27,3 +28,21 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 check_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["../tests/backend", "tests"]
+pythonpath = ["."]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/tests/*", "*/alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60

@@ -226,7 +226,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
 
   const handleKBBuilderClick = useCallback(() => {
     if (isMobile) {
-      setMobileTab("kb-builder");
+      setMobileTab("kb");
     } else {
       setShowKBBuilder((prev) => !prev);
     }
@@ -490,7 +490,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               onClose={() => setMobileTab("editor")}
             />
           )}
-          {mobileTab === "kb-builder" && (
+          {mobileTab === "kb" && (
             <KBBuilderPanel
               projectId={projectId}
               onClose={() => setMobileTab("editor")}

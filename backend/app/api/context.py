@@ -259,17 +259,13 @@ async def tokenize_text(
 ) -> TokenizeResponse:
     """Tokenize text and return individual token spans with character offsets."""
     text = body.text
-    encoding = _token_counter._encoding
-
-    token_ids = encoding.encode(text)
+    text_bytes = text.encode("utf-8")
     spans: list[TokenSpan] = []
-    offset = 0
-
-    for tid in token_ids:
-        token_text = encoding.decode([tid])
-        char_len = len(token_text)
-        spans.append(TokenSpan(text=token_text, start=offset, end=offset + char_len))
-        offset += char_len
+    for _tid, token_bytes, byte_start, byte_end in _token_counter.tokenize_with_spans(text):
+        token_text = token_bytes.decode("utf-8", errors="replace")
+        char_start = len(text_bytes[:byte_start].decode("utf-8", errors="ignore"))
+        char_end = len(text_bytes[:byte_end].decode("utf-8", errors="ignore"))
+        spans.append(TokenSpan(text=token_text, start=char_start, end=char_end))
 
     total = len(spans)
     characters = len(text)

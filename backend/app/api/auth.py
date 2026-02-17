@@ -172,9 +172,9 @@ async def login(
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict:
+async def logout(request: Request, response: Response) -> dict:
     """Clear browser authentication cookie."""
-    clear_auth_cookie(response)
+    clear_auth_cookie(response, request)
     return {"message": "Logged out"}
 
 

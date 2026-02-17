@@ -649,11 +649,17 @@ async def download_docker_tar(
     user_id = payload.get("user_id") or payload.get("sub", "")
     await validate_project_access(project_id, user_id, db)
 
-    # Validate image_id format (Docker image IDs are hex strings or name:tag)
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_./:@-]*$', image_id):
+    # Validate image_id format strictly as sha256 digest
+    if not re.fullmatch(r"^sha256:[0-9a-f]+$", image_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image ID format",
+        )
+
+    if not await sandbox.is_exported_image_owned_by_project(project_id, image_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found for this project",
         )
 
     try:

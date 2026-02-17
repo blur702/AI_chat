@@ -390,10 +390,11 @@ async def run_drush_command(
     except ValueError:
         args = body.command.split()
 
-    # Block dangerous commands
-    dangerous = {"sql-drop", "site-install", "si"}
-    if args and args[0] in dangerous:
-        raise HTTPException(status_code=400, detail=f"Command '{args[0]}' is blocked for safety")
+    allowed_commands = {"cr", "status", "pm:list"}
+    if not args:
+        raise HTTPException(status_code=400, detail="Command is required")
+    if args[0] not in allowed_commands:
+        raise HTTPException(status_code=400, detail=f"Command '{args[0]}' is not allowed")
 
     exit_code, stdout, stderr = await _run_drush(args)
     return DrushResponse(
@@ -615,7 +616,7 @@ def _rgb_to_hex(r: int, g: int, b: int) -> str:
 
 def _srgb_to_linear(c: float) -> float:
     """Convert sRGB component (0-1) to linear light."""
-    if c <= 0.03928:
+    if c <= 0.04045:
         return c / 12.92
     return ((c + 0.055) / 1.055) ** 2.4
 

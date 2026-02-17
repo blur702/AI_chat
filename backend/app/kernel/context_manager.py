@@ -785,11 +785,14 @@ class ContextManager(BaseKernelService):
         cache_key = f"{self.ACTIVE_PLAN_PREFIX}{chat_id}"
 
         if self._redis:
-            cached = await self._redis.get(cache_key)
-            if cached is not None:
-                if cached == "null":
-                    return None
-                return json.loads(cached)
+            try:
+                cached = await self._redis.get(cache_key)
+                if cached is not None:
+                    if cached == "null":
+                        return None
+                    return json.loads(cached)
+            except Exception as exc:
+                logger.error("Redis get failed for active plan cache key %s: %s", cache_key, exc)
 
         from app.models.planning_session import PlanningSession
         from app.models.plan_phase import PlanPhase
@@ -810,9 +813,12 @@ class ContextManager(BaseKernelService):
             if not plan_session:
                 # Cache negative result to avoid repeated DB hits
                 if self._redis:
-                    await self._redis.set(
-                        cache_key, "null", ex=300  # 5 min TTL for negative cache
-                    )
+                    try:
+                        await self._redis.set(
+                            cache_key, "null", ex=300  # 5 min TTL for negative cache
+                        )
+                    except Exception as exc:
+                        logger.error("Redis negative-cache set failed for key %s: %s", cache_key, exc)
                 return None
 
             current_phase = None
@@ -837,9 +843,17 @@ class ContextManager(BaseKernelService):
                 }
 
         if self._redis:
-            await self._redis.set(
-                cache_key, json.dumps(plan_data), ex=self.ACTIVE_PLAN_TTL
-            )
+            try:
+                await self._redis.set(
+                    cache_key, json.dumps(plan_data), ex=self.ACTIVE_PLAN_TTL
+                )
+            except Exception as exc:
+                logger.error(
+                    "Redis set failed for active plan cache key %s ttl=%s: %s",
+                    cache_key,
+                    self.ACTIVE_PLAN_TTL,
+                    exc,
+                )
 
         return plan_data
 

@@ -39,11 +39,15 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if ((e.target as HTMLElement)?.isContentEditable) return;
       e.preventDefault();
-      setIsOpen((prev) => !prev);
+      if (isOpen) {
+        closeHelp();
+      } else {
+        openHelp();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [isOpen, openHelp, closeHelp]);
 
   return (
     <HelpContext.Provider value={{ isOpen, activeSection, openHelp, closeHelp }}>

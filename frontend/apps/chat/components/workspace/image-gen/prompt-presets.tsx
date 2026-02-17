@@ -105,10 +105,14 @@ export function PromptPresets({
                     <span className="truncate flex-1">{preset.name}</span>
                     <button
                       className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 ml-2 text-xs"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         if (window.confirm(`Delete preset "${preset.name}"?`)) {
-                          deletePreset(preset.id);
+                          try {
+                            await deletePreset(preset.id);
+                          } catch (err) {
+                            console.error("Failed to delete preset", err);
+                          }
                         }
                       }}
                     >

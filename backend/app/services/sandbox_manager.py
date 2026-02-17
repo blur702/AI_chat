@@ -52,6 +52,8 @@ class SandboxManager(BaseKernelService):
         self._creation_locks: Dict[str, asyncio.Lock] = {}
         # Track which projects have had their template applied
         self._applied_templates: Dict[str, str] = {}
+        # image_id -> project_id ownership map for exported Docker images
+        self._exported_images: Dict[str, str] = {}
         # Circuit breaker: project_id -> (failure_timestamp, error_message)
         self._creation_failures: Dict[str, Tuple[float, str]] = {}
 
@@ -89,6 +91,7 @@ class SandboxManager(BaseKernelService):
         self._sidecars.clear()
         self._creation_locks.clear()
         self._applied_templates.clear()
+        self._exported_images.clear()
         self._creation_failures.clear()
         self._running = False
         logger.info("SandboxManager stopped")
@@ -395,6 +398,28 @@ class SandboxManager(BaseKernelService):
             self._client.api.exec_inspect, exec_id
         )
         return info.get("ExitCode", -1)
+
+    async def terminate_exec(self, container_id: str, exec_id: str) -> bool:
+        """Best-effort termination of a running exec process."""
+        try:
+            inspect = await asyncio.to_thread(self._client.api.exec_inspect, exec_id)
+            pid = inspect.get("Pid")
+            if not pid:
+                return False
+            kill_exec = await asyncio.to_thread(
+                self._client.api.exec_create,
+                container_id,
+                ["sh", "-c", f"kill -TERM {int(pid)} || true"],
+                stdout=False,
+                stderr=False,
+                tty=False,
+                workdir="/workspace",
+            )
+            await asyncio.to_thread(self._client.api.exec_start, kill_exec["Id"], stream=False, demux=False)
+            return True
+        except Exception:
+            logger.exception("Failed to terminate exec %s in container %s", exec_id, container_id[:12])
+            return False
 
     async def stop_container(self, project_id: UUID) -> bool:
         """Stop and remove a container and its sidecars for a project."""
@@ -1113,10 +1138,12 @@ class SandboxManager(BaseKernelService):
             "image_id": image_id,
             "image_name": f"{repo}:{tag}",
         }
+        if image_id:
+            self._exported_images[image_id] = pid
 
         # Generate docker-compose.yml from container metadata
         if include_compose:
-            compose = self._generate_compose_file(
+            compose = await self._generate_compose_file(
                 pid, image_name, tag, container_id, template_id
             )
             response["compose_file"] = compose
@@ -1127,7 +1154,7 @@ class SandboxManager(BaseKernelService):
 
         return response
 
-    def _generate_compose_file(
+    async def _generate_compose_file(
         self,
         project_id: str,
         image_name: str,
@@ -1140,7 +1167,7 @@ class SandboxManager(BaseKernelService):
 
         # Get container inspect data
         try:
-            container = self._client.containers.get(container_id)
+            container = await asyncio.to_thread(self._client.containers.get, container_id)
             config = container.attrs.get("Config", {})
             labels = container.labels or {}
         except Exception:
@@ -1226,10 +1253,33 @@ class SandboxManager(BaseKernelService):
         except Exception as e:
             raise RuntimeError(f"Image not found: {e}")
 
-        # Get image as tar generator
-        tar_stream = await asyncio.to_thread(image.save, named=True)
-        for chunk in tar_stream:
-            yield chunk
+        queue: asyncio.Queue = asyncio.Queue()
+        sentinel = object()
+        loop = asyncio.get_running_loop()
+
+        def _reader() -> None:
+            try:
+                tar_stream = image.save(named=True)
+                for chunk in tar_stream:
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+
+        loop.run_in_executor(None, _reader)
+
+        while True:
+            item = await queue.get()
+            if item is sentinel:
+                break
+            if isinstance(item, Exception):
+                raise RuntimeError(f"Docker image export failed: {item}")
+            yield item
+
+    async def is_exported_image_owned_by_project(self, project_id: UUID, image_id: str) -> bool:
+        """Return True if an image was exported by the given project."""
+        return self._exported_images.get(image_id) == str(project_id)
 
     # -- Internal helpers -----------------------------------------------------
 

@@ -340,8 +340,7 @@ export function GenerationForm({
     };
 
     void setupMaskEditor();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.workflow_type, previews.input_image]);
+  }, [form.workflow_type, previews.input_image, previews.mask_image]);
 
   useEffect(() => {
     setForm((prev) => {
@@ -679,22 +678,25 @@ export function GenerationForm({
           </div>
         )}
 
-        <Tabs
-          value={form.workflow_type}
-          onValueChange={(value) =>
-            setForm((prev) => ({
-              ...prev,
-              workflow_type: value as WorkflowType,
-            }))
-          }
-        >
-          <TabsList className="grid grid-cols-4 w-full">
+        <div>
+          <label className="text-xs font-medium flex items-center gap-1 mb-1.5">Workflow <FieldHelp slug="imagegen-workflow" tip="Generation mode: text-to-image, img2img, inpaint, face-morph" /></label>
+          <Tabs
+            value={form.workflow_type}
+            onValueChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                workflow_type: value as WorkflowType,
+              }))
+            }
+          >
+            <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="text-to-image">Text</TabsTrigger>
             <TabsTrigger value="image-to-image">Img2Img</TabsTrigger>
             <TabsTrigger value="inpainting">Inpaint</TabsTrigger>
             <TabsTrigger value="face-morph">Face Morph</TabsTrigger>
           </TabsList>
         </Tabs>
+        </div>
 
         <PromptPresets
           onSelect={handlePresetSelect}
@@ -785,7 +787,7 @@ export function GenerationForm({
 
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <label className="text-xs font-medium">Model</label>
+            <label className="text-xs font-medium flex items-center gap-1">Model <FieldHelp slug="imagegen-model" tip="Checkpoint model used for generation" /></label>
             {models.length > 0 ? (
               <select
                 value={form.model_name}
@@ -903,7 +905,7 @@ export function GenerationForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium">Sampler</label>
+            <label className="text-xs font-medium flex items-center gap-1">Sampler <FieldHelp slug="imagegen-sampler" tip="Sampling algorithm (euler, dpmpp_2m, etc.)" /></label>
             <select
               value={form.sampler_name}
               onChange={(event) => setForm((prev) => ({ ...prev, sampler_name: event.target.value }))}
@@ -915,7 +917,7 @@ export function GenerationForm({
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium">Scheduler</label>
+            <label className="text-xs font-medium flex items-center gap-1">Scheduler <FieldHelp slug="imagegen-scheduler" tip="Noise schedule (normal, karras, exponential)" /></label>
             <select
               value={form.scheduler}
               onChange={(event) => setForm((prev) => ({ ...prev, scheduler: event.target.value }))}
@@ -930,7 +932,7 @@ export function GenerationForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium">Batch Size</label>
+            <label className="text-xs font-medium flex items-center gap-1">Batch Size <FieldHelp slug="imagegen-batch-size" tip="Generate multiple images at once" /></label>
             <Input
               type="number"
               min={1}
@@ -942,7 +944,7 @@ export function GenerationForm({
             {fieldError("batch_size")}
           </div>
           <div>
-            <label className="text-xs font-medium">Seed (optional)</label>
+            <label className="text-xs font-medium flex items-center gap-1">Seed <FieldHelp slug="imagegen-seed" tip="Fixed seed for reproducibility. Empty = random." /></label>
             <Input
               value={form.seed}
               onChange={(event) => setForm((prev) => ({ ...prev, seed: event.target.value.replace(/[^0-9]/g, "") }))}
@@ -954,7 +956,7 @@ export function GenerationForm({
 
         <div className="space-y-2 rounded-md border p-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium">LoRA Stack</p>
+            <p className="text-xs font-medium flex items-center gap-1">LoRA Stack <FieldHelp slug="imagegen-lora" tip="Add style/subject LoRA models" /></p>
             <Button type="button" size="sm" variant="ghost" className="h-6 text-[11px]" onClick={addLora}>
               <Plus className="h-3.5 w-3.5 mr-1" />
               Add LoRA
@@ -1016,7 +1018,7 @@ export function GenerationForm({
             className="flex w-full items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
             onClick={() => setShowReferenceImage((v) => !v)}
           >
-            <span>Reference Image (Style Transfer)</span>
+            <span className="flex items-center gap-1">Reference Image (Style Transfer) <FieldHelp slug="imagegen-reference-image" tip="IPAdapter style transfer from reference" /></span>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReferenceImage ? "rotate-180" : ""}`} />
           </button>
           {showReferenceImage && (
@@ -1084,7 +1086,7 @@ export function GenerationForm({
             className="flex w-full items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
             onClick={() => setShowControlNet((v) => !v)}
           >
-            <span>ControlNet (Structure Guide)</span>
+            <span className="flex items-center gap-1">ControlNet (Structure Guide) <FieldHelp slug="imagegen-controlnet" tip="Guide output with structure images" /></span>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showControlNet ? "rotate-180" : ""}`} />
           </button>
           {showControlNet && (
@@ -1149,7 +1151,7 @@ export function GenerationForm({
 
             <div>
               <label className="text-xs font-medium flex items-center justify-between gap-2">
-                <span>Denoise</span>
+                <span className="flex items-center gap-1">Denoise <FieldHelp slug="imagegen-denoise" tip="How much to change the input image (0=none, 1=full)" /></span>
                 <span>{form.denoise.toFixed(2)}</span>
               </label>
               <input
@@ -1256,7 +1258,7 @@ export function GenerationForm({
                 {renderUploadField("target_image", "Target Face/Image", "Image to morph toward.")}
                 <div>
                   <label className="text-xs font-medium flex items-center justify-between gap-2">
-                    <span>Morph Strength</span>
+                    <span className="flex items-center gap-1">Morph Strength <FieldHelp slug="imagegen-morph-strength" tip="Blending intensity between input and target" /></span>
                     <span>{form.morph_strength.toFixed(2)}</span>
                   </label>
                   <input

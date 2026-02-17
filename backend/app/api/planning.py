@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user_payload
+from app.api.context_deps import validate_project_access
 from app.database import get_db_session as get_session
 from app.models.plan_phase import PlanPhase
 from app.models.plan_task import PlanTask
@@ -196,6 +197,7 @@ async def create_session(
     """Create a new planning session."""
     user_id = _parse_uuid(payload["user_id"], "user_id")
     project_id = _parse_uuid(data.project_id, "project_id")
+    await validate_project_access(project_id, str(user_id), db)
     chat_id = _parse_uuid(data.chat_id, "chat_id") if data.chat_id else None
 
     session = PlanningSession(
@@ -221,10 +223,12 @@ async def list_sessions(
     project_id: str,
     status_filter: Optional[str] = None,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> list[PlanningSessionResponse]:
     """List planning sessions for a project."""
     pid = _parse_uuid(project_id, "project_id")
+    user_id = _parse_uuid(payload["user_id"], "user_id")
+    await validate_project_access(pid, str(user_id), db)
     query = (
         select(PlanningSession)
         .where(PlanningSession.project_id == pid)
@@ -242,7 +246,7 @@ async def list_sessions(
 async def get_session_detail(
     session_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanningSessionDetailResponse:
     """Get a planning session with all phases and tasks."""
     sid = _parse_uuid(session_id, "session_id")
@@ -256,6 +260,8 @@ async def get_session_detail(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    user_id = _parse_uuid(payload["user_id"], "user_id")
+    await validate_project_access(session.project_id, str(user_id), db)
     return _session_to_detail(session)
 
 
@@ -279,6 +285,7 @@ async def update_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
     _check_ownership(session, user_id)
 
     update_data = data.model_dump(exclude_unset=True)
@@ -306,6 +313,7 @@ async def archive_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
     _check_ownership(session, user_id)
     session.status = "archived"
     await db.commit()
@@ -336,6 +344,7 @@ async def start_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
     _check_ownership(session, user_id)
     if session.status not in ("draft", "active"):
         raise HTTPException(status_code=400, detail=f"Cannot start session in '{session.status}' status")
@@ -691,7 +700,7 @@ async def execute_task(
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    if task.status not in ("ready", "pending"):
+    if task.status != "ready":
         raise HTTPException(status_code=400, detail=f"Task is '{task.status}', not ready for execution")
 
     # Get project_id from the phase's session
@@ -770,15 +779,18 @@ async def export_to_ui_builder(
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
 
-    import uuid as uuid_mod
-
     ui_tree = []
     for phase in (session.phases or []):
         for task in (phase.tasks or []):
             if task.task_type in ("ui_component", "ui_layout", "ui_style"):
                 data = task.task_data or {}
+                node_id = (
+                    data.get("id")
+                    or str(task.id)
+                    or data.get("component_id")
+                )
                 node = {
-                    "id": str(uuid_mod.uuid4()),
+                    "id": str(node_id),
                     "componentId": data.get("component_id", ""),
                     "componentName": data.get("name", task.title),
                     "props": data.get("props", {}),

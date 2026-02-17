@@ -117,9 +117,20 @@ def type_text(text: str, interval: float = 0.02) -> Dict[str, Any]:
         _pyautogui.typewrite(text, interval=interval)
     else:
         _ensure_imports(("pyperclip",))
-        _pyperclip.copy(text)
-        paste_modifier = "command" if sys.platform == "darwin" else "ctrl"
-        _pyautogui.hotkey(paste_modifier, "v")
+        old_clipboard = None
+        clipboard_loaded = False
+        try:
+            old_clipboard = _pyperclip.paste()
+            clipboard_loaded = True
+            _pyperclip.copy(text)
+            paste_modifier = "command" if sys.platform == "darwin" else "ctrl"
+            _pyautogui.hotkey(paste_modifier, "v")
+        finally:
+            if clipboard_loaded:
+                try:
+                    _pyperclip.copy(old_clipboard)
+                except Exception:
+                    logger.warning("Failed to restore clipboard content after desktop type_text")
     return {"action": "type", "length": len(text)}
 
 

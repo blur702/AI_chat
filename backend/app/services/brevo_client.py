@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -13,6 +14,7 @@ from app.kernel.base import BaseKernelService
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.brevo.com/v3"
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _extract_api_key_from_mcp_token(token: str) -> str:
@@ -183,7 +185,13 @@ class BrevoClient(BaseKernelService):
         else:
             # Use default sender from account
             account = await self.get_account()
-            email = account.get("email", "noreply@workstation.local")
+            email = str(account.get("email", "")).strip()
+            fallback = os.getenv("MAIL_FROM", "").strip()
+            if not _EMAIL_RE.fullmatch(email):
+                if _EMAIL_RE.fullmatch(fallback):
+                    email = fallback
+                else:
+                    raise ValueError("No valid sender email found (account email and MAIL_FROM are invalid)")
             company = account.get("companyName", "AI Workstation")
             payload["sender"] = {"email": email, "name": company}
 

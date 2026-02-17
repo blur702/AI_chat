@@ -220,6 +220,14 @@ class DrupalMCPService(BaseKernelService):
         if not re.match(r"^[a-z][a-z0-9_]*$", bundle):
             raise ValueError(f"Invalid bundle identifier: {bundle}")
 
+    @staticmethod
+    def _validate_uuid(uuid: str) -> None:
+        import uuid as uuid_mod
+        try:
+            uuid_mod.UUID(str(uuid))
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid UUID value: {uuid}") from exc
+
     async def list_nodes(
         self,
         site_url: str,
@@ -273,6 +281,8 @@ class DrupalMCPService(BaseKernelService):
         uuid: str,
     ) -> Optional[Dict[str, Any]]:
         """Fetch a single node by UUID."""
+        self._validate_bundle(bundle)
+        self._validate_uuid(uuid)
         base = self._base_url(site_url)
         headers = self._headers(username, password)
         url = f"{base}/jsonapi/node/{bundle}/{uuid}"
@@ -313,6 +323,7 @@ class DrupalMCPService(BaseKernelService):
         node_status: bool = True,
     ) -> Dict[str, Any]:
         """Create a new node via JSON:API."""
+        self._validate_bundle(bundle)
         base = self._base_url(site_url)
         headers = self._write_headers(username, password)
         url = f"{base}/jsonapi/node/{bundle}"
@@ -376,6 +387,8 @@ class DrupalMCPService(BaseKernelService):
         node_status: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Update an existing node via JSON:API PATCH."""
+        self._validate_bundle(bundle)
+        self._validate_uuid(uuid)
         base = self._base_url(site_url)
         headers = self._write_headers(username, password)
         url = f"{base}/jsonapi/node/{bundle}/{uuid}"

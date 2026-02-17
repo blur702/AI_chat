@@ -17,6 +17,7 @@ interface StepDocumentsProps {
 
 const ACCEPTED = ".pdf,.txt,.md,.html,.htm,.csv,.jpg,.jpeg,.png";
 const ACCEPTED_EXTENSIONS = new Set(ACCEPTED.split(","));
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 function fileIcon(type: string) {
   switch (type) {
@@ -40,8 +41,12 @@ export function StepDocuments({ files, uploading, onAddFiles, onRemoveFile, onNe
     e.preventDefault();
     const droppedFiles = Array.from(e.dataTransfer.files).filter((f) => {
       const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
-      return ACCEPTED_EXTENSIONS.has(ext);
+      return ACCEPTED_EXTENSIONS.has(ext) && f.size <= MAX_FILE_SIZE;
     });
+    const dropped = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length !== dropped.length) {
+      console.error("Some files were skipped (unsupported type or larger than 50MB).");
+    }
     if (droppedFiles.length > 0) {
       void onAddFiles(droppedFiles).catch((err) => {
         console.error("Failed to upload dropped files:", err);
@@ -50,7 +55,14 @@ export function StepDocuments({ files, uploading, onAddFiles, onRemoveFile, onNe
   }, [onAddFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files ?? []);
+    const allSelected = Array.from(e.target.files ?? []);
+    const selected = allSelected.filter((f) => {
+      const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
+      return ACCEPTED_EXTENSIONS.has(ext) && f.size <= MAX_FILE_SIZE;
+    });
+    if (selected.length !== allSelected.length) {
+      console.error("Some files were skipped (unsupported type or larger than 50MB).");
+    }
     if (selected.length > 0) {
       void onAddFiles(selected).catch((err) => {
         console.error("Failed to upload selected files:", err);

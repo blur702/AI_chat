@@ -34,7 +34,7 @@ class KBSource(UUIDMixin, TimestampMixin, Base):
 
     project_id: Mapped[Optional[UUID]] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
+        ForeignKey("projects.id", ondelete="SET NULL"),
         nullable=True,
     )
 

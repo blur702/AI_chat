@@ -30,8 +30,9 @@ function TreeNode({ node, depth, activePath, onSelect, onDelete }: TreeNodeProps
 
   return (
     <div>
-      <button
+      <div
         role="treeitem"
+        tabIndex={0}
         aria-expanded={isDir ? expanded : undefined}
         aria-selected={isActive}
         aria-label={`${node.name}${isDir ? " folder" : ""}`}
@@ -44,6 +45,15 @@ function TreeNode({ node, depth, activePath, onSelect, onDelete }: TreeNodeProps
         onClick={() => {
           if (isDir) {
             setExpanded(!expanded);
+          } else {
+            onSelect(node.path);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          if (e.key === " ") e.preventDefault();
+          if (isDir) {
+            setExpanded((prev) => !prev);
           } else {
             onSelect(node.path);
           }
@@ -82,7 +92,7 @@ function TreeNode({ node, depth, activePath, onSelect, onDelete }: TreeNodeProps
             <Trash2 className="h-3 w-3 text-destructive" />
           </button>
         )}
-      </button>
+      </div>
       {isDir && expanded && node.children?.map((child) => (
         <TreeNode
           key={child.path}
@@ -143,6 +153,7 @@ export function DrupalFileExplorer({
             className="h-6 w-6"
             onClick={() => setShowNewInput("file")}
             title="New File"
+            aria-label="New File"
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>
@@ -152,6 +163,7 @@ export function DrupalFileExplorer({
             className="h-6 w-6"
             onClick={() => setShowNewInput("dir")}
             title="New Folder"
+            aria-label="New Folder"
           >
             <FolderPlus className="h-3.5 w-3.5" />
           </Button>
@@ -161,6 +173,7 @@ export function DrupalFileExplorer({
             className="h-6 w-6"
             onClick={onRefresh}
             title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </Button>

@@ -6,10 +6,20 @@ import { Database, RefreshCw, ExternalLink } from "lucide-react";
 
 const DEFAULT_URL = "http://localhost:8082";
 
+function isValidUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function DrupalDbPanel() {
   const [url, setUrl] = useState(DEFAULT_URL);
   const [iframeSrc, setIframeSrc] = useState(DEFAULT_URL);
   const [key, setKey] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-full" role="region" aria-label="Database Management (phpMyAdmin)">
@@ -21,7 +31,15 @@ export function DrupalDbPanel() {
           onChange={(e) => setUrl(e.target.value)}
           className="h-7 text-xs font-mono flex-1"
           onKeyDown={(e) => {
-            if (e.key === "Enter") { setIframeSrc(url); setKey((k) => k + 1); }
+            if (e.key === "Enter") {
+              if (!isValidUrl(url)) {
+                setError("Please enter a valid http(s) URL.");
+                return;
+              }
+              setError(null);
+              setIframeSrc(url);
+              setKey((k) => k + 1);
+            }
           }}
           aria-label="phpMyAdmin URL"
         />
@@ -29,7 +47,15 @@ export function DrupalDbPanel() {
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => { setIframeSrc(url); setKey((k) => k + 1); }}
+          onClick={() => {
+            if (!isValidUrl(url)) {
+              setError("Please enter a valid http(s) URL.");
+              return;
+            }
+            setError(null);
+            setIframeSrc(url);
+            setKey((k) => k + 1);
+          }}
           title="Refresh"
           aria-label="Refresh phpMyAdmin"
         >
@@ -46,6 +72,11 @@ export function DrupalDbPanel() {
           <ExternalLink className="h-3.5 w-3.5" />
         </Button>
       </div>
+      {error && (
+        <div className="px-3 py-1.5 text-xs text-destructive border-b border-destructive/30 bg-destructive/10">
+          {error}
+        </div>
+      )}
 
       {/* iframe */}
       <div className="flex-1 relative">

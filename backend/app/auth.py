@@ -67,10 +67,10 @@ def set_auth_cookie(response: Response, token: str, request: Request) -> None:
     )
 
 
-def clear_auth_cookie(response: Response) -> None:
+def clear_auth_cookie(response: Response, request: Request) -> None:
     """Clear auth cookie."""
     environment = os.getenv("ENVIRONMENT", "development").lower()
-    is_secure = environment == "production"
+    is_secure = environment == "production" or request.url.scheme == "https"
     response.delete_cookie(
         key=TOKEN_COOKIE_NAME,
         path="/",

@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import shlex
 import tempfile
 from datetime import datetime, timezone
 from typing import List
@@ -337,9 +338,10 @@ async def update_content(
         )
         return DrupalNode(**node)
     except Exception as e:
+        logger.exception("Failed to update node for project %s: %s", project_id, e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to update node: {str(e)}",
+            detail="Failed to update node",
         )
 
 
@@ -483,6 +485,23 @@ _VPS_DB_USER = os.environ.get("VPS_DB_USER", "drupal")
 _VPS_DB_PASS = os.environ.get("VPS_DB_PASS", "")  # Must be set in environment
 
 
+def _validate_mysql_identifier(value: str, env_name: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_]+", value or ""):
+        raise RuntimeError(f"{env_name} contains invalid characters")
+    return value
+
+
+def _validate_vps_db_config() -> None:
+    if not _VPS_DB_PASS:
+        raise RuntimeError("VPS_DB_PASS environment variable is required")
+    _validate_mysql_identifier(_VPS_DB_USER, "VPS_DB_USER")
+    _validate_mysql_identifier(_VPS_DB_NAME, "VPS_DB_NAME")
+
+
+def _build_mysql_defaults_file(user: str, password: str) -> str:
+    return f"[client]\nuser={user}\npassword={password}\n"
+
+
 @router.get("/{project_id}/staging-status", response_model=StagingStatusSchema)
 async def staging_status(
     project_id: UUID,
@@ -549,13 +568,20 @@ async def clone_production(
 
         # 1. Clone database
         if body.include_db:
+            _validate_vps_db_config()
             logger.info("Cloning database from production for project %s", project_id)
             with tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False) as tmp:
                 db_dump_path = tmp.name
+            with tempfile.NamedTemporaryFile("w", suffix=".cnf", delete=False) as tmp:
+                local_opt_path = tmp.name
+                tmp.write(_build_mysql_defaults_file(_VPS_DB_USER, _VPS_DB_PASS))
+            remote_opt_path = f"/tmp/workstation-db-{project_id.hex}.cnf"
 
             try:
+                await ssh.upload_file(local_opt_path, remote_opt_path)
+                await ssh.execute(f"chmod 600 {shlex.quote(remote_opt_path)}", timeout=10)
                 dump_cmd = (
-                    f"MYSQL_PWD='{_VPS_DB_PASS}' mysqldump -u {_VPS_DB_USER} "
+                    f"mysqldump --defaults-extra-file={shlex.quote(remote_opt_path)} "
                     f"--single-transaction --quick {_VPS_DB_NAME} | gzip"
                 )
                 await ssh.download_stream(dump_cmd, db_dump_path)
@@ -570,6 +596,14 @@ async def clone_production(
                 details["database"] = f"error: {e}"
                 logger.error("DB clone failed for project %s: %s", project_id, e)
             finally:
+                try:
+                    await ssh.execute(f"rm -f {shlex.quote(remote_opt_path)}", timeout=10)
+                except Exception:
+                    pass
+                try:
+                    os.unlink(local_opt_path)
+                except OSError:
+                    pass
                 try:
                     os.unlink(db_dump_path)
                 except OSError:
@@ -654,7 +688,7 @@ async def clone_production(
         logger.error("Clone operation failed for project %s: %s", project_id, e, exc_info=True)
         return CloneResponse(
             success=False,
-            message=f"Clone failed: {e}",
+            message="Clone failed due to an internal error",
             details=details,
         )
 
@@ -717,9 +751,14 @@ async def push_to_production(
 
         # 2. Push database
         if body.include_db:
+            _validate_vps_db_config()
             logger.info("Pushing database to production for project %s", project_id)
             with tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False) as tmp:
                 db_dump_path = tmp.name
+            with tempfile.NamedTemporaryFile("w", suffix=".cnf", delete=False) as tmp:
+                local_opt_path = tmp.name
+                tmp.write(_build_mysql_defaults_file(_VPS_DB_USER, _VPS_DB_PASS))
+            remote_opt_path = f"/tmp/workstation-db-{project_id.hex}.cnf"
 
             try:
                 # Dump from sandbox MariaDB sidecar
@@ -729,8 +768,11 @@ async def push_to_production(
                     db_dump_path,
                 )
                 # Upload to VPS
+                await ssh.upload_file(local_opt_path, remote_opt_path)
+                await ssh.execute(f"chmod 600 {shlex.quote(remote_opt_path)}", timeout=10)
                 import_cmd = (
-                    f"MYSQL_PWD='{_VPS_DB_PASS}' gunzip | mysql -u {_VPS_DB_USER} {_VPS_DB_NAME}"
+                    f"gunzip | mysql --defaults-extra-file={shlex.quote(remote_opt_path)} "
+                    f"-u {_VPS_DB_USER} {_VPS_DB_NAME}"
                 )
                 await ssh.upload_stream(import_cmd, db_dump_path)
                 details["database"] = "pushed successfully"
@@ -738,6 +780,14 @@ async def push_to_production(
                 details["database"] = f"error: {e}"
                 logger.error("DB push failed for project %s: %s", project_id, e)
             finally:
+                try:
+                    await ssh.execute(f"rm -f {shlex.quote(remote_opt_path)}", timeout=10)
+                except Exception:
+                    pass
+                try:
+                    os.unlink(local_opt_path)
+                except OSError:
+                    pass
                 try:
                     os.unlink(db_dump_path)
                 except OSError:
@@ -765,7 +815,7 @@ async def push_to_production(
         logger.error("Push operation failed for project %s: %s", project_id, e, exc_info=True)
         return PushResponse(
             success=False,
-            message=f"Push failed: {e}",
+            message="Push failed due to an internal error",
             details=details,
         )
 

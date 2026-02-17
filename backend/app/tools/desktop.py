@@ -1,5 +1,6 @@
 """Desktop control tools for computer use capabilities."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional, Set
 
@@ -57,7 +58,7 @@ class ScreenshotTool(BaseTool):
         region_tuple = None
         if region:
             region_tuple = (region["left"], region["top"], region["width"], region["height"])
-        return desktop_control.take_screenshot(region=region_tuple)
+        return await asyncio.to_thread(desktop_control.take_screenshot, region=region_tuple)
 
 
 class ClickTool(BaseTool):
@@ -105,7 +106,8 @@ class ClickTool(BaseTool):
         parameters: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return desktop_control.click(
+        return await asyncio.to_thread(
+            desktop_control.click,
             x=parameters["x"],
             y=parameters["y"],
             button=parameters.get("button", "left"),
@@ -143,7 +145,7 @@ class TypeTextTool(BaseTool):
         parameters: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return desktop_control.type_text(text=parameters["text"])
+        return await asyncio.to_thread(desktop_control.type_text, text=parameters["text"])
 
 
 class PressKeyTool(BaseTool):
@@ -185,7 +187,7 @@ class PressKeyTool(BaseTool):
         parameters: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return desktop_control.press_key(key=parameters["key"])
+        return await asyncio.to_thread(desktop_control.press_key, key=parameters["key"])
 
 
 class ScreenInfoTool(BaseTool):
@@ -212,4 +214,4 @@ class ScreenInfoTool(BaseTool):
         parameters: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return desktop_control.get_screen_size()
+        return await asyncio.to_thread(desktop_control.get_screen_size)

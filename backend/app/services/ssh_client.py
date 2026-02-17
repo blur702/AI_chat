@@ -26,6 +26,8 @@ class SSHClient(KernelService):
         self._password = os.getenv("DRUPAL_VPS_PASSWORD", "")
         self._key_path = os.getenv("DRUPAL_VPS_KEY_PATH", "")
         self._port = int(os.getenv("DRUPAL_VPS_PORT", "22"))
+        self._trust_all_host_keys = os.getenv("SSH_TRUST_ALL_HOST_KEYS", "false").lower() in ("1", "true", "yes")
+        self._known_hosts_path = os.getenv("SSH_KNOWN_HOSTS_PATH", "").strip()
         self._conn: Optional[asyncssh.SSHClientConnection] = None
 
     @property
@@ -71,8 +73,11 @@ class SSHClient(KernelService):
             "host": self._host,
             "port": self._port,
             "username": self._user,
-            "known_hosts": None,  # Accept any host key (trusted VPS)
         }
+        if self._trust_all_host_keys:
+            connect_kwargs["known_hosts"] = None
+        elif self._known_hosts_path:
+            connect_kwargs["known_hosts"] = self._known_hosts_path
         if self._key_path and os.path.isfile(self._key_path):
             connect_kwargs["client_keys"] = [self._key_path]
         elif self._password:

@@ -34,7 +34,7 @@ class PaletteCreateRequest(BaseModel):
 class PaletteUpdateRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
-    colors: Optional[List[PaletteColorInput]] = Field(default=None, min_length=1, max_length=64)
+    colors: Optional[List[PaletteColorInput]] = Field(default=None, max_length=64)
     tags: Optional[List[constr(min_length=1, max_length=100)]] = Field(default=None, max_length=50)
 
 
@@ -51,4 +51,3 @@ class PaletteResponse(BaseModel):
 class PaletteListResponse(BaseModel):
     palettes: List[PaletteResponse] = Field(default_factory=list)
     count: int = 0
-

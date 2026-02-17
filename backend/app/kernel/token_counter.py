@@ -105,6 +105,20 @@ class TokenCounter(BaseKernelService):
         total += 2
         return total
 
+    def tokenize_with_spans(self, text: str) -> List[Tuple[int, bytes, int, int]]:
+        """Tokenize text and return (token_id, token_bytes, byte_start, byte_end)."""
+        if not text:
+            return []
+        token_ids = self._encoding.encode(text)
+        spans: List[Tuple[int, bytes, int, int]] = []
+        offset = 0
+        for token_id in token_ids:
+            token_bytes = self._encoding.decode_single_token_bytes(token_id)
+            end = offset + len(token_bytes)
+            spans.append((token_id, token_bytes, offset, end))
+            offset = end
+        return spans
+
     def estimate_model_context_window(self, model_name: str) -> int:
         """Return the context window size for a model name.
 

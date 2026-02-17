@@ -1669,11 +1669,22 @@ async def bulk_ingest_kb_task(ctx, batch_id: str) -> dict:
         files_failed = 0
 
         for file_id in file_ids:
+            if (
+                not isinstance(file_id, str)
+                or os.path.basename(file_id) != file_id
+                or any(part in file_id for part in ("..", "/", "\\", os.path.sep))
+            ):
+                file_statuses.append({
+                    "file_id": str(file_id), "filename": str(file_id),
+                    "status": "failed", "chunks": 0, "error": "Invalid file identifier",
+                })
+                files_failed += 1
+                continue
             # Find the file on disk
             file_path = None
             filename = file_id
             for entry in os.listdir(upload_dir):
-                if entry.startswith(file_id):
+                if entry == file_id or entry.startswith(f"{file_id}_"):
                     file_path = os.path.join(upload_dir, entry)
                     filename = entry.split("_", 1)[1] if "_" in entry else entry
                     break

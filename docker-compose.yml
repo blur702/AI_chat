@@ -288,12 +288,15 @@ services:
       MYSQL_DATABASE: ${DRUPAL_DB_NAME:-drupal}
       MYSQL_USER: ${DRUPAL_DB_USER:-drupal}
       MYSQL_PASSWORD: ${DRUPAL_DB_PASSWORD:-drupal}
+      MYSQL_HEALTHCHECK_USER: ${DRUPAL_DB_HEALTHCHECK_USER:-healthcheck}
+      MYSQL_HEALTHCHECK_PASSWORD: ${DRUPAL_DB_HEALTHCHECK_PASSWORD:-change_me_healthcheck}
     volumes:
       - drupal_db_data:/var/lib/mysql
+      - ./drupal_db/init:/docker-entrypoint-initdb.d:ro
     networks:
       - workstation-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DRUPAL_DB_ROOT_PASSWORD:-root}"]
+      test: ["CMD-SHELL", "tmp=/tmp/healthcheck.cnf; umask 077; printf '[client]\\nuser=%s\\npassword=%s\\nhost=localhost\\n' \"$${MYSQL_HEALTHCHECK_USER}\" \"$${MYSQL_HEALTHCHECK_PASSWORD}\" > \"$${tmp}\" && mysqladmin --defaults-extra-file=\"$${tmp}\" ping --silent && rm -f \"$${tmp}\""]
       interval: 10s
       timeout: 5s
       retries: 5

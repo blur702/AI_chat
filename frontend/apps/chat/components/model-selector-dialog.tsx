@@ -219,21 +219,27 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
       let loadedOk = false;
       try {
         loadedOk = await loadModel(selectedName);
+      } catch {
+        loadedOk = false;
+        if (isMountedRef.current) {
+          setApplyProgress({
+            modelName: selectedName,
+            percent: simulated,
+            status: "Load failed. Check the error above.",
+          });
+        }
       } finally {
         if (applyTimerRef.current) {
           clearInterval(applyTimerRef.current);
           applyTimerRef.current = null;
         }
+        if (isMountedRef.current && !loadedOk) {
+          setIsApplying(false);
+        }
       }
       if (!isMountedRef.current) return;
 
       if (!loadedOk) {
-        setApplyProgress({
-          modelName: selectedName,
-          percent: simulated,
-          status: "Load failed. Check the error above.",
-        });
-        setIsApplying(false);
         return;
       }
     }

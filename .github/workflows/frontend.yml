@@ -5,11 +5,13 @@ on:
     branches: [main, master]
     paths:
       - "frontend/**"
+      - "tests/frontend/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     branches: [main, master]
     paths:
       - "frontend/**"
+      - "tests/frontend/**"
       - ".github/workflows/frontend.yml"
 
 jobs:
@@ -34,7 +36,9 @@ jobs:
         run: pnpm lint
       - name: Type check
         run: pnpm type-check
-      - name: Test
+      - name: Test (frontend)
         run: pnpm test
+      - name: Test (consolidated)
+        run: npx vitest run --config ../tests/frontend/vitest.config.ts
       - name: Build
         run: pnpm build

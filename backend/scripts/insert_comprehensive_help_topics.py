@@ -203,6 +203,76 @@ HELP_TOPICS = [
         "tags": ["image", "generation", "integration"]
     },
     {
+        "slug": "imagegen-model",
+        "section_id": "image-gen",
+        "title": "Model (Checkpoint)",
+        "body": "Select the Stable Diffusion checkpoint model to use for generation. Different models produce different styles — for example, realistic photo models, anime/illustration models, or general-purpose models. The model must be installed in ComfyUI's checkpoints directory.",
+        "tags": ["image", "generation", "model"]
+    },
+    {
+        "slug": "imagegen-sampler",
+        "section_id": "image-gen",
+        "title": "Sampler",
+        "body": "The sampling algorithm used during image generation. Common choices:\n\n- **euler** — Fast, good quality. A solid default.\n- **euler_ancestral** — Adds randomness for more creative/varied outputs.\n- **dpmpp_2m** — High quality, slightly slower. Great for detailed images.\n- **dpmpp_sde** — Stochastic variant with fine detail.\n- **ddim** — Deterministic, good for reproducibility.\n- **uni_pc** — Fast convergence, fewer steps needed.\n\nIf unsure, start with **euler** or **dpmpp_2m**.",
+        "tags": ["image", "generation", "sampler"]
+    },
+    {
+        "slug": "imagegen-scheduler",
+        "section_id": "image-gen",
+        "title": "Scheduler",
+        "body": "Controls the noise schedule — how noise is added and removed across generation steps.\n\n- **normal** — Standard linear schedule. The safe default.\n- **karras** — Recommended for most use cases. Produces sharper, cleaner images by concentrating denoising in later steps.\n- **exponential** — Aggressive noise removal; can produce crisp results with fewer steps.\n- **sgm_uniform** — Uniform spacing, used by some SDXL-optimized workflows.\n\nPair **karras** with **dpmpp_2m** for a reliable high-quality combo.",
+        "tags": ["image", "generation", "scheduler"]
+    },
+    {
+        "slug": "imagegen-batch-size",
+        "section_id": "image-gen",
+        "title": "Batch Size",
+        "body": "Generate multiple images at once from the same prompt and settings. Each image uses a different random seed. Useful for exploring variations — set batch size to 4 to quickly compare results. Higher batch sizes use more VRAM and take longer.",
+        "tags": ["image", "generation", "batch"]
+    },
+    {
+        "slug": "imagegen-seed",
+        "section_id": "image-gen",
+        "title": "Seed",
+        "body": "A number that controls the random starting point for generation. The same seed with the same settings produces the same image — useful for reproducibility. Leave empty for a random seed each time. After generating, check the seed in the image details to recreate or tweak a result you liked.",
+        "tags": ["image", "generation", "seed"]
+    },
+    {
+        "slug": "imagegen-denoise",
+        "section_id": "image-gen",
+        "title": "Denoise Strength",
+        "body": "Controls how much the input image is changed during image-to-image or inpainting workflows.\n\n- **0.0** — No change (output matches input exactly).\n- **0.3–0.5** — Subtle edits, preserves most of the original.\n- **0.6–0.8** — Moderate transformation. Good balance for most edits.\n- **1.0** — Complete regeneration, ignores the input image structure.\n\nFor inpainting, use 0.5–0.8 to blend the regenerated area naturally with the surrounding image.",
+        "tags": ["image", "generation", "img2img", "inpainting"]
+    },
+    {
+        "slug": "imagegen-morph-strength",
+        "section_id": "image-gen",
+        "title": "Morph Strength",
+        "body": "Controls the blending intensity between the input face/image and the target face/image in face-morph mode.\n\n- **0.0** — Output looks like the input (no morphing).\n- **0.5** — 50/50 blend between input and target.\n- **1.0** — Output looks like the target.\n\nAdjust to find the right balance between the two faces or images.",
+        "tags": ["image", "generation", "face-morph"]
+    },
+    {
+        "slug": "imagegen-lora",
+        "section_id": "image-gen",
+        "title": "LoRA Stack",
+        "body": "LoRAs (Low-Rank Adaptations) are small add-on models that modify the checkpoint's behavior for specific styles, subjects, or concepts. You can stack multiple LoRAs.\n\nEach LoRA has two strength values:\n- **Model Strength** — How strongly the LoRA affects the image content.\n- **CLIP Strength** — How strongly the LoRA affects prompt interpretation.\n\nTypical range is 0.5–1.0 for both. Start at 0.7 and adjust. LoRA files must be installed in ComfyUI's loras directory.",
+        "tags": ["image", "generation", "lora"]
+    },
+    {
+        "slug": "imagegen-reference-image",
+        "section_id": "image-gen",
+        "title": "Reference Image (Style Transfer)",
+        "body": "Upload a reference image for IPAdapter-based style transfer. The output adopts the visual style, color palette, and composition of the reference while still following your text prompt.\n\n- **Style Weight** — How strongly the reference style influences the output (0–150%). At 0%, the reference is ignored; at 100%+, it dominates.\n- **Variation/Noise** — Adds randomness to break away from exact style copying. 0% = faithful reproduction, higher = more creative interpretation.\n\nWorks best with clear, high-quality reference images.",
+        "tags": ["image", "generation", "style-transfer", "ipadapter"]
+    },
+    {
+        "slug": "imagegen-controlnet",
+        "section_id": "image-gen",
+        "title": "ControlNet (Structure Guide)",
+        "body": "ControlNet constrains the generated image to follow the structure of a guide image. Types:\n\n- **canny** — Edge detection. Best for preserving outlines and shapes.\n- **depth** — Depth map. Maintains spatial relationships and perspective.\n- **openpose** — Human pose skeleton. Controls body position and posture.\n- **lineart** — Clean line art extraction. Great for coloring/stylizing sketches.\n- **scribble** — Rough sketch interpretation. Turn doodles into detailed images.\n- **softedge** — Soft edge detection. More forgiving than canny.\n\n**Strength** (0–2) controls how closely the output follows the guide. Start at 0.8–1.0.",
+        "tags": ["image", "generation", "controlnet"]
+    },
+    {
         "slug": "workspace-files",
         "section_id": "workspace",
         "title": "Files",

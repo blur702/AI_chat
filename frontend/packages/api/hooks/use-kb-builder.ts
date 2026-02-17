@@ -98,9 +98,9 @@ export function useKBBuilder(): UseKBBuilderReturn {
     setError(null);
     try {
       const result = await getClient().bulkUploadKB(newFiles);
-      // Map file_ids to raw Files for extraction later (match by filename)
-      for (const info of result.files) {
-        const matchingFile = newFiles.find((f) => f.name === info.filename);
+      // Map file_ids to raw Files by upload order to handle duplicate filenames.
+      for (const [index, info] of result.files.entries()) {
+        const matchingFile = newFiles[index];
         if (matchingFile) {
           rawFilesRef.current.set(info.file_id, matchingFile);
         }

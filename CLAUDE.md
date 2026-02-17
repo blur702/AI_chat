@@ -37,21 +37,10 @@ pnpm dev
 
 ## Drupal (kevinalthaus.com)
 
-- **URL**: `https://kevinalthaus.com` — production Drupal 11.3.3 site
-- **VPS**: Ubuntu 24.04 LTS at `65.181.112.77`, nginx + PHP 8.3-FPM + MariaDB 10.11
-- **SSH**: `root@$DRUPAL_VPS_HOST` via PuTTY plink (password in `DRUPAL_VPS_PASSWORD` env var), also `kevin@` with key-based auth
-- **DB**: MariaDB — database `drupal`, user `drupal`, password in `VPS_DB_PASS` env var, localhost:3306
-- **SSL**: Let's Encrypt via certbot
-- **Drupal root**: `/var/www/drupal/`, web root `/var/www/drupal/web/`
-- **Drush**: `/var/www/drupal/vendor/bin/drush` (enable modules, clear cache, etc.)
-- **Connected** to workstation project "Drupal API Documentation" (`155fbe0c-...`) via JSON:API
-- **Credentials**: Drupal user `kevin`, password in env vars
-- **Content types**: article, event, page, project
-- **Custom modules**: `/var/www/drupal/web/modules/custom/` — existing: `congressional_query`, `page_password_protect`
-- **Custom themes**: `atomic_react`, `kevin_theme`, `liberty`
-- **Contrib modules**: ctools, honeypot, pathauto, redirect, symfony_mailer, token, webform
-- **Decoupled frontend**: React SPA at `/var/www/drupal-theme/` served at `/drupal-theme/`
-- **DNS**: `kevinalthaus.com` → VPS, `ssdd.kevinalthaus.com` → local dev machine
+- Production Drupal site for `kevinalthaus.com` is connected to this workspace.
+- Infrastructure, access details, credentials, server paths, and host-level operations are documented in a restricted operations runbook.
+- Use secret-manager/environment variables for runtime credentials (`DRUPAL_VPS_*`, `VPS_DB_*`).
+- Contact ops for infrastructure-specific details and production access workflows.
 
 ## Brevo (Email/SMS)
 

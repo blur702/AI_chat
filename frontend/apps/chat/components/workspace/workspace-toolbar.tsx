@@ -38,7 +38,7 @@ import {
   Layers,
   HelpCircle,
   LayoutTemplate,
-  Map,
+  Map as MapIcon,
   GraduationCap,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
@@ -266,13 +266,14 @@ export function WorkspaceToolbar({
           </TooltipTrigger>
           <TooltipContent>
             <p>Drag-and-drop UI component builder</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-ui-builder"); }}>Learn more</button>
           </TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onPlanningClick}>
-              <Map className="h-4 w-4" />
+              <MapIcon className="h-4 w-4" />
               {!isMobile && t("plans")}
             </Button>
           </TooltipTrigger>

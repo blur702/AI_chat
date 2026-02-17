@@ -21,7 +21,7 @@ echo "  Running Kernel Test Suite"
 echo "========================================"
 
 set +e
-python -m pytest tests/ \
+python -m pytest ../tests/backend/ tests/ \
     $MARKER \
     --cov=app \
     --cov-config=.coveragerc \

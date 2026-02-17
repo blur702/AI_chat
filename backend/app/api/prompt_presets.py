@@ -103,9 +103,15 @@ async def list_presets(
         count_query = count_query.where(PromptPreset.category == category)
 
     if search:
+        escaped_search = (
+            search.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        search_pattern = f"%{escaped_search}%"
         search_filter = or_(
-            PromptPreset.name.ilike(f"%{search}%"),
-            PromptPreset.prompt_text.ilike(f"%{search}%"),
+            PromptPreset.name.ilike(search_pattern, escape="\\"),
+            PromptPreset.prompt_text.ilike(search_pattern, escape="\\"),
         )
         query = query.where(search_filter)
         count_query = count_query.where(search_filter)

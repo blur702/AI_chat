@@ -243,13 +243,13 @@ COMPONENTS = [
         "category": "media",
         "description": "Responsive photo gallery grid",
         "html_template": '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4"><div class="aspect-square overflow-hidden rounded-lg"><img src="{{image}}" alt="" class="h-full w-full object-cover hover:scale-105 transition-transform" /></div></div>',
-        "framework_code": 'export function PhotoGallery({ images = ["https://via.placeholder.com/300", "https://via.placeholder.com/300", "https://via.placeholder.com/300", "https://via.placeholder.com/300"] }: { images?: string[] }) {\n  return (\n    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">\n      {images.map((src, i) => (\n        <div key={i} className="aspect-square overflow-hidden rounded-lg">\n          <img src={src} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />\n        </div>\n      ))}\n    </div>\n  );\n}',
+        "framework_code": 'export function PhotoGallery({ images = [{ src: "https://via.placeholder.com/300", alt: "Gallery image 1" }, { src: "https://via.placeholder.com/300", alt: "Gallery image 2" }, { src: "https://via.placeholder.com/300", alt: "Gallery image 3" }, { src: "https://via.placeholder.com/300", alt: "Gallery image 4" }] }: { images?: { src: string; alt?: string }[] }) {\n  return (\n    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">\n      {images.map((image, i) => (\n        <div key={i} className="aspect-square overflow-hidden rounded-lg">\n          <img src={image.src} alt={image.alt || `Gallery image ${i + 1}`} className="h-full w-full object-cover hover:scale-105 transition-transform" />\n        </div>\n      ))}\n    </div>\n  );\n}',
         "is_framework_specific": True,
         "framework": "react",
         "props_schema": {
             "type": "object",
             "properties": {
-                "images": {"type": "array", "items": {"type": "string"}, "default": ["https://via.placeholder.com/300", "https://via.placeholder.com/300", "https://via.placeholder.com/300", "https://via.placeholder.com/300"]},
+                "images": {"type": "array", "items": {"type": "object"}, "default": [{"src": "https://via.placeholder.com/300", "alt": "Gallery image 1"}, {"src": "https://via.placeholder.com/300", "alt": "Gallery image 2"}, {"src": "https://via.placeholder.com/300", "alt": "Gallery image 3"}, {"src": "https://via.placeholder.com/300", "alt": "Gallery image 4"}]},
                 "cols": {"type": "number", "default": 4},
             },
         },

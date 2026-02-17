@@ -25,7 +25,7 @@ class PlanningSessionCreateRequest(BaseModel):
 class PlanningSessionUpdateRequest(BaseModel):
     """Request body for updating a planning session."""
 
-    title: Optional[str] = Field(default=None, max_length=500)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=500)
     description: Optional[str] = None
     target_type: Optional[str] = Field(default=None, pattern="^(sandbox|ui_builder|both)$")
     status: Optional[str] = Field(
@@ -48,7 +48,7 @@ class PlanPhaseCreateRequest(BaseModel):
 class PlanPhaseUpdateRequest(BaseModel):
     """Request body for updating a phase."""
 
-    title: Optional[str] = Field(default=None, max_length=500)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=500)
     description: Optional[str] = None
     inputs: Optional[List[str]] = None
     outputs: Optional[List[str]] = None
@@ -76,7 +76,7 @@ class PlanTaskCreateRequest(BaseModel):
 class PlanTaskUpdateRequest(BaseModel):
     """Request body for updating a task."""
 
-    title: Optional[str] = Field(default=None, max_length=500)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=500)
     description: Optional[str] = None
     task_data: Optional[Dict[str, Any]] = None
     depends_on: Optional[List[str]] = None

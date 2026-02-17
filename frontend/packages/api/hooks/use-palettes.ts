@@ -20,7 +20,7 @@ export interface UsePalettesReturn {
 
 export function usePalettes(): UsePalettesReturn {
   const [palettes, setPalettes] = useState<SavedPaletteResponse[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {

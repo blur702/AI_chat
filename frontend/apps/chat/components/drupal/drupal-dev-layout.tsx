@@ -38,14 +38,15 @@ export function DrupalDevLayout() {
   const [editorDirty, setEditorDirty] = useState(false);
 
   const drupal = useDrupalLocal();
+  const { loadFileTree } = drupal;
   const stagingProjectId = useStagingProjectId();
   const staging = useDrupal(stagingProjectId);
   const hasStagingProject = Boolean(stagingProjectId);
 
   // Load file tree on mount
   useEffect(() => {
-    drupal.loadFileTree();
-  }, [drupal]);
+    loadFileTree();
+  }, [loadFileTree]);
 
   // Handle file selection — navigate into directory or open file
   const handleFileSelect = useCallback(
@@ -139,13 +140,13 @@ export function DrupalDevLayout() {
       <DrupalDevSidebar active={activeTab} onChange={setActiveTab} />
 
       {/* Error banners */}
-      {(drupal.error || staging.error) && (
+      {Boolean(drupal.error || staging.error) && (
         <div
           className="absolute top-0 left-12 right-0 z-50 bg-destructive/10 border-b border-destructive/30 px-4 py-2 flex items-center gap-2 text-sm text-destructive"
           role="alert"
         >
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {drupal.error || staging.error}
+          {[drupal.error, staging.error].filter(Boolean).join(" | ")}
         </div>
       )}
 

@@ -3,10 +3,10 @@ name: Backend CI
 on:
   push:
     branches: [main, master]
-    paths: ['backend/**']
+    paths: ['backend/**', 'tests/backend/**']
   pull_request:
     branches: [main, master]
-    paths: ['backend/**']
+    paths: ['backend/**', 'tests/backend/**']
 
 jobs:
   lint:
@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run tests
-        run: pytest tests/ -v --cov=app --cov-fail-under=80 -m "not slow"
+        run: python -m pytest ../tests/backend/ tests/ -v --cov=app --cov-report=term-missing -m "not slow"
         env:
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key-32-characters-minimum

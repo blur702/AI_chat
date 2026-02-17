@@ -52,12 +52,16 @@ export function UIBuilderPanel({ onClose }: UIBuilderPanelProps) {
     [builder, selectedComponent]
   );
 
-  const handleCopyHTML = useCallback(() => {
-    const html = builder.generateHTML();
-    navigator.clipboard.writeText(html).then(() => {
+  const handleCopyHTML = useCallback(async () => {
+    try {
+      const html = builder.generateHTML();
+      await navigator.clipboard.writeText(html);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch (err) {
+      setCopied(false);
+      console.error("Failed to copy generated HTML", err);
+    }
   }, [builder]);
 
   return (

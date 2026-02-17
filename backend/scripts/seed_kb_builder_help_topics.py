@@ -8,6 +8,7 @@ Usage:
 import asyncio
 import sys
 from pathlib import Path
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -428,9 +429,9 @@ async def seed():
                 await db.execute(
                     text(
                         "INSERT INTO help_topics (id, slug, title, body, section_id) "
-                        "VALUES (gen_random_uuid(), :slug, :title, :body, :section_id)"
+                        "VALUES (:id, :slug, :title, :body, :section_id)"
                     ),
-                    topic,
+                    {**topic, "id": str(uuid.uuid4())},
                 )
                 print(f"Created: {topic['slug']}")
         await db.commit()

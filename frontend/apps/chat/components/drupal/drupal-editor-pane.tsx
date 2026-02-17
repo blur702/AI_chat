@@ -26,6 +26,11 @@ interface Props {
 export function DrupalEditorPane({ path, content, language, modified, onSave, onClose }: Props) {
   const [value, setValue] = useState(content);
   const editorRef = useRef<any>(null);
+  const onSaveRef = useRef(onSave);
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
   // Sync when file changes externally
   useEffect(() => {
@@ -92,7 +97,7 @@ export function DrupalEditorPane({ path, content, language, modified, onSave, on
               2048 | 49,
               () => {
                 const currentValue = editor.getValue();
-                onSave(currentValue);
+                onSaveRef.current(currentValue);
               }
             );
           }}

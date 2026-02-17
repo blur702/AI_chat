@@ -112,7 +112,7 @@ async def update_palette(
     if "description" in data:
         row.description = data["description"]
     if "colors" in data and data["colors"] is not None:
-        row.colors = [c.model_dump() for c in body.colors]
+        row.colors = data["colors"]
     if "tags" in data and data["tags"] is not None:
         row.tags = [t.strip() for t in data["tags"] if t.strip()]
 
@@ -140,4 +140,3 @@ async def delete_palette(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Palette not found")
     row.soft_delete()
     await db.commit()
-

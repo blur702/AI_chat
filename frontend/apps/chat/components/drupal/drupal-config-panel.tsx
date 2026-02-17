@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, cn } from "@workstation/ui";
 import {
   Settings2,
@@ -24,10 +24,15 @@ interface Props {
 export function DrupalConfigPanel({ configStatus, loading, onLoadStatus, onExport, onImport }: Props) {
   const [actionResult, setActionResult] = useState<DrupalLocalDrushResult | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const onLoadStatusRef = useRef(onLoadStatus);
 
   useEffect(() => {
-    onLoadStatus();
+    onLoadStatusRef.current = onLoadStatus;
   }, [onLoadStatus]);
+
+  useEffect(() => {
+    onLoadStatusRef.current();
+  }, []);
 
   const handleExport = async () => {
     setActionLoading(true);

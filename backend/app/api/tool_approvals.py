@@ -17,6 +17,7 @@ router = APIRouter(prefix="/tool-approvals", tags=["tools"])
 
 # Redis channel prefix for tool approval pub/sub
 _APPROVAL_CHANNEL_PREFIX = "tool_approval:"
+_APPROVAL_RESULT_PREFIX = "tool_approval_result:"
 # How long to wait for approval before timing out (seconds)
 _APPROVAL_TIMEOUT_SECONDS = 120
 
@@ -69,6 +70,7 @@ async def submit_tool_approval(
     redis_client = _get_redis(request)
 
     channel = f"{_APPROVAL_CHANNEL_PREFIX}{body.call_id}"
+    result_key = f"{_APPROVAL_RESULT_PREFIX}{body.call_id}"
     message = json.dumps({
         "approved": body.approved,
         "modified_arguments": body.modified_arguments,
@@ -76,6 +78,7 @@ async def submit_tool_approval(
     })
 
     try:
+        await redis_client.set(result_key, message, ex=int(_APPROVAL_TIMEOUT_SECONDS))
         await redis_client.publish(channel, message)
         logger.info(
             "Tool approval published: call_id=%s approved=%s",
@@ -110,9 +113,17 @@ async def wait_for_approval(
         or None if timed out.
     """
     channel = f"{_APPROVAL_CHANNEL_PREFIX}{call_id}"
+    result_key = f"{_APPROVAL_RESULT_PREFIX}{call_id}"
     pubsub = redis_client.pubsub()
 
     try:
+        cached = await redis_client.get(result_key)
+        if cached:
+            try:
+                return json.loads(cached)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning("Invalid cached approval payload for call_id=%s", call_id)
+
         await pubsub.subscribe(channel)
 
         # Poll for messages with timeout

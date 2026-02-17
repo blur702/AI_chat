@@ -447,8 +447,9 @@ function ContentTab({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium">Title</label>
+              <label htmlFor="drupal-node-title" className="text-[11px] font-medium">Title</label>
               <Input
+                id="drupal-node-title"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="h-7 text-xs"
@@ -457,8 +458,9 @@ function ContentTab({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium">Body</label>
+              <label htmlFor="drupal-node-body" className="text-[11px] font-medium">Body</label>
               <Textarea
+                id="drupal-node-body"
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
                 className="text-xs min-h-[80px]"
@@ -471,6 +473,9 @@ function ContentTab({
               <button
                 type="button"
                 onClick={() => setEditStatus(!editStatus)}
+                role="switch"
+                aria-checked={editStatus}
+                aria-label="Published"
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                   editStatus ? "bg-primary" : "bg-muted-foreground/30"
                 }`}

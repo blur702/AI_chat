@@ -104,13 +104,39 @@ async def _run_static_check(
     container_id: str, criteria: str, sandbox: SandboxManager
 ) -> dict[str, Any]:
     """Run a linter/type checker in the sandbox."""
-    cmd = criteria if criteria else "npx tsc --noEmit 2>&1 || python -m mypy . 2>&1"
+    if criteria:
+        cmd = criteria
+        try:
+            output = await sandbox.exec_simple(container_id, cmd)
+            return {
+                "type": "static",
+                "criteria": criteria,
+                "passed": True,
+                "output": output[:2000] if output else "Static analysis passed",
+            }
+        except RuntimeError as exc:
+            return {
+                "type": "static",
+                "criteria": criteria,
+                "passed": False,
+                "output": str(exc)[:2000],
+            }
+
+    commands = ["npx tsc --noEmit 2>&1", "python -m mypy . 2>&1"]
+    outputs: list[str] = []
+    all_passed = True
     try:
-        output = await sandbox.exec_simple(container_id, cmd)
+        for cmd in commands:
+            try:
+                outputs.append(await sandbox.exec_simple(container_id, cmd))
+            except RuntimeError as exc:
+                all_passed = False
+                outputs.append(str(exc))
+        output = "\n\n".join(part for part in outputs if part).strip()
         return {
             "type": "static",
             "criteria": criteria,
-            "passed": True,
+            "passed": all_passed,
             "output": output[:2000] if output else "Static analysis passed",
         }
     except RuntimeError as exc:

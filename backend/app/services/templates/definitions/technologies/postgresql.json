@@ -5,18 +5,20 @@
   "category": "database",
   "dependencies": [],
   "install_commands": [],
-  "scaffold_files": {},
+  "scaffold_files": {
+    ".env.example": "DB_USER=<REPLACE_ME_DB_USER>\nDB_PASSWORD=<REPLACE_ME_DB_PASSWORD>\nDB_NAME=<REPLACE_ME_DB_NAME>\n# Override these values for non-development deployments.\n"
+  },
   "environment": {
-    "DATABASE_URL": "postgresql://postgres:postgres@postgres-db:5432/appdb"
+    "DATABASE_URL": "postgresql://${DB_USER:-<REPLACE_ME_DB_USER>}:${DB_PASSWORD:-<REPLACE_ME_DB_PASSWORD>}@postgres-db:5432/${DB_NAME:-<REPLACE_ME_DB_NAME>}"
   },
   "sidecar_services": [
     {
       "name": "postgres-db",
       "image": "postgres:16-alpine",
       "environment": {
-        "POSTGRES_USER": "postgres",
-        "POSTGRES_PASSWORD": "postgres",
-        "POSTGRES_DB": "appdb"
+        "POSTGRES_USER": "${DB_USER:-<REPLACE_ME_DB_USER>}",
+        "POSTGRES_PASSWORD": "${DB_PASSWORD:-<REPLACE_ME_DB_PASSWORD>}",
+        "POSTGRES_DB": "${DB_NAME:-<REPLACE_ME_DB_NAME>}"
       },
       "exposed_ports": [5432],
       "volumes": {},

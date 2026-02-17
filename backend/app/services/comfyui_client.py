@@ -344,7 +344,7 @@ class ComfyUIClient(BaseKernelService):
             },
         }
         graph[ipa_apply_id] = {
-            "class_type": "IPAdapterApply",
+            "class_type": "IPAdapter",
             "inputs": {
                 "model": model_ref,
                 "ipadapter": [ipa_model_id, 0],
@@ -398,6 +398,10 @@ class ComfyUIClient(BaseKernelService):
         if checkpoint_type == "sdxl" and controlnet_type not in cn_model_map:
             raise ValueError(
                 f"ControlNet type '{controlnet_type}' is not supported for SDXL checkpoints"
+            )
+        if checkpoint_type == "sd15" and controlnet_type not in cn_model_map:
+            raise ValueError(
+                f"ControlNet type '{controlnet_type}' is not supported for SD15 checkpoints"
             )
 
         fallback_model = (

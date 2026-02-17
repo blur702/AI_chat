@@ -15,9 +15,9 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "workstation-searxng-secret-change-in-production"
-  limiter: false
-  image_proxy: false
+  secret_key: "${SEARX_SECRET_KEY}"
+  limiter: true
+  image_proxy: true
 
 ui:
   static_use_hash: true
