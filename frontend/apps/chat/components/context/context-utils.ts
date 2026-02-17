@@ -30,3 +30,19 @@ export function getLayerColor(name: string): string {
   if (name.startsWith("compaction_summary")) return "bg-orange-500/10 text-orange-600";
   return "";
 }
+
+/** 8-color palette for alternating token highlights. */
+const TOKEN_COLORS = [
+  "bg-blue-200/60 dark:bg-blue-800/40",
+  "bg-green-200/60 dark:bg-green-800/40",
+  "bg-amber-200/60 dark:bg-amber-800/40",
+  "bg-pink-200/60 dark:bg-pink-800/40",
+  "bg-cyan-200/60 dark:bg-cyan-800/40",
+  "bg-purple-200/60 dark:bg-purple-800/40",
+  "bg-orange-200/60 dark:bg-orange-800/40",
+  "bg-rose-200/60 dark:bg-rose-800/40",
+];
+
+export function getTokenColor(index: number): string {
+  return TOKEN_COLORS[Math.abs(index) % TOKEN_COLORS.length];
+}

@@ -34,6 +34,7 @@ engine = create_async_engine(
     pool_pre_ping=True,  # Verify connections before use
 )
 
+# Database connection and session management for backend app
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

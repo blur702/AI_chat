@@ -20,5 +20,6 @@
   "environment": {},
   "sidecar_services": [],
   "memory_limit": "768m",
-  "cpu_quota": 75000
+  "cpu_quota": 75000,
+  "selected_technologies": ["node", "react", "typescript"]
 }

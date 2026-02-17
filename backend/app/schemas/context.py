@@ -6,6 +6,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.kernel.mode_prompts import MODE_PROMPT_MODIFIERS
+
+VALID_CHAT_MODES = list(MODE_PROMPT_MODIFIERS.keys())
+
 
 # -------------------------------------------------------------------------
 # Conversation State
@@ -46,6 +50,7 @@ class ConversationStateResponse(BaseModel):
     current_token_count: int = 0
     chat_instructions: Optional[str] = None
     system_prompt_id: Optional[str] = None
+    chat_mode: Optional[str] = None
 
 
 class ConversationStateUpdateRequest(BaseModel):
@@ -68,6 +73,7 @@ class ChatSummary(BaseModel):
     title: str
     is_pinned: bool = False
     is_archived: bool = False
+    chat_mode: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -79,6 +85,14 @@ class ChatCreateRequest(BaseModel):
     title: str = Field(..., max_length=500, description="Chat title")
     chat_instructions: Optional[str] = Field(None, max_length=10000)
     system_prompt_id: Optional[UUID] = None
+    chat_mode: Optional[str] = None
+
+    @field_validator("chat_mode")
+    @classmethod
+    def validate_chat_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_CHAT_MODES:
+            raise ValueError(f"chat_mode must be one of {VALID_CHAT_MODES}")
+        return v
 
 
 class ChatCreateResponse(BaseModel):
@@ -89,6 +103,7 @@ class ChatCreateResponse(BaseModel):
     project_id: str
     chat_instructions: Optional[str] = None
     system_prompt_id: Optional[str] = None
+    chat_mode: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -100,6 +115,14 @@ class ChatUpdateRequest(BaseModel):
     is_archived: Optional[bool] = None
     chat_instructions: Optional[str] = Field(None, max_length=10000)
     system_prompt_id: Optional[UUID] = None
+    chat_mode: Optional[str] = None
+
+    @field_validator("chat_mode")
+    @classmethod
+    def validate_chat_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_CHAT_MODES:
+            raise ValueError(f"chat_mode must be one of {VALID_CHAT_MODES}")
+        return v
 
 
 class ChatUpdateResponse(BaseModel):
@@ -112,6 +135,7 @@ class ChatUpdateResponse(BaseModel):
     is_archived: bool = False
     chat_instructions: Optional[str] = None
     system_prompt_id: Optional[str] = None
+    chat_mode: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -152,6 +176,7 @@ class UserPreferencesResponse(BaseModel):
     response_style: Optional[Dict[str, Any]] = None
     default_model: Optional[str] = None
     default_temperature: Optional[float] = None
+    default_num_ctx: Optional[int] = None
     email_notifications: Optional[bool] = None
     in_app_notifications: Optional[bool] = None
 
@@ -161,6 +186,8 @@ class UserPreferencesResponse(BaseModel):
     imggen_default_height: Optional[int] = None
     imggen_default_steps: Optional[int] = None
     imggen_default_cfg_scale: Optional[float] = None
+    imggen_default_prompt: Optional[str] = None
+    imggen_system_prompt: Optional[str] = None
     imggen_default_negative_prompt: Optional[str] = None
     imggen_completion_notification: Optional[bool] = None
     imggen_desktop_notification: Optional[bool] = None
@@ -179,6 +206,7 @@ class UserPreferencesUpdateRequest(BaseModel):
     response_style: Optional[Dict[str, Any]] = None
     default_model: Optional[str] = Field(default=None, max_length=100)
     default_temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+    default_num_ctx: Optional[int] = Field(default=None, ge=512, le=131072)
     email_notifications: Optional[bool] = None
     in_app_notifications: Optional[bool] = None
 
@@ -188,7 +216,9 @@ class UserPreferencesUpdateRequest(BaseModel):
     imggen_default_height: Optional[int] = Field(default=None, ge=64, le=4096)
     imggen_default_steps: Optional[int] = Field(default=None, ge=1, le=150)
     imggen_default_cfg_scale: Optional[float] = Field(default=None, ge=1.0, le=30.0)
-    imggen_default_negative_prompt: Optional[str] = None
+    imggen_default_prompt: Optional[str] = Field(default=None, max_length=2000)
+    imggen_system_prompt: Optional[str] = Field(default=None, max_length=4000)
+    imggen_default_negative_prompt: Optional[str] = Field(default=None, max_length=2000)
     imggen_completion_notification: Optional[bool] = None
     imggen_desktop_notification: Optional[bool] = None
     imggen_sound_notification: Optional[bool] = None
@@ -297,6 +327,9 @@ class ProjectCreateRequest(BaseModel):
     path: str = Field(..., description="Project filesystem path")
     type: Optional[str] = Field(None, max_length=50, description="Project type")
     template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
+    selected_technologies: Optional[List[str]] = Field(
+        None, max_length=20, description="List of technology IDs to combine for project setup"
+    )
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
     important_files: Optional[List[str]] = None
@@ -310,6 +343,7 @@ class ProjectCreateResponse(BaseModel):
     path: str
     type: Optional[str] = None
     template_id: Optional[str] = None
+    selected_technologies: Optional[List[str]] = None
     created_at: Optional[str] = None
 
 
@@ -320,6 +354,9 @@ class ProjectUpdateRequest(BaseModel):
     path: Optional[str] = None
     type: Optional[str] = Field(None, max_length=50)
     template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
+    selected_technologies: Optional[List[str]] = Field(
+        None, max_length=20, description="List of technology IDs (metadata update only, does not re-provision)"
+    )
     system_prompt_id: Optional[UUID] = None
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
@@ -334,6 +371,7 @@ class ProjectUpdateResponse(BaseModel):
     path: str
     type: Optional[str] = None
     template_id: Optional[str] = None
+    selected_technologies: Optional[List[str]] = None
     system_prompt_id: Optional[str] = None
     settings: Optional[Dict[str, Any]] = None
     custom_context: Optional[str] = None
@@ -350,6 +388,7 @@ class ProjectSummary(BaseModel):
     path: str
     type: Optional[str] = None
     template_id: Optional[str] = None
+    selected_technologies: Optional[List[str]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -584,3 +623,31 @@ class CompactionStatusResponse(BaseModel):
     compacted_message_count: int = 0
     summary: Optional[str] = None
     created_at: Optional[str] = None
+
+
+# -------------------------------------------------------------------------
+# Tokenization
+# -------------------------------------------------------------------------
+
+
+class TokenizeRequest(BaseModel):
+    """Request body for tokenizing text into individual token spans."""
+
+    text: str = Field(..., min_length=1, max_length=100_000, description="Text to tokenize")
+
+
+class TokenSpan(BaseModel):
+    """A single token with its text and character offsets."""
+
+    text: str
+    start: int
+    end: int
+
+
+class TokenizeResponse(BaseModel):
+    """Response containing token spans and statistics."""
+
+    tokens: List[TokenSpan]
+    total: int
+    characters: int
+    chars_per_token: float

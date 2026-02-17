@@ -10,16 +10,18 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
+    clear_auth_cookie,
     create_access_token,
     extract_request_metadata,
     get_current_user_payload,
     log_security_event,
     require_admin,
+    set_auth_cookie,
 )
 from app.database import get_db_session
 from app.middleware.rate_limit import (
@@ -65,6 +67,7 @@ LOCKOUT_DURATION_MINUTES = 15
 async def login(
     body: LoginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db_session),
 ) -> LoginResponse:
     """Authenticate with username or email and password."""
@@ -157,6 +160,7 @@ async def login(
             "username": user.username,
         }
     )
+    set_auth_cookie(response, access_token, request)
 
     return LoginResponse(
         access_token=access_token,
@@ -165,6 +169,13 @@ async def login(
         username=user.username,
         screen_name=user.screen_name or user.username,
     )
+
+
+@router.post("/logout")
+async def logout(response: Response) -> dict:
+    """Clear browser authentication cookie."""
+    clear_auth_cookie(response)
+    return {"message": "Logged out"}
 
 
 @router.post(

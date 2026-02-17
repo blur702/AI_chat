@@ -1,303 +1,110 @@
 # AI Workstation
 
-A containerized AI development workstation with LLM integration, image generation, and isolated preview environments.
+Containerized AI development environment with:
+- FastAPI backend
+- Next.js chat frontend
+- PostgreSQL + pgvector
+- Redis + ARQ worker
+- Ollama + ComfyUI (GPU services)
+- Nginx reverse proxy (HTTP/HTTPS)
 
-## Architecture
+## Service Map
 
-The system follows a microkernel pattern with multiple services:
-
-| Service | Description | Internal Port | Host Port |
-|---------|-------------|---------------|-----------|
-| PostgreSQL | Database with pgvector extension | 5432 | 5433 |
-| Redis | Cache and task queue (AOF persistence) | 6379 | 6380 |
-| Backend | FastAPI application server | 8000 | 8001 |
-| Worker | ARQ background task processor | - | - |
-| Frontend | Next.js web application | 3000 | 3001 |
-| Nginx | Reverse proxy | 80/443 | 9080/8443 |
-
-**External Domain**: `ssdd.kevinalthaus.com`
-
-## Prerequisites
-
-- **Docker**: Version 20.10 or higher
-- **Docker Compose**: Version 2.0 or higher (included with Docker Desktop)
-- **Python**: Version 3.8 or higher (with pip, used in Step 4 to install startup dependencies)
-- **System Requirements**: Minimum 8GB RAM, 20GB disk space
-- **External Services** (must be running on host):
-  - [Ollama](https://ollama.ai/) on port 11434
-  - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) on port 8188
+| Service | Container | Internal Port | Host Port (default) |
+| --- | --- | --- | --- |
+| Chat frontend | `chat` | 3001 | 3001 (`CHAT_PORT`) |
+| Backend API | `backend` | 8000 | 8001 (`BACKEND_PORT`) |
+| PostgreSQL | `postgres` | 5432 | 5433 (`POSTGRES_PORT`) |
+| Redis | `redis` | 6379 | 6380 (`REDIS_PORT`) |
+| Ollama | `ollama` | 11434 | 11434 (`OLLAMA_PORT`) |
+| ComfyUI | `comfyui` | 8188 | 8188 (`COMFYUI_PORT`) |
+| Nginx | `nginx` | 80/443 | 80/443 (`NGINX_HTTP_PORT`/`NGINX_HTTPS_PORT`) |
 
 ## Quick Start
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd AICHAT
-   ```
+1. Copy env file:
 
-2. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your preferred editor and update values
-   ```
-
-3. **Generate SSL certificates for HTTPS**
-   ```bash
-   # Linux/macOS
-   cd nginx/ssl && chmod +x generate-certs.sh && ./generate-certs.sh && cd ../..
-
-   # Windows (Git Bash) - if script fails due to path conversion:
-   cd nginx/ssl && MSYS_NO_PATHCONV=1 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-     -keyout nginx-selfsigned.key -out nginx-selfsigned.crt \
-     -subj "/C=US/ST=Local/L=Local/O=Development/OU=AI Workstation/CN=localhost" \
-     -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1,IP:::1"
-   cd ../..
-
-   # Windows (WSL)
-   cd nginx/ssl && bash generate-certs.sh && cd ../..
-   ```
-   This creates self-signed certificates for local development. See [nginx/README.md](nginx/README.md) for details.
-
-4. **Install startup dependencies**
-   ```bash
-   pip install -r scripts/requirements.txt
-   ```
-
-5. **Start all services**
-   ```bash
-   # Recommended: uses port conflict detection and cleanup
-   python scripts/startup.py
-
-   # Or use the wrapper scripts
-   # Windows
-   start.bat
-   # Linux/macOS
-   ./start.sh
-   ```
-
-   **Startup options:**
-
-   | Flag | Description |
-   |------|-------------|
-   | `--interactive` | Prompt before terminating each conflicting process |
-   | `--skip-cleanup` | Detect and report conflicts without terminating anything |
-   | `--env-file PATH` | Path to .env file (default: `.env` in project root) |
-   | `--verbose` | Enable debug-level logging |
-
-   > **Note:** You can still run `docker-compose up -d` directly, but it may fail if ports are already in use. The startup script detects and optionally resolves these conflicts automatically.
-
-6. **Access the application**
-   - Frontend: http://localhost:3001
-   - Backend API: http://localhost:8001
-   - Nginx Proxy (HTTP): http://localhost:9080
-   - Nginx Proxy (HTTPS): https://localhost:8443
-   - External (HTTPS): https://ssdd.kevinalthaus.com
-
-   Note: Your browser will show a security warning for the self-signed certificate. This is expected in development.
-
-## Network Architecture
-
-The system uses two custom Docker networks:
-
-### workstation-network (Default)
-All core services communicate through this network:
-- PostgreSQL, Redis, Backend, Worker, Frontend, Nginx
-- Services use internal hostnames (e.g., `postgres`, `redis`) for communication
-
-### workstation-preview-network (Isolated)
-Used for sandboxed preview containers:
-- Backend manages preview containers via the Docker socket
-- Preview containers are isolated from core services
-- Backend has access to both networks to manage and communicate with previews
-
-### GPU Services
-Ollama and ComfyUI run as Docker Compose services with NVIDIA GPU passthrough:
-- Ollama: `http://ollama:11434` (host port: `OLLAMA_PORT`, default 11434)
-- ComfyUI: `http://comfyui:8188` (host port: `COMFYUI_PORT`, default 8188)
-
-Set `OLLAMA_MODELS_DIR` in `.env` to bind-mount your existing Ollama models directory.
-
-## Development Workflow
-
-### View logs
 ```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f backend
-docker-compose logs -f worker
+cp .env.example .env
 ```
 
-### Restart services
-```bash
-# Single service
-docker-compose restart backend
-
-# All services
-docker-compose restart
-```
-
-### Rebuild after code changes
-```bash
-# Rebuild and restart specific service
-docker-compose up -d --build backend
-
-# Rebuild all services
-docker-compose up -d --build
-```
-
-### Stop all services
-```bash
-docker-compose down
-```
-
-### Reset data (WARNING: destroys all data)
-```bash
-docker-compose down -v
-```
-
-## Infrastructure Verification
-
-After starting the services, verify the infrastructure is working correctly:
-
-### Quick Verification Checklist
-
-| Component | Command | Expected Result |
-|-----------|---------|-----------------|
-| All Services | `docker-compose ps` | All "Up" and "healthy" |
-| PostgreSQL | `docker exec workstation-postgres pg_isready -U workstation_user` | "accepting connections" |
-| pgvector | `docker exec workstation-postgres psql -U workstation_user -d workstation -c "SELECT * FROM pg_extension WHERE extname = 'vector';"` | 1 row returned |
-| Redis | `docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping` | "PONG" |
-| Backend API | `curl http://localhost:8001/health` | `{"status":"healthy"}` |
-| Frontend | `curl http://localhost:3001` | HTML response |
-| Nginx HTTP | `curl http://localhost:9080/health` | "healthy" |
-| Nginx HTTPS | `curl -k https://localhost:8443/health` | "healthy" |
-
-### Verification Results (2026-02-02)
-
-- Docker Version: 28.5.2
-- Docker Compose Version: v2.40.3
-- PostgreSQL: pgvector v0.8.1 enabled
-- Redis: AOF persistence enabled (appendfsync=everysec)
-- Networks: `workstation-network` and `workstation-preview-network` created
-- Volumes: `postgres_data` and `redis_data` persistent
-- SSL Certificate: Valid until Feb 2027
-- Data Persistence: Verified for PostgreSQL and Redis
-
-### Resource Usage (Typical)
-
-| Service | Memory |
-|---------|--------|
-| postgres | ~20 MB |
-| redis | ~4 MB |
-| backend | ~57 MB |
-| worker | ~24 MB |
-| frontend | ~266 MB |
-| nginx | ~19 MB |
-
-## Troubleshooting
-
-### Port Conflicts
-
-If you have services already running on the default ports, update the port mappings in your `.env` file:
+2. Generate local SSL certs (for `https://localhost`):
 
 ```bash
-POSTGRES_PORT=5434    # Change from 5433
-REDIS_PORT=6381       # Change from 6380
-BACKEND_PORT=8002     # Change from 8001
-FRONTEND_PORT=3002    # Change from 3001
-NGINX_HTTP_PORT=9081  # Change from 9080
-NGINX_HTTPS_PORT=9443 # Change from 8443
-```
-
-**Common conflicts**:
-- Port 3000: Often used by other Node.js/React development servers
-- Port 8080: Common for web servers, proxies, or Docker Desktop
-- Port 8081: Sometimes used by Docker Desktop services
-
-Check for port conflicts with:
-```bash
-# Windows
-netstat -ano | findstr :3000
-
+cd nginx/ssl
 # Linux/macOS
-lsof -i :3000
+chmod +x generate-certs.sh && ./generate-certs.sh
+# Windows (Git Bash / WSL)
+bash generate-certs.sh
+cd ../..
 ```
 
-### Docker Socket Permission Issues
-
-On Linux, the backend needs access to the Docker socket. If you encounter permission errors:
+3. Install startup helper dependencies (optional but recommended):
 
 ```bash
-# Add your user to the docker group
-sudo usermod -aG docker $USER
-
-# Or adjust socket permissions (less secure)
-sudo chmod 666 /var/run/docker.sock
+pip install -r scripts/requirements.txt
 ```
 
-### External Services Not Accessible
-
-If the backend cannot reach Ollama or ComfyUI:
-
-1. Verify services are running on the host:
-   ```bash
-   curl http://localhost:11434/api/tags  # Ollama
-   curl http://localhost:8188/system_stats  # ComfyUI
-   ```
-
-2. Ollama and ComfyUI require the NVIDIA Container Toolkit for GPU passthrough. Install it:
-   ```bash
-   # See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-   ```
-
-### Volume Permission Issues
-
-If PostgreSQL or Redis fail to start due to permission issues:
+4. Start services:
 
 ```bash
-# Remove existing volumes and recreate
-docker-compose down -v
-docker-compose up -d
+# Recommended: detects port conflicts first
+python scripts/startup.py
+
+# Or directly
+docker compose up -d
+
+# Production-style overrides
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-### Container Health Checks Failing
+5. Open the app:
+- Chat UI: `http://localhost:3001`
+- Backend health: `http://localhost:8001/health`
+- Nginx HTTP: `http://localhost`
+- Nginx HTTPS: `https://localhost`
 
-Check the health status of services:
+## Common Operations
+
 ```bash
-docker-compose ps
-docker inspect workstation-postgres | grep -A 10 "Health"
+# Logs
+docker compose logs -f
+docker compose logs -f backend
+
+# Restart service
+docker compose restart backend
+
+# Rebuild one service
+docker compose up -d --build backend
+
+# Stop all
+docker compose down
+
+# Stop and delete volumes (destructive)
+docker compose down -v
 ```
 
-## Project Structure
+## Verification
 
-```
-AICHAT/
-├── docker-compose.yml      # Main Docker Compose configuration
-├── .env.example            # Environment variables template
-├── .env                    # Local environment (not in git)
-├── .gitignore              # Git ignore rules
-├── README.md               # This file
-├── backend/                # FastAPI backend service
-│   └── Dockerfile
-├── frontend/               # Next.js frontend service
-│   └── Dockerfile
-└── nginx/                  # Nginx reverse proxy
-    └── nginx.conf
+```bash
+docker compose ps
+curl http://localhost/health
+curl -k https://localhost/health
+curl http://localhost:8001/health
+docker exec workstation-postgres pg_isready -U workstation_user
+docker exec workstation-redis redis-cli -a "$REDIS_PASSWORD" ping
 ```
 
-## Next Steps
+## Documentation Index
 
-After completing this infrastructure setup, proceed with:
+- Backend: `backend/README.md`
+- Nginx and SSL: `nginx/README.md`
+- WebSocket reconnection/state recovery: `backend/docs/websocket_reconnection.md`
+- UI accessibility: `frontend/packages/ui/ACCESSIBILITY.md`
+- UI responsive system: `frontend/packages/ui/RESPONSIVE.md`
 
-1. **PostgreSQL Configuration**: Set up database schema, migrations, and pgvector extension
-2. **Redis Configuration**: Configure AOF persistence and caching strategies
-3. **Backend Development**: Implement FastAPI endpoints and Docker management
-4. **Worker Setup**: Configure ARQ for background task processing
-5. **Frontend Development**: Build Next.js application
-6. **Nginx Configuration**: Set up reverse proxy and SSL termination
+## Notes
 
-## License
-
-[Add your license here]
+- The browser warning on `https://localhost` is expected with self-signed certs.
+- Set a valid `MASTER_PASSWORD` in `.env` before first startup.
+- For production-style runs, use `docker-compose.prod.yml` and provide required secrets.

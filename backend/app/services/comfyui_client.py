@@ -178,6 +178,13 @@ class ComfyUIClient(BaseKernelService):
         except Exception:
             logger.debug("Failed to fetch sampler/scheduler lists from ComfyUI", exc_info=True)
 
+        upscale_models: List[str] = []
+        try:
+            upscale_info = await self.get_node_info("UpscaleModelLoader")
+            upscale_models = self._extract_enum_choices(upscale_info, "model_name")
+        except Exception:
+            logger.debug("Failed to fetch upscale model list from ComfyUI", exc_info=True)
+
         if DEFAULT_CHECKPOINT and DEFAULT_CHECKPOINT not in checkpoints:
             checkpoints = [DEFAULT_CHECKPOINT, *checkpoints]
 
@@ -191,6 +198,7 @@ class ComfyUIClient(BaseKernelService):
             "loras": loras,
             "samplers": samplers,
             "schedulers": schedulers,
+            "upscale_models": upscale_models,
         }
 
     # -- Workflow Templates --------------------------------------------------
@@ -274,6 +282,181 @@ class ComfyUIClient(BaseKernelService):
 
         return model_ref, clip_ref, vae_ref, next_node_id
 
+    # IPAdapter filename mappings per checkpoint type
+    IPADAPTER_FILES = {
+        "sd15": {
+            "ipadapter_file": "ip-adapter_sd15.safetensors",
+            "clip_name": "sd1.5_model.safetensors",
+        },
+        "sdxl": {
+            "ipadapter_file": "ip-adapter_sdxl_vit-h.safetensors",
+            "clip_name": "sdxl_model.safetensors",
+        },
+    }
+
+    @staticmethod
+    def _infer_checkpoint_type(model_name: Optional[str]) -> str:
+        """Infer checkpoint type from model filename."""
+        if model_name:
+            name_lower = model_name.lower()
+            if "xl" in name_lower or "sdxl" in name_lower:
+                return "sdxl"
+        return "sd15"
+
+    @staticmethod
+    def _with_ipadapter(
+        graph: Dict[str, Any],
+        next_node_id: int,
+        model_ref: List[Any],
+        reference_image_path: str,
+        weight: float = 0.7,
+        noise: float = 0.0,
+        checkpoint_type: str = "sd15",
+    ) -> Tuple[List[Any], int]:
+        """Chain IPAdapter onto the model for style transfer from a reference image."""
+        load_ref_id = str(next_node_id)
+        next_node_id += 1
+        ipa_model_id = str(next_node_id)
+        next_node_id += 1
+        clip_vision_id = str(next_node_id)
+        next_node_id += 1
+        ipa_apply_id = str(next_node_id)
+        next_node_id += 1
+
+        ipa_files = ComfyUIClient.IPADAPTER_FILES.get(
+            checkpoint_type, ComfyUIClient.IPADAPTER_FILES["sd15"]
+        )
+
+        graph[load_ref_id] = {
+            "class_type": "LoadImage",
+            "inputs": {"image": reference_image_path},
+        }
+        graph[ipa_model_id] = {
+            "class_type": "IPAdapterModelLoader",
+            "inputs": {
+                "ipadapter_file": ipa_files["ipadapter_file"],
+            },
+        }
+        graph[clip_vision_id] = {
+            "class_type": "CLIPVisionLoader",
+            "inputs": {
+                "clip_name": ipa_files["clip_name"],
+            },
+        }
+        graph[ipa_apply_id] = {
+            "class_type": "IPAdapterApply",
+            "inputs": {
+                "model": model_ref,
+                "ipadapter": [ipa_model_id, 0],
+                "clip_vision": [clip_vision_id, 0],
+                "image": [load_ref_id, 0],
+                "weight": weight,
+                "noise": noise,
+            },
+        }
+        return [ipa_apply_id, 0], next_node_id
+
+    CONTROLNET_FILES = {
+        "sd15": {
+            "canny": "control_v11p_sd15_canny.safetensors",
+            "depth": "control_v11f1p_sd15_depth.safetensors",
+            "openpose": "control_v11p_sd15_openpose.safetensors",
+            "lineart": "control_v11p_sd15_lineart.safetensors",
+            "scribble": "control_v11p_sd15_scribble.safetensors",
+            "softedge": "control_v11p_sd15_softedge.safetensors",
+        },
+        "sdxl": {
+            "canny": "diffusers_xl_canny_full.safetensors",
+            "depth": "diffusers_xl_depth_full.safetensors",
+            "openpose": "control-lora-openposexl2-rank256.safetensors",
+            "lineart": "sai_xl_sketch_256lora.safetensors",
+            "scribble": "sai_xl_sketch_256lora.safetensors",
+        },
+    }
+
+    @staticmethod
+    def _with_controlnet(
+        graph: Dict[str, Any],
+        next_node_id: int,
+        positive_cond_ref: List[Any],
+        controlnet_image_path: str,
+        controlnet_type: str = "canny",
+        strength: float = 1.0,
+        checkpoint_type: str = "sd15",
+    ) -> Tuple[List[Any], int]:
+        """Chain ControlNet onto positive conditioning."""
+        load_cn_img_id = str(next_node_id)
+        next_node_id += 1
+        cn_loader_id = str(next_node_id)
+        next_node_id += 1
+        cn_apply_id = str(next_node_id)
+        next_node_id += 1
+
+        cn_model_map = ComfyUIClient.CONTROLNET_FILES.get(
+            checkpoint_type, ComfyUIClient.CONTROLNET_FILES["sd15"]
+        )
+        if checkpoint_type == "sdxl" and controlnet_type not in cn_model_map:
+            raise ValueError(
+                f"ControlNet type '{controlnet_type}' is not supported for SDXL checkpoints"
+            )
+
+        fallback_model = (
+            f"control_v11p_sd15_{controlnet_type}.safetensors"
+            if checkpoint_type == "sd15"
+            else f"diffusers_xl_{controlnet_type}_full.safetensors"
+        )
+        cn_model = cn_model_map.get(controlnet_type, fallback_model)
+
+        graph[load_cn_img_id] = {
+            "class_type": "LoadImage",
+            "inputs": {"image": controlnet_image_path},
+        }
+        graph[cn_loader_id] = {
+            "class_type": "ControlNetLoader",
+            "inputs": {"control_net_name": cn_model},
+        }
+        graph[cn_apply_id] = {
+            "class_type": "ControlNetApply",
+            "inputs": {
+                "conditioning": positive_cond_ref,
+                "control_net": [cn_loader_id, 0],
+                "image": [load_cn_img_id, 0],
+                "strength": strength,
+            },
+        }
+        return [cn_apply_id, 0], next_node_id
+
+    @staticmethod
+    def get_upscale_workflow(
+        input_image_path: str,
+        upscale_model: str = "RealESRGAN_x4plus.pth",
+    ) -> Dict[str, Any]:
+        """Build an upscaling workflow using a model-based upscaler."""
+        return {
+            "1": {
+                "class_type": "LoadImage",
+                "inputs": {"image": input_image_path},
+            },
+            "2": {
+                "class_type": "UpscaleModelLoader",
+                "inputs": {"model_name": upscale_model},
+            },
+            "3": {
+                "class_type": "ImageUpscaleWithModel",
+                "inputs": {
+                    "upscale_model": ["2", 0],
+                    "image": ["1", 0],
+                },
+            },
+            "4": {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "filename_prefix": "workstation_upscale",
+                    "images": ["3", 0],
+                },
+            },
+        }
+
     @staticmethod
     def get_text_to_image_workflow(
         prompt: str,
@@ -288,6 +471,12 @@ class ComfyUIClient(BaseKernelService):
         batch_size: int = 1,
         model_name: Optional[str] = None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        reference_image_path: Optional[str] = None,
+        reference_weight: float = 0.7,
+        reference_noise: float = 0.0,
+        controlnet_image_path: Optional[str] = None,
+        controlnet_type: Optional[str] = None,
+        controlnet_strength: float = 1.0,
     ) -> Dict[str, Any]:
         """Build a standard text-to-image ComfyUI workflow (API format)."""
         graph: Dict[str, Any] = {}
@@ -297,17 +486,22 @@ class ComfyUIClient(BaseKernelService):
             model_name=model_name,
             loras=loras,
         )
+
+        # Optional IPAdapter reference image
+        ckpt_type = ComfyUIClient._infer_checkpoint_type(model_name)
+        if reference_image_path:
+            model_ref, next_id = ComfyUIClient._with_ipadapter(
+                graph, next_id, model_ref, reference_image_path,
+                weight=reference_weight, noise=reference_noise,
+                checkpoint_type=ckpt_type,
+            )
+
         latent_id = str(next_id)
         next_id += 1
         pos_id = str(next_id)
         next_id += 1
         neg_id = str(next_id)
         next_id += 1
-        sample_id = str(next_id)
-        next_id += 1
-        decode_id = str(next_id)
-        next_id += 1
-        save_id = str(next_id)
 
         graph[latent_id] = {
             "class_type": "EmptyLatentImage",
@@ -331,6 +525,23 @@ class ComfyUIClient(BaseKernelService):
                 "clip": clip_ref,
             },
         }
+
+        positive_ref: List[Any] = [pos_id, 0]
+
+        # Optional ControlNet
+        if controlnet_image_path and controlnet_type:
+            positive_ref, next_id = ComfyUIClient._with_controlnet(
+                graph, next_id, positive_ref, controlnet_image_path,
+                controlnet_type=controlnet_type, strength=controlnet_strength,
+                checkpoint_type=ckpt_type,
+            )
+
+        sample_id = str(next_id)
+        next_id += 1
+        decode_id = str(next_id)
+        next_id += 1
+        save_id = str(next_id)
+
         graph[sample_id] = {
             "class_type": "KSampler",
             "inputs": {
@@ -341,7 +552,7 @@ class ComfyUIClient(BaseKernelService):
                 "scheduler": scheduler,
                 "denoise": 1.0,
                 "model": model_ref,
-                "positive": [pos_id, 0],
+                "positive": positive_ref,
                 "negative": [neg_id, 0],
                 "latent_image": [latent_id, 0],
             },
@@ -375,6 +586,12 @@ class ComfyUIClient(BaseKernelService):
         scheduler: str = "normal",
         model_name: Optional[str] = None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        reference_image_path: Optional[str] = None,
+        reference_weight: float = 0.7,
+        reference_noise: float = 0.0,
+        controlnet_image_path: Optional[str] = None,
+        controlnet_type: Optional[str] = None,
+        controlnet_strength: float = 1.0,
     ) -> Dict[str, Any]:
         """Build a standard image-to-image ComfyUI workflow (API format)."""
         graph: Dict[str, Any] = {}
@@ -384,6 +601,15 @@ class ComfyUIClient(BaseKernelService):
             model_name=model_name,
             loras=loras,
         )
+
+        ckpt_type = ComfyUIClient._infer_checkpoint_type(model_name)
+        if reference_image_path:
+            model_ref, next_id = ComfyUIClient._with_ipadapter(
+                graph, next_id, model_ref, reference_image_path,
+                weight=reference_weight, noise=reference_noise,
+                checkpoint_type=ckpt_type,
+            )
+
         load_id = str(next_id)
         next_id += 1
         encode_id = str(next_id)
@@ -392,11 +618,6 @@ class ComfyUIClient(BaseKernelService):
         next_id += 1
         neg_id = str(next_id)
         next_id += 1
-        sample_id = str(next_id)
-        next_id += 1
-        decode_id = str(next_id)
-        next_id += 1
-        save_id = str(next_id)
 
         graph[load_id] = {
             "class_type": "LoadImage",
@@ -423,6 +644,21 @@ class ComfyUIClient(BaseKernelService):
                 "clip": clip_ref,
             },
         }
+
+        positive_ref: List[Any] = [pos_id, 0]
+        if controlnet_image_path and controlnet_type:
+            positive_ref, next_id = ComfyUIClient._with_controlnet(
+                graph, next_id, positive_ref, controlnet_image_path,
+                controlnet_type=controlnet_type, strength=controlnet_strength,
+                checkpoint_type=ckpt_type,
+            )
+
+        sample_id = str(next_id)
+        next_id += 1
+        decode_id = str(next_id)
+        next_id += 1
+        save_id = str(next_id)
+
         graph[sample_id] = {
             "class_type": "KSampler",
             "inputs": {
@@ -433,7 +669,7 @@ class ComfyUIClient(BaseKernelService):
                 "scheduler": scheduler,
                 "denoise": denoise,
                 "model": model_ref,
-                "positive": [pos_id, 0],
+                "positive": positive_ref,
                 "negative": [neg_id, 0],
                 "latent_image": [encode_id, 0],
             },

@@ -2,13 +2,22 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "../client";
-import type { ConversationState, MessageSummary } from "../types";
+import type { ConversationState, MessageSummary, StreamToolCallEvent, StreamToolResultEvent, StreamToolApprovalRequiredEvent } from "../types";
 import { useTokenUsage } from "./use-token-usage";
 import type { TokenUsage } from "./use-token-usage";
 
 export interface DraftOptions {
   projectId: string | null;
   onChatCreated?: (chatId: string, title?: string) => void;
+}
+
+export interface ToolCallInfo {
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  status: "calling" | "executing" | "success" | "error" | "pending_approval" | "denied" | "timed_out";
+  result_preview?: string;
+  duration_ms?: number;
 }
 
 interface UseConversationReturn {
@@ -19,6 +28,10 @@ interface UseConversationReturn {
   progress: number;
   error: string | null;
   tokenUsage: TokenUsage | null;
+  activeToolCalls: ToolCallInfo[];
+  pendingApproval: StreamToolApprovalRequiredEvent | null;
+  approveToolCall: (callId: string, modified?: Record<string, unknown>) => Promise<void>;
+  denyToolCall: (callId: string) => Promise<void>;
   refresh: () => Promise<void>;
   sendMessage: (content: string, role?: string) => Promise<boolean>;
   cancelStream: () => void;
@@ -32,6 +45,7 @@ export function useConversation(
   chatId: string | null,
   activeModel?: string | null,
   draftOptions?: DraftOptions,
+  chatMode?: string,
 ): UseConversationReturn {
   const [conversation, setConversation] = useState<ConversationState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +70,9 @@ export function useConversation(
 
   // Prevent double-creation in draft mode
   const creatingChatRef = useRef(false);
+
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCallInfo[]>([]);
+  const [pendingApproval, setPendingApproval] = useState<StreamToolApprovalRequiredEvent | null>(null);
 
   const { tokenUsage, setFromStream } = useTokenUsage(chatIdRef.current);
   const setFromStreamRef = useRef(setFromStream);
@@ -241,6 +258,9 @@ export function useConversation(
           setFromStreamRef.current(data);
           finishProgress();
           abortRef.current = null;
+          // Clear tool call state after stream completes
+          setActiveToolCalls([]);
+          setPendingApproval(null);
 
           // If backend generated a title, notify parent so sidebar can update
           if (data.chat_title && opts?.onChatCreated) {
@@ -260,13 +280,82 @@ export function useConversation(
           abortRef.current = null;
         },
         activeModel ?? undefined,
+        chatMode,
+        // onToolCall
+        (event) => {
+          setActiveToolCalls((prev) => [
+            ...prev,
+            {
+              call_id: event.call_id,
+              tool_name: event.tool_name,
+              arguments: event.arguments,
+              status: "calling",
+            },
+          ]);
+        },
+        // onToolResult
+        (event) => {
+          const validStatuses: ToolCallInfo["status"][] = ["calling", "executing", "success", "error", "pending_approval", "denied", "timed_out"];
+          const resolvedStatus: ToolCallInfo["status"] = event.success
+            ? "success"
+            : (typeof event.status === "string" && validStatuses.includes(event.status as ToolCallInfo["status"]))
+              ? (event.status as ToolCallInfo["status"])
+              : "error";
+          setActiveToolCalls((prev) =>
+            prev.map((tc) =>
+              tc.call_id === event.call_id
+                ? {
+                    ...tc,
+                    status: resolvedStatus,
+                    result_preview: event.result_preview,
+                    duration_ms: event.duration_ms,
+                  }
+                : tc
+            )
+          );
+        },
+        // onToolApprovalRequired
+        (event) => {
+          setPendingApproval(event);
+          setActiveToolCalls((prev) =>
+            prev.map((tc) =>
+              tc.call_id === event.call_id
+                ? { ...tc, status: "pending_approval" }
+                : tc
+            )
+          );
+        },
       );
 
       abortRef.current = cancel;
       return true;
     },
-    [startProgress, finishProgress, activeModel]
+    [startProgress, finishProgress, activeModel, chatMode]
   );
+
+  const approveToolCall = useCallback(async (callId: string, modified?: Record<string, unknown>) => {
+    try {
+      await getClient().submitToolApproval(callId, true, modified);
+      setPendingApproval(null);
+      setActiveToolCalls((prev) =>
+        prev.map((tc) => tc.call_id === callId ? { ...tc, status: "executing" } : tc)
+      );
+    } catch {
+      setError("Failed to submit tool approval");
+    }
+  }, []);
+
+  const denyToolCall = useCallback(async (callId: string) => {
+    try {
+      await getClient().submitToolApproval(callId, false);
+      setPendingApproval(null);
+      setActiveToolCalls((prev) =>
+        prev.map((tc) => tc.call_id === callId ? { ...tc, status: "denied" } : tc)
+      );
+    } catch {
+      setError("Failed to submit tool denial");
+    }
+  }, []);
 
   const updateMessage = useCallback(
     async (messageId: string, data: { content?: string; is_pinned?: boolean; is_excluded?: boolean }): Promise<boolean> => {
@@ -335,6 +424,10 @@ export function useConversation(
     progress,
     error,
     tokenUsage,
+    activeToolCalls,
+    pendingApproval,
+    approveToolCall,
+    denyToolCall,
     refresh,
     sendMessage,
     cancelStream,

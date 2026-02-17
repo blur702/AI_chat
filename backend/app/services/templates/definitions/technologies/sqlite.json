@@ -1,0 +1,17 @@
+{
+  "id": "sqlite",
+  "name": "SQLite",
+  "description": "SQLite embedded database — no sidecar required",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {},
+  "environment": {
+    "DATABASE_URL": "sqlite:///workspace/data/app.db"
+  },
+  "sidecar_services": [],
+  "requires_technologies": [],
+  "conflicts_with": [],
+  "docker_image": null,
+  "exposed_ports": []
+}

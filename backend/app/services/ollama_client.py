@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 import httpx
 
@@ -84,10 +84,12 @@ class OllamaClient(BaseKernelService):
 
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str = "llama3.2",
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        num_ctx: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Send a chat completion request to Ollama (non-streaming).
@@ -97,10 +99,13 @@ class OllamaClient(BaseKernelService):
             model: Ollama model name.
             temperature: Sampling temperature.
             max_tokens: Optional max token limit for the response.
+            tools: Optional list of tool definitions in OpenAI format.
 
         Returns:
             Dict with at least ``message`` (the assistant reply) and
-            ``model`` keys from the Ollama response.
+            ``model`` keys from the Ollama response. If tools were
+            provided and the model invoked them, ``message.tool_calls``
+            will be present.
 
         Raises:
             httpx.TimeoutException: On request timeout.
@@ -119,6 +124,10 @@ class OllamaClient(BaseKernelService):
         }
         if max_tokens is not None:
             payload["options"]["num_predict"] = max_tokens
+        if num_ctx is not None:
+            payload["options"]["num_ctx"] = num_ctx
+        if tools:
+            payload["tools"] = tools
 
         resp = await self._client.post("/api/chat", json=payload)
         resp.raise_for_status()
@@ -126,24 +135,30 @@ class OllamaClient(BaseKernelService):
 
     async def chat_completion_stream(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str = "llama3.2",
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
-    ) -> AsyncGenerator[str, None]:
+        num_ctx: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Send a streaming chat completion request to Ollama.
 
-        Yields token strings as they arrive from the Ollama streaming API.
+        Yields token strings as they arrive. When the model invokes tools,
+        the final yield is a dict ``{"tool_calls": [...]}`` instead of a
+        string token.
 
         Args:
-            messages: List of {"role": ..., "content": ...} dicts.
+            messages: List of message dicts (role, content, tool_calls, etc.).
             model: Ollama model name.
             temperature: Sampling temperature.
             max_tokens: Optional max token limit for the response.
+            tools: Optional list of tool definitions in OpenAI format.
 
         Yields:
-            Individual token strings from the assistant response.
+            ``str`` token text, or a ``dict`` with ``tool_calls`` key on
+            the final chunk when the model invokes tools.
 
         Raises:
             httpx.TimeoutException: On request timeout.
@@ -163,6 +178,10 @@ class OllamaClient(BaseKernelService):
         }
         if max_tokens is not None:
             payload["options"]["num_predict"] = max_tokens
+        if num_ctx is not None:
+            payload["options"]["num_ctx"] = num_ctx
+        if tools:
+            payload["tools"] = tools
 
         async with self._client.stream("POST", "/api/chat", json=payload) as resp:
             resp.raise_for_status()
@@ -174,10 +193,17 @@ class OllamaClient(BaseKernelService):
                 except json.JSONDecodeError:
                     logger.warning("Malformed JSON chunk from Ollama: %s", line[:100])
                     continue
-                token = chunk.get("message", {}).get("content", "")
+
+                msg = chunk.get("message", {})
+                token = msg.get("content", "")
                 if token:
                     yield token
+
+                # On the final chunk, check for tool calls
                 if chunk.get("done", False):
+                    tool_calls = msg.get("tool_calls")
+                    if tool_calls:
+                        yield {"tool_calls": tool_calls}
                     break
 
     async def list_running_models(self) -> List[Dict[str, Any]]:

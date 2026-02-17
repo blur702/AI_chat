@@ -204,7 +204,7 @@ export function OffloadPreferences({
             <div>
               <p className="text-sm font-medium">Auto-unload idle resources</p>
               <p className="text-xs text-muted-foreground">
-                Automatically offload resources that haven't been used recently.
+                Automatically offload resources that have not been used recently.
               </p>
             </div>
             <ToggleSwitch

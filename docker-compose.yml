@@ -12,8 +12,29 @@ volumes:
   image_outputs:
   comfyui_data:
   comfyui_models:
+  drupal_data:
+  drupal_db_data:
+  searxng_data:
 
 services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: workstation-searxng
+    expose:
+      - "8080"
+    volumes:
+      - searxng_data:/etc/searxng
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - workstation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
   ollama:
     image: ollama/ollama:latest
     container_name: workstation-ollama
@@ -28,7 +49,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ['${OLLAMA_GPU_DEVICE_ID:-1}']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
@@ -54,7 +75,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ['${COMFYUI_GPU_DEVICE_ID:-0}']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8188/system_stats || exit 1"]
@@ -67,8 +88,11 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: workstation-postgres
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+    # Internal only; uncomment ports for local dev access
+    # ports:
+    #   - "${POSTGRES_PORT:-5433}:5432"
+    expose:
+      - "5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-workstation}
       POSTGRES_USER: ${POSTGRES_USER:-workstation_user}
@@ -88,8 +112,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: workstation-redis
-    ports:
-      - "${REDIS_PORT:-6380}:6379"
+    # Internal only; uncomment ports for local dev access
+    # ports:
+    #   - "${REDIS_PORT:-6380}:6379"
+    expose:
+      - "6379"
     command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD:-changeme_strong_redis_password}
     volumes:
       - redis_data:/data
@@ -120,6 +147,8 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
+      DESKTOP_CONTROL_ENABLED: ${DESKTOP_CONTROL_ENABLED:-false}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       # MASTER_USERNAMES and MASTER_PASSWORD are required in production;
@@ -128,10 +157,26 @@ services:
       MASTER_PASSWORD: ${MASTER_PASSWORD:-}
       MASTER_FIRST_NAME: ${MASTER_FIRST_NAME:-}
       MASTER_SCREEN_NAME: ${MASTER_SCREEN_NAME:-}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_MCP_TOKEN: ${BREVO_MCP_TOKEN:-}
+      SMS_SENDER: ${SMS_SENDER:-Workstation}
+      SMS_DEFAULT_RECIPIENT: ${SMS_DEFAULT_RECIPIENT:-}
+      DRUPAL_ALLOWED_HOSTS: ${DRUPAL_ALLOWED_HOSTS:-}
+      DRUPAL_LOCAL_MOUNT: /drupal-local
+      DRUPAL_LOCAL_CONTAINER: ${DRUPAL_LOCAL_CONTAINER:-workstation-drupal}
+      DRUPAL_VPS_HOST: ${DRUPAL_VPS_HOST:-}
+      DRUPAL_VPS_USER: ${DRUPAL_VPS_USER:-root}
+      DRUPAL_VPS_PASSWORD: ${DRUPAL_VPS_PASSWORD:-}
+      DRUPAL_VPS_KEY_PATH: ${DRUPAL_VPS_KEY_PATH:-}
+      DRUPAL_VPS_PORT: ${DRUPAL_VPS_PORT:-22}
+    # Grant Docker socket access to non-root appuser (docker group GID on host)
+    group_add:
+      - ${DOCKER_GID:-999}
     volumes:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - image_outputs:/data/comfyui_outputs
+      - ${DRUPAL_LOCAL_PATH:-./drupal-local}:/drupal-local:rw
     networks:
       - workstation-network
       - workstation-preview-network
@@ -140,7 +185,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: ${BACKEND_GPU_UTILITY_COUNT:-1}
               capabilities: [utility]
     depends_on:
       postgres:
@@ -222,6 +267,7 @@ services:
     depends_on:
       - backend
       - chat
+      - drupal
     # Reload nginx every 6h to pick up renewed certificates
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     healthcheck:
@@ -230,6 +276,49 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  drupal_db:
+    image: mariadb:10.11
+    container_name: workstation-drupal-db
+    expose:
+      - "3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DRUPAL_DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DRUPAL_DB_NAME:-drupal}
+      MYSQL_USER: ${DRUPAL_DB_USER:-drupal}
+      MYSQL_PASSWORD: ${DRUPAL_DB_PASSWORD:-drupal}
+    volumes:
+      - drupal_db_data:/var/lib/mysql
+    networks:
+      - workstation-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DRUPAL_DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  drupal:
+    image: drupal:11-apache
+    container_name: workstation-drupal
+    expose:
+      - "80"
+    ports:
+      - "${DRUPAL_PORT:-8080}:80"
+    volumes:
+      - drupal_data:/opt/drupal/web
+    networks:
+      - workstation-network
+    depends_on:
+      drupal_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   certbot:

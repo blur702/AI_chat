@@ -18,9 +18,12 @@ do_backup() {
 
     echo "[$(date)] Starting backup -> ${BACKUP_FILE}"
 
+    set -o pipefail
     docker exec "$CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
+    PIPE_RC=$?
+    set +o pipefail
 
-    if [ $? -eq 0 ] && [ -s "$BACKUP_FILE" ]; then
+    if [ $PIPE_RC -eq 0 ] && [ -s "$BACKUP_FILE" ]; then
         echo "[$(date)] Backup complete: $(du -h "$BACKUP_FILE" | cut -f1)"
     else
         echo "[$(date)] ERROR: Backup failed or empty"

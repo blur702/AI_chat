@@ -1,7 +1,7 @@
 {
   "id": "drupal",
   "name": "Drupal",
-  "description": "Drupal CMS with PHP 8.3, Apache, MySQL sidecar, and Composer dependency management.",
+  "description": "Drupal CMS with PHP 8.3, Apache, MariaDB 10.11 sidecar, and Composer dependency management.",
   "category": "php",
   "dockerfile": "drupal/Dockerfile",
   "scaffold_files": {
@@ -18,7 +18,7 @@
   "sidecar_services": [
     {
       "name": "drupal-db",
-      "image": "mysql:8.0",
+      "image": "mariadb:10.11",
       "environment": {
         "MYSQL_ROOT_PASSWORD": "root",
         "MYSQL_DATABASE": "drupal",
@@ -30,6 +30,7 @@
       "memory_limit": "512m"
     }
   ],
-  "memory_limit": "1g",
-  "cpu_quota": 100000
+  "memory_limit": "2g",
+  "cpu_quota": 100000,
+  "selected_technologies": ["mysql"]
 }

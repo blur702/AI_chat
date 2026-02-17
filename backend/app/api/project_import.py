@@ -3,9 +3,11 @@
 import logging
 import os
 import tempfile
+from typing import Optional
 from uuid import UUID
 
 from arq import create_pool
+from pydantic import BaseModel
 from fastapi import (
     APIRouter,
     Depends,
@@ -36,6 +38,8 @@ from app.schemas.project_import import (
     SnapshotInfo,
     SnapshotListResponse,
     SnapshotRestoreResponse,
+    WebsiteImportRequest,
+    WebsiteImportResponse,
 )
 from app.services.project_detector import ProjectDetector
 from app.services.sandbox_manager import SandboxManager
@@ -234,6 +238,76 @@ async def import_from_archive(
         project_id=str(project.id),
         status="pending",
         message="Archive import queued",
+    )
+
+
+# -------------------------------------------------------------------------
+# Website Import
+# -------------------------------------------------------------------------
+
+
+@router.post(
+    "/import/website",
+    response_model=WebsiteImportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def import_from_website(
+    data: WebsiteImportRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> WebsiteImportResponse:
+    """Mirror a website into a new project using an async worker job."""
+    user_id = payload.get("user_id") or payload.get("sub", "")
+
+    project = Project(
+        name=data.name,
+        path=data.path or data.name.lower().replace(" ", "-"),
+        user_id=UUID(user_id),
+        type="importing",
+    )
+    db.add(project)
+    await db.flush()
+
+    import_record = ProjectImport(
+        user_id=UUID(user_id),
+        project_id=project.id,
+        import_type="website",
+        source_url=data.website_url,
+        status="pending",
+        progress_message="Queued for website import",
+        import_options={
+            "depth": data.depth,
+            "include_assets": data.include_assets,
+            "same_domain_only": data.same_domain_only,
+            "install_deps": data.install_deps,
+            "max_pages": data.max_pages,
+            "strategy": data.strategy,
+        },
+    )
+    db.add(import_record)
+    await db.commit()
+    await db.refresh(import_record)
+    await db.refresh(project)
+
+    try:
+        pool = await create_pool(get_redis_settings())
+        await pool.enqueue_job("import_website_project_task", str(import_record.id))
+        await pool.close()
+    except Exception as exc:
+        logger.error("Failed to enqueue website import: %s", exc)
+        import_record.status = "failed"
+        import_record.error_message = f"Failed to enqueue task: {exc}"
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to start website import job",
+        )
+
+    return WebsiteImportResponse(
+        import_id=str(import_record.id),
+        project_id=str(project.id),
+        status="pending",
+        message="Website import queued",
     )
 
 
@@ -503,6 +577,93 @@ async def delete_snapshot(
 
     try:
         await sandbox.delete_snapshot(project_id, snapshot_name)
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+# -------------------------------------------------------------------------
+# Docker Image Export
+# -------------------------------------------------------------------------
+
+
+class DockerExportRequest(BaseModel):
+    image_name: Optional[str] = None
+    include_compose: bool = True
+    include_tar: bool = False
+
+
+class DockerExportResponse(BaseModel):
+    image_id: str
+    image_name: str
+    compose_file: Optional[str] = None
+    tar_download_url: Optional[str] = None
+
+
+@router.post(
+    "/{project_id}/export-docker",
+    response_model=DockerExportResponse,
+)
+async def export_as_docker_image(
+    project_id: UUID,
+    data: DockerExportRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    sandbox: SandboxManager = Depends(get_sandbox_manager),
+) -> DockerExportResponse:
+    """Export a project as a portable Docker image with optional compose file."""
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    template_id = await validate_project_access_with_template(
+        project_id, user_id, db
+    )
+
+    try:
+        result = await sandbox.export_as_docker_image(
+            project_id,
+            image_name=data.image_name,
+            include_compose=data.include_compose,
+            include_tar=data.include_tar,
+            template_id=template_id,
+        )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return DockerExportResponse(**result)
+
+
+@router.get("/{project_id}/export-docker/{image_id}/download")
+async def download_docker_tar(
+    project_id: UUID,
+    image_id: str,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    sandbox: SandboxManager = Depends(get_sandbox_manager),
+):
+    """Download a Docker image as a tar archive."""
+    import re
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    await validate_project_access(project_id, user_id, db)
+
+    # Validate image_id format (Docker image IDs are hex strings or name:tag)
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_./:@-]*$', image_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image ID format",
+        )
+
+    try:
+        return StreamingResponse(
+            sandbox.export_docker_tar_streaming(image_id),
+            media_type="application/x-tar",
+            headers={
+                "Content-Disposition": f'attachment; filename="{image_id[:12]}.tar"',
+            },
+        )
     except RuntimeError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -33,6 +33,16 @@ from app.services.templates import TemplateRegistry
 
 logger = logging.getLogger(__name__)
 
+# Module-level cached registry to avoid re-reading JSON files on every request
+_registry_cache: Optional[TemplateRegistry] = None
+
+
+def _get_registry() -> TemplateRegistry:
+    global _registry_cache
+    if _registry_cache is None:
+        _registry_cache = TemplateRegistry()
+    return _registry_cache
+
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 # Backward-compatible alias router under /context/projects
@@ -95,14 +105,36 @@ async def _create_project_handler(
 
     normalized_path = _normalize_project_path(body.path)
 
+    # Validate: cannot provide both template_id and selected_technologies
+    if body.template_id is not None and body.selected_technologies is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot specify both 'template_id' and 'selected_technologies'. Use one or the other.",
+        )
+
     # Validate template_id against the template registry
-    if body.template_id:
-        registry = TemplateRegistry()
+    if body.template_id is not None:
+        registry = _get_registry()
         if registry.get(body.template_id) is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unknown template_id: '{body.template_id}'",
             )
+
+    # Validate selected_technologies against the registry
+    if body.selected_technologies:
+        registry = _get_registry()
+        for tech_id in body.selected_technologies:
+            if registry.get_technology(tech_id) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown technology: '{tech_id}'",
+                )
+
+    # Store selected_technologies in settings JSONB field (Option A: no migration needed)
+    project_settings = body.settings or {}
+    if body.selected_technologies:
+        project_settings["selected_technologies"] = body.selected_technologies
 
     project = Project(
         user_id=user_uuid,
@@ -110,7 +142,7 @@ async def _create_project_handler(
         path=normalized_path,
         type=body.type,
         template_id=body.template_id,
-        settings=body.settings,
+        settings=project_settings if project_settings else body.settings,
         custom_context=body.custom_context,
         important_files=body.important_files,
     )
@@ -118,21 +150,46 @@ async def _create_project_handler(
     await db.commit()
     await db.refresh(project)
 
-    # Provision a sandbox container with the selected template
-    if body.template_id and sandbox_manager and sandbox_manager.is_running:
-        try:
-            await sandbox_manager.get_or_create_container(
-                project.id, template_id=body.template_id
-            )
-            logger.info(
-                "Provisioned sandbox with template '%s' for project %s",
-                body.template_id, str(project.id)[:12],
-            )
-        except Exception:
-            logger.exception(
-                "Failed to provision sandbox for project %s with template '%s'",
-                str(project.id)[:12], body.template_id,
-            )
+    # Provision a sandbox container
+    if sandbox_manager and sandbox_manager.is_running:
+        if body.selected_technologies:
+            try:
+                await sandbox_manager.get_or_create_container(
+                    project.id, selected_technologies=body.selected_technologies
+                )
+                logger.info(
+                    "Provisioned sandbox with technologies %s for project %s",
+                    body.selected_technologies, str(project.id)[:12],
+                )
+            except ValueError as ve:
+                logger.warning(
+                    "Technology validation failed for project %s: %s",
+                    str(project.id)[:12], ve,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to provision sandbox for project %s with technologies %s",
+                    str(project.id)[:12], body.selected_technologies,
+                )
+        elif body.template_id:
+            try:
+                await sandbox_manager.get_or_create_container(
+                    project.id, template_id=body.template_id
+                )
+                logger.info(
+                    "Provisioned sandbox with template '%s' for project %s",
+                    body.template_id, str(project.id)[:12],
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to provision sandbox for project %s with template '%s'",
+                    str(project.id)[:12], body.template_id,
+                )
+
+    # Extract selected_technologies from settings for response
+    resp_technologies = None
+    if project.settings and "selected_technologies" in project.settings:
+        resp_technologies = project.settings["selected_technologies"]
 
     return ProjectCreateResponse(
         id=str(project.id),
@@ -140,6 +197,7 @@ async def _create_project_handler(
         path=project.path,
         type=project.type,
         template_id=project.template_id,
+        selected_technologies=resp_technologies,
         created_at=project.created_at.isoformat() if project.created_at else None,
     )
 
@@ -171,6 +229,7 @@ async def _list_projects_handler(
             path=p.path,
             type=p.type,
             template_id=p.template_id,
+            selected_technologies=(p.settings or {}).get("selected_technologies"),
             created_at=p.created_at.isoformat() if p.created_at else None,
             updated_at=p.updated_at.isoformat() if p.updated_at else None,
         )
@@ -204,12 +263,40 @@ async def _update_project_handler(
 
     # Validate template_id if provided
     if "template_id" in update_data and update_data["template_id"] is not None:
-        registry = TemplateRegistry()
+        registry = _get_registry()
         if registry.get(update_data["template_id"]) is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unknown template_id: '{update_data['template_id']}'",
             )
+
+    # Validate: cannot provide both template_id and selected_technologies
+    if (
+        "template_id" in update_data
+        and update_data["template_id"] is not None
+        and "selected_technologies" in update_data
+        and update_data["selected_technologies"] is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot specify both 'template_id' and 'selected_technologies'. Use one or the other.",
+        )
+
+    # Handle selected_technologies update: store in settings JSONB
+    if "selected_technologies" in update_data:
+        selected_tech = update_data.pop("selected_technologies")
+        if selected_tech is not None:
+            registry = _get_registry()
+            for tech_id in selected_tech:
+                if registry.get_technology(tech_id) is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Unknown technology: '{tech_id}'",
+                    )
+            # Merge into user-provided settings if present, otherwise into current project settings
+            base_settings = update_data.get("settings") or (dict(project.settings) if project.settings else {})
+            base_settings["selected_technologies"] = selected_tech
+            update_data["settings"] = base_settings
 
     # Validate system_prompt_id ownership if provided
     if "system_prompt_id" in update_data and update_data["system_prompt_id"] is not None:
@@ -245,6 +332,7 @@ async def _update_project_handler(
         path=project.path,
         type=project.type,
         template_id=project.template_id,
+        selected_technologies=(project.settings or {}).get("selected_technologies"),
         system_prompt_id=str(project.system_prompt_id) if project.system_prompt_id else None,
         settings=project.settings,
         custom_context=project.custom_context,

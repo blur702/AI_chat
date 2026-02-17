@@ -10,10 +10,14 @@ import {
   DialogTitle,
 } from "@workstation/ui";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
+  Loader2,
   Move,
+  RotateCcw,
+  Star,
   X,
   ZoomIn,
   ZoomOut,
@@ -26,6 +30,9 @@ interface ImageViewerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onNavigate?: (direction: "prev" | "next") => void;
+  onToggleFavorite?: (id: string) => void;
+  onUpscale?: (id: string) => void;
+  onRegenerate?: (generation: ImageGenerationResponse) => void;
 }
 
 type ZoomMode = "fit" | "100" | "200";
@@ -40,12 +47,17 @@ export function ImageViewer({
   open,
   onOpenChange,
   onNavigate,
+  onToggleFavorite,
+  onUpscale,
+  onRegenerate,
 }: ImageViewerProps) {
   const [zoom, setZoom] = useState<ZoomMode>("fit");
   const [imageIndex, setImageIndex] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragOrigin, setDragOrigin] = useState({ x: 0, y: 0 });
+  const [showMetadata, setShowMetadata] = useState(false);
+  const [upscaling, setUpscaling] = useState(false);
 
   const images = generation.result_images ?? [];
   const currentImage = images[imageIndex] ?? null;
@@ -183,6 +195,15 @@ export function ImageViewer({
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => onToggleFavorite?.(generation.id)}
+                title={generation.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Star className={`h-3.5 w-3.5 mr-1 ${generation.is_favorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                {generation.is_favorite ? "Favorited" : "Favorite"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleDownload}
                 disabled={!currentImage}
               >
@@ -266,6 +287,9 @@ export function ImageViewer({
                 {generation.workflow_type && (
                   <Badge variant="outline">{generation.workflow_type}</Badge>
                 )}
+                {generation.seed_used != null && (
+                  <Badge variant="outline">Seed: {generation.seed_used}</Badge>
+                )}
                 {generation.comfyui_job_id && (
                   <Badge variant="outline">
                     Job {generation.comfyui_job_id}
@@ -288,6 +312,70 @@ export function ImageViewer({
               <p className="text-xs text-muted-foreground">
                 Image {imageIndex + 1} of {Math.max(images.length, 1)}
               </p>
+            </div>
+
+            {/* Generation Metadata */}
+            {generation.generation_metadata && Object.keys(generation.generation_metadata).length > 0 && (
+              <div className="space-y-2 rounded-md border">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between p-2 text-xs font-semibold hover:bg-muted/50"
+                  onClick={() => setShowMetadata((v) => !v)}
+                >
+                  <span>Generation Parameters</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showMetadata ? "rotate-180" : ""}`} />
+                </button>
+                {showMetadata && (
+                  <div className="space-y-1 border-t px-2 pb-2 pt-1">
+                    {Object.entries(generation.generation_metadata).map(([key, value]) => (
+                      <div key={key} className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">{key}</span>
+                        <span className="font-mono text-foreground truncate ml-2 max-w-[160px]">
+                          {String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="space-y-2 border-t pt-3">
+              {generation.status === "completed" && onUpscale && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={async () => {
+                    setUpscaling(true);
+                    try {
+                      await onUpscale(generation.id);
+                    } finally {
+                      setUpscaling(false);
+                    }
+                  }}
+                  disabled={upscaling}
+                >
+                  {upscaling ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <ZoomIn className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Upscale (4x)
+                </Button>
+              )}
+              {onRegenerate && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => onRegenerate(generation)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                  Re-generate with same settings
+                </Button>
+              )}
             </div>
           </aside>
         </div>

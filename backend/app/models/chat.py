@@ -52,6 +52,9 @@ class Chat(UUIDMixin, TimestampMixin, Base):
     chat_instructions: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True
     )
+    chat_mode: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True, default="agent"
+    )
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="chats")

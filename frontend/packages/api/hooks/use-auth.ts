@@ -22,8 +22,6 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = "workstation_token";
-
 function parseJwt(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
@@ -53,6 +51,22 @@ function stateFromPayload(token: string, payload: Record<string, unknown>): Auth
   };
 }
 
+function stateFromUser(user: {
+  id: string;
+  role: string;
+  username: string;
+  screen_name?: string | null;
+}): AuthState {
+  return {
+    token: null,
+    userId: user.id,
+    role: user.role,
+    username: user.username,
+    screenName: user.screen_name ?? user.username,
+    isAuthenticated: true,
+  };
+}
+
 const emptyState: AuthState = {
   token: null,
   userId: null,
@@ -66,23 +80,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(emptyState);
 
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) {
-      const payload = parseJwt(stored);
-      if (payload && payload.exp && (payload.exp as number) * 1000 > Date.now()) {
-        setState(stateFromPayload(stored, payload));
-        getClient().setToken(stored);
-      } else {
-        localStorage.removeItem(TOKEN_KEY);
+    const restoreSession = async () => {
+      try {
+        const user = await getClient().getCurrentUser();
+        setState(stateFromUser(user));
+      } catch {
+        setState(emptyState);
       }
-    }
+    };
+    void restoreSession();
   }, []);
 
   const login = useCallback((token: string): boolean => {
     const payload = parseJwt(token);
     if (!payload) return false;
     if (payload.exp && (payload.exp as number) * 1000 <= Date.now()) return false;
-    localStorage.setItem(TOKEN_KEY, token);
     getClient().setToken(token);
     setState(stateFromPayload(token, payload));
     return true;
@@ -93,7 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const response = await getClient().login(identifier, password);
         const token = response.access_token;
-        localStorage.setItem(TOKEN_KEY, token);
         getClient().setToken(token);
         const payload = parseJwt(token);
         if (payload) {
@@ -117,8 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    getClient().setToken(null);
+    void getClient().logout().catch(() => undefined);
     setState(emptyState);
   }, []);
 

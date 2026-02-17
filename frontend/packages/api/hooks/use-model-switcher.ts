@@ -22,10 +22,10 @@ export interface UseModelSwitcherReturn {
   pullProgress: { modelName: string; percent: number; status: string } | null;
   error: string | null;
   setActiveModel: (name: string) => void;
-  loadModel: (name: string) => Promise<void>;
-  unloadModel: (name: string) => Promise<void>;
-  pullModel: (name: string) => void;
-  deleteModel: (name: string) => Promise<void>;
+  loadModel: (name: string) => Promise<boolean>;
+  unloadModel: (name: string) => Promise<boolean>;
+  pullModel: (name: string) => Promise<boolean>;
+  deleteModel: (name: string) => Promise<boolean>;
   refresh: () => Promise<void>;
   isModelRunning: (name: string) => boolean;
   getModelVramMb: (name: string) => number | null;
@@ -48,6 +48,7 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pullAbortRef = useRef<(() => void) | null>(null);
+  const pullResolveRef = useRef<((ok: boolean) => void) | null>(null);
   const activeModelRef = useRef(activeModel);
   activeModelRef.current = activeModel;
 
@@ -74,6 +75,8 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
   useEffect(() => {
     return () => {
       pullAbortRef.current?.();
+      pullResolveRef.current?.(false);
+      pullResolveRef.current = null;
     };
   }, []);
 
@@ -96,8 +99,10 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       setError(null);
       await getClient().loadOllamaModel(name);
       await refresh();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load model");
+      return false;
     } finally {
       setActionLoading(null);
     }
@@ -109,41 +114,55 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       setError(null);
       await getClient().unloadOllamaModel(name);
       await refresh();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to unload model");
+      return false;
     } finally {
       setActionLoading(null);
     }
   }, [refresh]);
 
   const pullModel = useCallback((name: string) => {
-    // Cancel any in-flight pull
-    pullAbortRef.current?.();
-    setError(null);
-    setPullProgress({ modelName: name, percent: 0, status: "starting" });
+    return new Promise<boolean>((resolve) => {
+      // Cancel any in-flight pull and resolve it as cancelled.
+      pullAbortRef.current?.();
+      pullResolveRef.current?.(false);
+      pullResolveRef.current = resolve;
 
-    const cancel = getClient().pullOllamaModel(
-      name,
-      (progress: ModelPullProgress) => {
-        setPullProgress({
-          modelName: name,
-          percent: progress.percent ?? 0,
-          status: progress.status,
-        });
-      },
-      () => {
-        setPullProgress(null);
-        pullAbortRef.current = null;
-        refresh();
-      },
-      (errMsg: string) => {
-        setPullProgress(null);
-        setError(errMsg);
-        pullAbortRef.current = null;
-      },
-    );
+      setError(null);
+      setPullProgress({ modelName: name, percent: 0, status: "starting" });
 
-    pullAbortRef.current = cancel;
+      const finish = (ok: boolean) => {
+        pullResolveRef.current?.(ok);
+        pullResolveRef.current = null;
+      };
+
+      const cancel = getClient().pullOllamaModel(
+        name,
+        (progress: ModelPullProgress) => {
+          setPullProgress({
+            modelName: name,
+            percent: progress.percent ?? 0,
+            status: progress.status,
+          });
+        },
+        async () => {
+          finish(true);
+          setPullProgress(null);
+          pullAbortRef.current = null;
+          await refresh();
+        },
+        (errMsg: string) => {
+          finish(false);
+          setPullProgress(null);
+          setError(errMsg);
+          pullAbortRef.current = null;
+        },
+      );
+
+      pullAbortRef.current = cancel;
+    });
   }, [refresh]);
 
   const deleteModel = useCallback(async (name: string) => {
@@ -161,8 +180,10 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
         }
       }
       await refresh();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete model");
+      return false;
     } finally {
       setActionLoading(null);
     }

@@ -14,7 +14,11 @@ export type EventType =
   | "service_health_changed"
   | "compaction_started"
   | "compaction_completed"
-  | "compaction_failed";
+  | "compaction_failed"
+  | "image_generation_started"
+  | "image_generation_progress"
+  | "image_generation_completed"
+  | "image_generation_failed";
 
 export type EventSeverity = "info" | "warning" | "error" | "critical";
 

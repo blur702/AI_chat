@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.automation_action import AutomationAction
     from app.models.chat import Chat
     from app.models.drupal_site import DrupalSite
+    from app.models.planning_session import PlanningSession
     from app.models.kb_source import KBSource
     from app.models.system_prompt import SystemPrompt
     from app.models.user import User
@@ -124,6 +125,11 @@ class Project(UUIDMixin, TimestampMixin, Base):
     )
     archives: Mapped[List["Archive"]] = relationship(
         "Archive",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    planning_sessions: Mapped[List["PlanningSession"]] = relationship(
+        "PlanningSession",
         back_populates="project",
         cascade="all, delete-orphan",
     )

@@ -26,6 +26,7 @@ export interface ConversationState {
   current_token_count: number;
   chat_instructions?: string;
   system_prompt_id?: string;
+  chat_mode?: string;
 }
 
 export interface ChatSummary {
@@ -33,6 +34,7 @@ export interface ChatSummary {
   title: string;
   is_pinned?: boolean;
   is_archived?: boolean;
+  chat_mode?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -42,6 +44,7 @@ export interface ChatCreateRequest {
   title: string;
   chat_instructions?: string;
   system_prompt_id?: string;
+  chat_mode?: string;
 }
 
 export interface ChatCreateResponse {
@@ -50,6 +53,7 @@ export interface ChatCreateResponse {
   project_id: string;
   chat_instructions?: string;
   system_prompt_id?: string;
+  chat_mode?: string;
   created_at?: string;
 }
 
@@ -59,6 +63,7 @@ export interface ChatUpdateRequest {
   is_archived?: boolean;
   chat_instructions?: string;
   system_prompt_id?: string;
+  chat_mode?: string;
 }
 
 export interface ChatUpdateResponse {
@@ -69,6 +74,7 @@ export interface ChatUpdateResponse {
   is_archived: boolean;
   chat_instructions?: string;
   system_prompt_id?: string;
+  chat_mode?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -98,6 +104,7 @@ export interface UserPreferences {
   response_style?: Record<string, unknown>;
   default_model?: string;
   default_temperature?: number;
+  default_num_ctx?: number;
   email_notifications?: boolean;
   in_app_notifications?: boolean;
 
@@ -107,6 +114,8 @@ export interface UserPreferences {
   imggen_default_height?: number;
   imggen_default_steps?: number;
   imggen_default_cfg_scale?: number;
+  imggen_default_prompt?: string;
+  imggen_system_prompt?: string;
   imggen_default_negative_prompt?: string;
   imggen_completion_notification?: boolean;
   imggen_desktop_notification?: boolean;
@@ -123,6 +132,7 @@ export interface UserPreferencesUpdateRequest {
   response_style?: Record<string, unknown>;
   default_model?: string;
   default_temperature?: number;
+  default_num_ctx?: number;
   email_notifications?: boolean;
   in_app_notifications?: boolean;
 
@@ -132,6 +142,8 @@ export interface UserPreferencesUpdateRequest {
   imggen_default_height?: number;
   imggen_default_steps?: number;
   imggen_default_cfg_scale?: number;
+  imggen_default_prompt?: string;
+  imggen_system_prompt?: string;
   imggen_default_negative_prompt?: string;
   imggen_completion_notification?: boolean;
   imggen_desktop_notification?: boolean;
@@ -186,7 +198,38 @@ export interface StreamErrorEvent {
   message: string;
 }
 
-export type StreamEvent = StreamTokenEvent | StreamDoneEvent | StreamErrorEvent;
+export interface StreamToolCallEvent {
+  type: "tool_call";
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  iteration: number;
+}
+
+export interface StreamToolResultEvent {
+  type: "tool_result";
+  call_id: string;
+  tool_name: string;
+  success?: boolean;
+  status?: string; // "pending_approval" | "denied" | "timed_out"
+  duration_ms?: number;
+  result_preview?: string;
+}
+
+export interface StreamToolApprovalRequiredEvent {
+  type: "tool_approval_required";
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+}
+
+export type StreamEvent =
+  | StreamTokenEvent
+  | StreamDoneEvent
+  | StreamErrorEvent
+  | StreamToolCallEvent
+  | StreamToolResultEvent
+  | StreamToolApprovalRequiredEvent;
 
 export interface SandboxChatResponse {
   chat_id: string;
@@ -217,11 +260,100 @@ export interface TemplateListResponse {
   count: number;
 }
 
+// Technologies
+export interface TechnologyInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  requires_technologies: string[];
+  conflicts_with: string[];
+  exposed_ports: number[];
+  sidecar_services: SidecarServiceInfo[];
+}
+
+export interface TechnologyCategoryGroup {
+  category: string;
+  technologies: TechnologyInfo[];
+}
+
+export interface TechnologyListResponse {
+  groups: TechnologyCategoryGroup[];
+  categories: string[];
+  count: number;
+}
+
+// UI Components
+export interface UIComponentInfo {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  is_framework_specific: boolean;
+  framework?: string;
+  html_template: string;
+  framework_code?: string;
+  props_schema: Record<string, unknown>;
+  preview_image?: string;
+  tags: string[];
+  is_mobile_responsive: boolean;
+  created_at?: string;
+}
+
+export interface UIComponentListResponse {
+  components: UIComponentInfo[];
+  categories: string[];
+  count: number;
+}
+
+export interface UIComponentCreateRequest {
+  name: string;
+  category: string;
+  description: string;
+  is_framework_specific?: boolean;
+  framework?: string;
+  html_template: string;
+  framework_code?: string;
+  props_schema?: Record<string, unknown>;
+  preview_image?: string;
+  tags?: string[];
+  is_mobile_responsive?: boolean;
+}
+
+export interface UIComponentUpdateRequest {
+  name?: string;
+  category?: string;
+  description?: string;
+  is_framework_specific?: boolean;
+  framework?: string;
+  html_template?: string;
+  framework_code?: string;
+  props_schema?: Record<string, unknown>;
+  preview_image?: string;
+  tags?: string[];
+  is_mobile_responsive?: boolean;
+}
+
+// Docker Export
+export interface DockerExportRequest {
+  image_name?: string;
+  include_compose?: boolean;
+  include_tar?: boolean;
+}
+
+export interface DockerExportResponse {
+  image_id: string;
+  image_name: string;
+  compose_file?: string;
+  tar_download_url?: string;
+}
+
 export interface ProjectCreateRequest {
   name: string;
   path: string;
   type?: string;
   template_id?: string;
+  selected_technologies?: string[];
   settings?: Record<string, unknown>;
   custom_context?: string;
   important_files?: string[];
@@ -232,6 +364,8 @@ export interface ProjectCreateResponse {
   name: string;
   path: string;
   type?: string;
+  template_id?: string;
+  selected_technologies?: string[];
   created_at?: string;
 }
 
@@ -264,6 +398,8 @@ export interface ProjectSummary {
   name: string;
   path: string;
   type?: string;
+  template_id?: string;
+  selected_technologies?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -388,6 +524,20 @@ export interface ContextSnippetUpdateRequest {
 export interface ContextSnippetListResponse {
   snippets: ContextSnippet[];
   count: number;
+}
+
+// Tokenization
+export interface TokenSpan {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface TokenizeResponse {
+  tokens: TokenSpan[];
+  total: number;
+  characters: number;
+  chars_per_token: number;
 }
 
 // Compaction Status

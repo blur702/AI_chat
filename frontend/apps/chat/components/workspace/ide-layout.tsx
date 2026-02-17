@@ -20,6 +20,9 @@ import { DrupalPanel } from "./drupal/drupal-panel";
 import { KBPanel } from "./kb/kb-panel";
 import { SnapshotsPanel } from "./snapshots/snapshots-panel";
 import { ContextEditorPanel } from "../context/context-editor-panel";
+import { UIBuilderPanel } from "./ui-builder/ui-builder-panel";
+import { PlanningPanel } from "./planning/planning-panel";
+import { KBBuilderPanel } from "./kb-builder/kb-builder-panel";
 import { WorkspaceToolbar } from "./workspace-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
 import { PanelErrorBoundary } from "./panel-error-boundary";
@@ -60,6 +63,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const [showKB, setShowKB] = useState(false);
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [showContext, setShowContext] = useState(false);
+  const [showUIBuilder, setShowUIBuilder] = useState(false);
+  const [showPlanning, setShowPlanning] = useState(false);
+  const [showKBBuilder, setShowKBBuilder] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closing, setClosing] = useState(false);
   const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
@@ -199,6 +205,30 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       setMobileTab("context");
     } else {
       setShowContext((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleUIBuilderClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("ui-builder");
+    } else {
+      setShowUIBuilder((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handlePlanningClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("planning");
+    } else {
+      setShowPlanning((prev) => !prev);
+    }
+  }, [isMobile]);
+
+  const handleKBBuilderClick = useCallback(() => {
+    if (isMobile) {
+      setMobileTab("kb-builder");
+    } else {
+      setShowKBBuilder((prev) => !prev);
     }
   }, [isMobile]);
 
@@ -364,6 +394,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onKBClick={handleKBClick}
           onSnapshotsClick={handleSnapshotsClick}
           onContextClick={handleContextClick}
+          onUIBuilderClick={handleUIBuilderClick}
+          onPlanningClick={handlePlanningClick}
+          onKBBuilderClick={handleKBBuilderClick}
           onToolsClick={handleToolsClick}
           onCloseProject={() => setShowCloseConfirm(true)}
           onSettingsClick={handleSettingsClick}
@@ -446,6 +479,23 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               onClose={() => setMobileTab("editor")}
             />
           )}
+          {mobileTab === "ui-builder" && (
+            <UIBuilderPanel
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
+          {mobileTab === "planning" && (
+            <PlanningPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
+          {mobileTab === "kb-builder" && (
+            <KBBuilderPanel
+              projectId={projectId}
+              onClose={() => setMobileTab("editor")}
+            />
+          )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
       </div>
@@ -467,6 +517,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onKBClick={handleKBClick}
         onSnapshotsClick={handleSnapshotsClick}
         onContextClick={handleContextClick}
+        onUIBuilderClick={handleUIBuilderClick}
+        onPlanningClick={handlePlanningClick}
+        onKBBuilderClick={handleKBBuilderClick}
         onToolsClick={handleToolsClick}
         onCloseProject={() => setShowCloseConfirm(true)}
         onSettingsClick={handleSettingsClick}
@@ -662,6 +715,41 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             <ContextEditorPanel
               projectId={projectId}
               onClose={() => setShowContext(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showUIBuilder} onOpenChange={setShowUIBuilder}>
+        <SheetContent className="w-[560px]">
+          <SheetTitle className="sr-only">UI Builder</SheetTitle>
+          <PanelErrorBoundary panelName="UI Builder">
+            <UIBuilderPanel
+              onClose={() => setShowUIBuilder(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showPlanning} onOpenChange={setShowPlanning}>
+        <SheetContent className="w-[600px]">
+          <SheetTitle className="sr-only">Planning</SheetTitle>
+          <PanelErrorBoundary panelName="Planning">
+            <PlanningPanel
+              projectId={projectId}
+              onClose={() => setShowPlanning(false)}
+            />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showKBBuilder} onOpenChange={setShowKBBuilder}>
+        <SheetContent className="w-[640px] sm:max-w-[640px]">
+          <SheetTitle className="sr-only">KB Builder</SheetTitle>
+          <PanelErrorBoundary panelName="KB Builder">
+            <KBBuilderPanel
+              projectId={projectId}
+              onClose={() => setShowKBBuilder(false)}
             />
           </PanelErrorBoundary>
         </SheetContent>

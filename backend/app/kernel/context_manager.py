@@ -178,6 +178,7 @@ class ContextManager(BaseKernelService):
                 "current_token_count": self._count_conversation_tokens(active_messages),
                 "chat_instructions": chat.chat_instructions,
                 "system_prompt_id": str(chat.system_prompt_id) if chat.system_prompt_id else None,
+                "chat_mode": chat.chat_mode or "agent",
             }
 
         # Cache the state
@@ -231,6 +232,7 @@ class ContextManager(BaseKernelService):
                     "title": c.title,
                     "is_pinned": c.is_pinned,
                     "is_archived": c.is_archived,
+                    "chat_mode": c.chat_mode or "agent",
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                     "updated_at": c.updated_at.isoformat() if c.updated_at else None,
                 }
@@ -269,6 +271,7 @@ class ContextManager(BaseKernelService):
                     "title": c.title,
                     "is_pinned": c.is_pinned,
                     "is_archived": c.is_archived,
+                    "chat_mode": c.chat_mode or "agent",
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                     "updated_at": c.updated_at.isoformat() if c.updated_at else None,
                 }
@@ -302,6 +305,7 @@ class ContextManager(BaseKernelService):
                 "response_style": pref.response_style,
                 "default_model": pref.default_model,
                 "default_temperature": pref.default_temperature,
+                "default_num_ctx": pref.default_num_ctx,
                 "email_notifications": pref.email_notifications,
                 "in_app_notifications": pref.in_app_notifications,
                 "imggen_default_workflow": pref.imggen_default_workflow,
@@ -309,6 +313,8 @@ class ContextManager(BaseKernelService):
                 "imggen_default_height": pref.imggen_default_height,
                 "imggen_default_steps": pref.imggen_default_steps,
                 "imggen_default_cfg_scale": pref.imggen_default_cfg_scale,
+                "imggen_default_prompt": pref.imggen_default_prompt,
+                "imggen_system_prompt": pref.imggen_system_prompt,
                 "imggen_default_negative_prompt": pref.imggen_default_negative_prompt,
                 "imggen_completion_notification": pref.imggen_completion_notification,
                 "imggen_desktop_notification": pref.imggen_desktop_notification,
@@ -762,6 +768,80 @@ class ContextManager(BaseKernelService):
             )
 
         return summaries
+
+    # -------------------------------------------------------------------------
+    # Active Plan Context
+    # -------------------------------------------------------------------------
+
+    ACTIVE_PLAN_PREFIX = "context:active_plan:"
+    ACTIVE_PLAN_TTL = 3600  # 1 hour
+
+    async def get_active_plan(self, chat_id: UUID) -> Optional[Dict[str, Any]]:
+        """Get the active planning session for a chat (cached in Redis).
+
+        Returns a summary dict suitable for injection into the system prompt,
+        or None if no active plan exists.
+        """
+        cache_key = f"{self.ACTIVE_PLAN_PREFIX}{chat_id}"
+
+        if self._redis:
+            cached = await self._redis.get(cache_key)
+            if cached is not None:
+                if cached == "null":
+                    return None
+                return json.loads(cached)
+
+        from app.models.planning_session import PlanningSession
+        from app.models.plan_phase import PlanPhase
+
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(PlanningSession)
+                .where(
+                    PlanningSession.chat_id == chat_id,
+                    PlanningSession.status.in_(["active", "in_progress"]),
+                )
+                .options(selectinload(PlanningSession.phases))
+                .order_by(PlanningSession.updated_at.desc())
+                .limit(1)
+            )
+            plan_session = result.scalar_one_or_none()
+
+            if not plan_session:
+                # Cache negative result to avoid repeated DB hits
+                if self._redis:
+                    await self._redis.set(
+                        cache_key, "null", ex=300  # 5 min TTL for negative cache
+                    )
+                return None
+
+            current_phase = None
+            if plan_session.current_phase_id and plan_session.phases:
+                current_phase = next(
+                    (p for p in plan_session.phases if p.id == plan_session.current_phase_id),
+                    None,
+                )
+
+            plan_data: Dict[str, Any] = {
+                "session_id": str(plan_session.id),
+                "title": plan_session.title,
+                "status": plan_session.status,
+                "success_criteria": plan_session.success_criteria or [],
+                "current_phase": None,
+            }
+            if current_phase:
+                plan_data["current_phase"] = {
+                    "title": current_phase.title,
+                    "status": current_phase.status,
+                    "outputs": current_phase.outputs or [],
+                }
+
+        if self._redis:
+            await self._redis.set(
+                cache_key, json.dumps(plan_data), ex=self.ACTIVE_PLAN_TTL
+            )
+
+        return plan_data
 
     # -------------------------------------------------------------------------
     # Database Helpers

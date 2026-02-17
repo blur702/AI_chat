@@ -1,10 +1,11 @@
-# AI Workstation Backend
+# Backend
 
-FastAPI backend service for the AI Workstation, providing LLM integration, resource management, and real-time event distribution.
+FastAPI backend for AI Workstation.
 
-## Setup
+## Local Development
 
 ```bash
+cd backend
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -12,91 +13,62 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Testing
 
-### Prerequisites
-
-All testing dependencies are included in `requirements.txt`. Install them with:
+Install dependencies:
 
 ```bash
+cd backend
 pip install -r requirements.txt
 ```
 
-### Quickstart
+Run test suites:
 
 ```bash
 ./scripts/run_tests.sh
+./scripts/run_tests.sh unit
+./scripts/run_tests.sh integration
+./scripts/run_tests.sh slow
 ```
 
-### Running by Marker
+Run pytest directly:
 
 ```bash
-./scripts/run_tests.sh unit         # Fast, isolated unit tests
-./scripts/run_tests.sh integration  # Service interaction tests
-./scripts/run_tests.sh slow         # Tests involving background loops/timeouts
+pytest tests/ -v --cov=app
+pytest tests/kernel/test_resource_manager.py
+pytest tests/ -m unit -v
 ```
 
-### Direct pytest
-
-```bash
-pytest tests/ -v --cov=app                        # All tests with coverage
-pytest tests/kernel/test_resource_manager.py       # Single test file
-pytest tests/kernel/ -v --cov=app                  # All kernel tests
-pytest tests/ -m unit -v                           # Only unit-marked tests
-```
-
-### Coverage
-
-Coverage is configured via `.coveragerc` with an 80% threshold on the `app/` directory (excluding tests and migrations).
-
-After running tests with coverage, an HTML report is generated at `htmlcov/index.html`. To view a terminal summary:
-
-```bash
-coverage report
-```
-
-### Continuous Testing (Watch Mode)
-
-Re-runs tests automatically on file changes:
+Watch mode:
 
 ```bash
 ./scripts/test_watch.sh
 ```
 
-Requires `pytest-watch` (`pip install pytest-watch`).
+## Coverage
 
-### Test Structure
+- Threshold: `80%` (`backend/.coveragerc`)
+- HTML report output: `backend/htmlcov/index.html`
 
-```
-tests/
-├── conftest.py                         # Shared fixtures (mock_redis, mock_session_factory,
-│                                       #   mock_vram_tracker, kernel_instance, cleanup_kernel)
-└── kernel/
-    ├── test_helpers.py                 # MockTool, model factories, assertion helpers
-    ├── test_resource_manager.py        # Unit: VRAMTracker, priority scoring, preemption,
-    │                                   #   CPU offloading, operation recovery, VRAM caching
-    ├── test_tool_registry.py           # Unit: registration, validation, permissions,
-    │                                   #   result caching, context, queues, LRU eviction
-    ├── test_event_bus.py               # Unit: publishing, persistence, subscriptions,
-    │                                   #   message handling, WebSocket integration
-    ├── test_context_manager.py         # Unit: conversation state, project context,
-    │                                   #   user preferences, token tracking, compaction
-    └── test_kernel_integration.py      # Integration: service registration, lifecycle
-                                        #   coordination, health aggregation, singleton,
-                                        #   concurrency, cross-service events
+```bash
+coverage report
 ```
 
-### Markers
+## Markers
 
-Defined in `pytest.ini`:
+Defined in `backend/pytest.ini`:
+- `unit`: isolated fast tests
+- `integration`: cross-service/kernel interaction tests
+- `slow`: tests with loops/timeouts/real delays
 
-| Marker | Purpose |
-|--------|---------|
-| `unit` | Isolated, fast tests for individual service methods |
-| `integration` | Tests involving multiple services or kernel coordination |
-| `slow` | Tests with background loops, timeouts, or real delays |
+## Related Docs
 
-### Configuration Files
+- Kernel architecture: `backend/app/kernel/README.md`
+- WebSocket reconnection/state snapshot: `backend/docs/websocket_reconnection.md`
 
-- `pytest.ini` -- Test discovery, asyncio mode, markers, log settings
-- `.coveragerc` -- Coverage source, exclusions, 80% threshold
-- `scripts/run_tests.sh` -- Test runner with coverage reporting
-- `scripts/test_watch.sh` -- Continuous testing wrapper
+## Help Topics Seed
+
+To sync built-in help topics (field and workspace help):
+
+```bash
+cd backend
+python scripts/insert_comprehensive_help_topics.py
+```

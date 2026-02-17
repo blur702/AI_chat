@@ -15,8 +15,10 @@ from app.kernel.context_manager import ContextManager
 from app.models.chat import Chat
 from app.models.project import Project
 from app.services.ollama_client import OllamaClient
+from app.services.brevo_client import BrevoClient
 from app.services.drupal_mcp import DrupalMCPService
 from app.services.sandbox_manager import SandboxManager
+from app.services.ssh_client import SSHClient
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,25 @@ def get_sandbox_manager(request: Request) -> SandboxManager:
     return sm
 
 
+def get_brevo_client(request: Request) -> BrevoClient:
+    """Dependency to get BrevoClient from kernel."""
+    kernel = getattr(request.app.state, "kernel", None)
+    if kernel is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kernel not initialized",
+        )
+
+    svc = kernel.get_service("brevo_client")
+    if svc is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="BrevoClient not available (no API key configured)",
+        )
+
+    return svc
+
+
 def get_drupal_mcp(request: Request) -> DrupalMCPService:
     """Dependency to get DrupalMCPService from kernel."""
     kernel = getattr(request.app.state, "kernel", None)
@@ -77,6 +98,25 @@ def get_drupal_mcp(request: Request) -> DrupalMCPService:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="DrupalMCPService not available",
+        )
+
+    return svc
+
+
+def get_ssh_client(request: Request) -> SSHClient:
+    """Dependency to get SSHClient from kernel."""
+    kernel = getattr(request.app.state, "kernel", None)
+    if kernel is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kernel not initialized",
+        )
+
+    svc = kernel.get_service("ssh_client")
+    if svc is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SSHClient not available (VPS credentials not configured)",
         )
 
     return svc

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { getClient } from "@workstation/api";
-import { useAuth, useImageGeneration, useServiceStatus, useSettings } from "@workstation/api/hooks";
+import { useAuth, useImageGeneration, useProject, useServiceStatus, useSettings } from "@workstation/api/hooks";
 import type { ImageGenerationOptionsResponse, UserPreferences } from "@workstation/api/types";
 import { Button } from "@workstation/ui";
 import { Layers } from "lucide-react";
@@ -15,6 +15,7 @@ export default function ImageGenerationPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { userId } = useAuth();
   const imageHook = useImageGeneration(projectId);
+  const { project, updateProject } = useProject(projectId);
   const { services, refresh: refreshServiceStatus } = useServiceStatus();
   const { preferences, preferencesLoading, updatePreferences } = useSettings(userId);
   const [showContext, setShowContext] = useState(false);
@@ -54,6 +55,28 @@ export default function ImageGenerationPage() {
       await updatePreferences(defaults);
     },
     [updatePreferences]
+  );
+
+  const projectImageSystemContext = useMemo(
+    () => String((project?.settings?.imggen_system_prompt as string | undefined) ?? ""),
+    [project?.settings]
+  );
+
+  const handleSaveProjectImageContext = useCallback(
+    async (value: string) => {
+      const nextSettings: Record<string, unknown> = {
+        ...(project?.settings ?? {}),
+      };
+      if (value.trim()) {
+        nextSettings.imggen_system_prompt = value.trim();
+      } else {
+        delete nextSettings.imggen_system_prompt;
+      }
+      return updateProject({
+        settings: nextSettings,
+      });
+    },
+    [project?.settings, updateProject]
   );
 
   const loadGenerationOptions = useCallback(async () => {
@@ -139,6 +162,8 @@ export default function ImageGenerationPage() {
             projectId={projectId}
             hookState={imageHook}
             userPreferences={preferences}
+            projectSystemContext={projectImageSystemContext}
+            onSaveProjectSystemContext={handleSaveProjectImageContext}
             onSaveAsDefault={handleSaveAsDefault}
             comfyuiAvailable={comfyuiAvailable}
             comfyuiStarting={startingComfyUI}

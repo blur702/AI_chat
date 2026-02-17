@@ -9,13 +9,18 @@ import {
   TabsTrigger,
   TabsContent,
   ThemeToggle,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
 } from "@workstation/ui";
 import { useAuth, useSettings, useResources } from "@workstation/api/hooks";
 import { ArrowLeft, Loader2, Check, AlertCircle, Eye, EyeOff, ImageIcon, HardDrive } from "lucide-react";
 import { OffloadPreferences } from "@/components/resources/offload-preferences";
 import { PromptLibrary } from "@/components/context/prompt-library";
 import { SnippetLibrary } from "@/components/context/snippet-library";
+import { FieldHelp } from "@/components/help/field-help";
 import Link from "next/link";
+import { t } from "@/lib/i18n";
 
 function StatusMessage({ message, type }: { message: string; type: "success" | "error" }) {
   if (!message) return null;
@@ -90,6 +95,7 @@ export default function SettingsPage() {
   // AI preferences form state
   const [defaultModel, setDefaultModel] = useState("");
   const [defaultTemperature, setDefaultTemperature] = useState(0.7);
+  const [defaultNumCtx, setDefaultNumCtx] = useState(4096);
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [aiMsg, setAiMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
@@ -99,6 +105,8 @@ export default function SettingsPage() {
   const [imggenHeight, setImggenHeight] = useState(512);
   const [imggenSteps, setImggenSteps] = useState(20);
   const [imggenCfgScale, setImggenCfgScale] = useState(7.0);
+  const [imggenPrompt, setImggenPrompt] = useState("");
+  const [imggenSystemPrompt, setImggenSystemPrompt] = useState("");
   const [imggenNegativePrompt, setImggenNegativePrompt] = useState("");
   const [imggenCompletionNotif, setImggenCompletionNotif] = useState(true);
   const [imggenDesktopNotif, setImggenDesktopNotif] = useState(false);
@@ -126,12 +134,15 @@ export default function SettingsPage() {
       setInAppNotifications(preferences.in_app_notifications ?? true);
       setDefaultModel(preferences.default_model ?? "");
       setDefaultTemperature(preferences.default_temperature ?? 0.7);
+      setDefaultNumCtx(preferences.default_num_ctx ?? 4096);
       setCustomSystemPrompt(preferences.custom_system_prompt ?? "");
       setImggenWorkflow(preferences.imggen_default_workflow ?? "text-to-image");
       setImggenWidth(preferences.imggen_default_width ?? 512);
       setImggenHeight(preferences.imggen_default_height ?? 512);
       setImggenSteps(preferences.imggen_default_steps ?? 20);
       setImggenCfgScale(preferences.imggen_default_cfg_scale ?? 7.0);
+      setImggenPrompt(preferences.imggen_default_prompt ?? "");
+      setImggenSystemPrompt(preferences.imggen_system_prompt ?? "");
       setImggenNegativePrompt(preferences.imggen_default_negative_prompt ?? "");
       setImggenCompletionNotif(preferences.imggen_completion_notification ?? true);
       setImggenDesktopNotif(preferences.imggen_desktop_notification ?? false);
@@ -219,6 +230,7 @@ export default function SettingsPage() {
     const result = await updatePreferences({
       default_model: defaultModel || undefined,
       default_temperature: defaultTemperature,
+      default_num_ctx: defaultNumCtx,
       custom_system_prompt: customSystemPrompt || undefined,
     });
     if (result.success) {
@@ -236,6 +248,8 @@ export default function SettingsPage() {
       imggen_default_height: imggenHeight,
       imggen_default_steps: imggenSteps,
       imggen_default_cfg_scale: imggenCfgScale,
+      imggen_default_prompt: imggenPrompt || undefined,
+      imggen_system_prompt: imggenSystemPrompt || undefined,
       imggen_default_negative_prompt: imggenNegativePrompt || undefined,
       imggen_completion_notification: imggenCompletionNotif,
       imggen_desktop_notification: imggenDesktopNotif,
@@ -255,6 +269,7 @@ export default function SettingsPage() {
   const isLoading = userLoading || preferencesLoading;
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="flex min-h-screen flex-col p-8 max-w-3xl mx-auto w-full">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/chat">
@@ -262,7 +277,7 @@ export default function SettingsPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <h1 className="text-2xl font-bold">{t("settingsTitle")}</h1>
       </div>
 
       {isLoading ? (
@@ -272,15 +287,15 @@ export default function SettingsPage() {
       ) : (
         <Tabs defaultValue="profile" className="w-full">
           <TabsList aria-label="Settings sections" className="w-full flex flex-wrap gap-1">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="ai">AI</TabsTrigger>
-            <TabsTrigger value="prompts">Prompts</TabsTrigger>
-            <TabsTrigger value="snippets">Snippets</TabsTrigger>
-            <TabsTrigger value="image-gen">Image Gen</TabsTrigger>
-            <TabsTrigger value="resources">Resources</TabsTrigger>
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="profile">{t("profile")}</TabsTrigger>
+            <TabsTrigger value="security">{t("security")}</TabsTrigger>
+            <TabsTrigger value="notifications">{t("notifications")}</TabsTrigger>
+            <TabsTrigger value="ai">{t("ai")}</TabsTrigger>
+            <TabsTrigger value="prompts">{t("prompts")}</TabsTrigger>
+            <TabsTrigger value="snippets">{t("snippets")}</TabsTrigger>
+            <TabsTrigger value="image-gen">{t("imageGen")}</TabsTrigger>
+            <TabsTrigger value="resources">{t("resources")}</TabsTrigger>
+            <TabsTrigger value="appearance">{t("appearance")}</TabsTrigger>
           </TabsList>
 
           {/* Profile Tab */}
@@ -295,8 +310,9 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="firstName" className="text-sm font-medium">
+                  <label htmlFor="firstName" className="text-sm font-medium flex items-center gap-1.5">
                     First Name
+                    <FieldHelp slug="settings-first-name" tip="Your given name for personalization" />
                   </label>
                   <Input
                     id="firstName"
@@ -306,8 +322,9 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="lastName" className="text-sm font-medium">
+                  <label htmlFor="lastName" className="text-sm font-medium flex items-center gap-1.5">
                     Last Name
+                    <FieldHelp slug="settings-last-name" tip="Your family or surname" />
                   </label>
                   <Input
                     id="lastName"
@@ -319,8 +336,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="screenName" className="text-sm font-medium">
+                <label htmlFor="screenName" className="text-sm font-medium flex items-center gap-1.5">
                   Display Name
+                  <FieldHelp slug="settings-display-name" tip="The name shown to others" />
                 </label>
                 <Input
                   id="screenName"
@@ -331,8 +349,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
+                <label htmlFor="email" className="text-sm font-medium flex items-center gap-1.5">
                   Email
+                  <FieldHelp slug="settings-email" tip="Used for login and recovery" />
                 </label>
                 <Input
                   id="email"
@@ -356,7 +375,7 @@ export default function SettingsPage() {
 
             <Button onClick={handleProfileSave} disabled={profileSaving}>
               {profileSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Profile
+              {t("saveProfile")}
             </Button>
           </TabsContent>
 
@@ -371,8 +390,9 @@ export default function SettingsPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="currentPassword" className="text-sm font-medium">
+                <label htmlFor="currentPassword" className="text-sm font-medium flex items-center gap-1.5">
                   Current Password
+                  <FieldHelp slug="settings-password" tip="Choose a strong password" />
                 </label>
                 <div className="relative">
                   <Input
@@ -452,7 +472,7 @@ export default function SettingsPage() {
               disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
             >
               {passwordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Change Password
+              {t("changePassword")}
             </Button>
           </TabsContent>
 
@@ -468,7 +488,10 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="text-sm font-medium">Email Notifications</p>
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    Email Notifications
+                    <FieldHelp slug="settings-email-notifications" tip="Email alerts for events" />
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Receive notifications via email
                   </p>
@@ -492,7 +515,10 @@ export default function SettingsPage() {
 
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="text-sm font-medium">In-App Notifications</p>
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    In-App Notifications
+                    <FieldHelp slug="settings-inapp-notifications" tip="In-app alerts and badges" />
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Show notifications within the application
                   </p>
@@ -519,7 +545,7 @@ export default function SettingsPage() {
 
             <Button onClick={handleNotificationsSave} disabled={preferencesSaving}>
               {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Preferences
+              {t("savePreferences")}
             </Button>
           </TabsContent>
 
@@ -534,8 +560,9 @@ export default function SettingsPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="defaultModel" className="text-sm font-medium">
+                <label htmlFor="defaultModel" className="text-sm font-medium flex items-center gap-1.5">
                   Default Model
+                  <FieldHelp slug="settings-default-model" tip="AI model for new conversations" />
                 </label>
                 <select
                   id="defaultModel"
@@ -557,8 +584,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="temperature" className="text-sm font-medium">
+                <label htmlFor="temperature" className="text-sm font-medium flex items-center gap-1.5">
                   Temperature: {defaultTemperature.toFixed(2)}
+                  <FieldHelp slug="settings-default-temperature" tip="Controls response randomness" />
                 </label>
                 <input
                   id="temperature"
@@ -577,8 +605,33 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="systemPrompt" className="text-sm font-medium">
+                <label htmlFor="numCtx" className="text-sm font-medium flex items-center gap-1.5">
+                  Context Window: {defaultNumCtx >= 1024 ? `${Math.round(defaultNumCtx / 1024)}K` : defaultNumCtx.toLocaleString()} tokens
+                  <FieldHelp slug="settings-default-num-ctx" tip="How much chat history the model can use" />
+                </label>
+                <input
+                  id="numCtx"
+                  type="range"
+                  min="512"
+                  max="131072"
+                  step="512"
+                  value={defaultNumCtx}
+                  onChange={(e) => setDefaultNumCtx(parseInt(e.target.value, 10))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>512</span>
+                  <span>128K</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Controls how much conversation history the model can see. Higher values use more VRAM.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="systemPrompt" className="text-sm font-medium flex items-center gap-1.5">
                   Custom System Prompt
+                  <FieldHelp slug="settings-system-prompt" tip="Guide the AI's behavior" />
                 </label>
                 <textarea
                   id="systemPrompt"
@@ -598,7 +651,7 @@ export default function SettingsPage() {
 
             <Button onClick={handleAiPreferencesSave} disabled={preferencesSaving}>
               {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save AI Preferences
+              {t("saveAiPreferences")}
             </Button>
           </TabsContent>
 
@@ -635,8 +688,9 @@ export default function SettingsPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="imggenWorkflow" className="text-sm font-medium">
+                <label htmlFor="imggenWorkflow" className="text-sm font-medium flex items-center gap-1.5">
                   Default Workflow
+                  <FieldHelp slug="imagegen-workflow" tip="Image generation workflow type" />
                 </label>
                 <select
                   id="imggenWorkflow"
@@ -653,8 +707,9 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="imggenWidth" className="text-sm font-medium">
+                  <label htmlFor="imggenWidth" className="text-sm font-medium flex items-center gap-1.5">
                     Default Width
+                    <FieldHelp slug="imagegen-width" tip="Width in pixels" />
                   </label>
                   <Input
                     id="imggenWidth"
@@ -670,8 +725,9 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="imggenHeight" className="text-sm font-medium">
+                  <label htmlFor="imggenHeight" className="text-sm font-medium flex items-center gap-1.5">
                     Default Height
+                    <FieldHelp slug="imagegen-height" tip="Height in pixels" />
                   </label>
                   <Input
                     id="imggenHeight"
@@ -690,8 +746,9 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="imggenSteps" className="text-sm font-medium">
+                  <label htmlFor="imggenSteps" className="text-sm font-medium flex items-center gap-1.5">
                     Default Steps: {imggenSteps}
+                    <FieldHelp slug="imagegen-steps" tip="More steps = better quality" />
                   </label>
                   <input
                     id="imggenSteps"
@@ -700,7 +757,7 @@ export default function SettingsPage() {
                     max={150}
                     step={1}
                     value={imggenSteps}
-                    onChange={(e) => setImggenSteps(parseInt(e.target.value))}
+                    onChange={(e) => setImggenSteps(parseInt(e.target.value, 10))}
                     className="w-full accent-primary"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -709,8 +766,9 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="imggenCfgScale" className="text-sm font-medium">
+                  <label htmlFor="imggenCfgScale" className="text-sm font-medium flex items-center gap-1.5">
                     CFG Scale: {imggenCfgScale.toFixed(1)}
+                    <FieldHelp slug="imagegen-cfg-scale" tip="Prompt adherence strength" />
                   </label>
                   <input
                     id="imggenCfgScale"
@@ -730,14 +788,53 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="imggenNegativePrompt" className="text-sm font-medium">
+                <label htmlFor="imggenPrompt" className="text-sm font-medium">
+                  Default Prompt
+                </label>
+                <textarea
+                  id="imggenPrompt"
+                  value={imggenPrompt}
+                  onChange={(e) => setImggenPrompt(e.target.value)}
+                  placeholder="a beautiful landscape, high quality, detailed..."
+                  maxLength={2000}
+                  rows={3}
+                  className="flex w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y min-h-[80px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Pre-filled when opening the image generation form. Leave empty to start with a blank prompt.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="imggenSystemPrompt" className="text-sm font-medium flex items-center gap-1.5">
+                  Image System Context
+                  <FieldHelp slug="imagegen-system-prompt" tip="Global style/rules applied before each image prompt" />
+                </label>
+                <textarea
+                  id="imggenSystemPrompt"
+                  value={imggenSystemPrompt}
+                  onChange={(e) => setImggenSystemPrompt(e.target.value)}
+                  placeholder="Use natural lighting, cinematic composition, high detail..."
+                  maxLength={4000}
+                  rows={4}
+                  className="flex w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y min-h-[96px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Separate from chat system prompt. This context is prepended to image generation prompts only.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="imggenNegativePrompt" className="text-sm font-medium flex items-center gap-1.5">
                   Default Negative Prompt
+                  <FieldHelp slug="imagegen-negative-prompt" tip="What to avoid in images" />
                 </label>
                 <textarea
                   id="imggenNegativePrompt"
                   value={imggenNegativePrompt}
                   onChange={(e) => setImggenNegativePrompt(e.target.value)}
                   placeholder="blurry, low quality, distorted..."
+                  maxLength={2000}
                   rows={3}
                   className="flex w-full rounded-input border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y min-h-[80px]"
                 />
@@ -748,7 +845,10 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">Completion Notification</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        Completion Notification
+                        <FieldHelp slug="imagegen-completion-notif" tip="Get notified when done" />
+                      </p>
                       <p className="text-xs text-muted-foreground">Notify when generation completes</p>
                     </div>
                     <button
@@ -768,7 +868,10 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">Desktop Notification</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        Desktop Notification
+                        <FieldHelp slug="imagegen-desktop-notif" tip="Browser desktop alerts" />
+                      </p>
                       <p className="text-xs text-muted-foreground">Show browser desktop notification</p>
                     </div>
                     <button
@@ -788,7 +891,10 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">Sound Notification</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        Sound Notification
+                        <FieldHelp slug="settings-notification-sound" tip="Sound when generation completes" />
+                      </p>
                       <p className="text-xs text-muted-foreground">Play a sound when generation completes</p>
                     </div>
                     <button
@@ -831,8 +937,9 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-semibold mb-3">Storage</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="imggenAutoDelete" className="text-sm font-medium">
+                    <label htmlFor="imggenAutoDelete" className="text-sm font-medium flex items-center gap-1.5">
                       Auto-delete after (days)
+                      <FieldHelp slug="imagegen-auto-delete-days" tip="Auto-remove old images" />
                     </label>
                     <Input
                       id="imggenAutoDelete"
@@ -840,14 +947,15 @@ export default function SettingsPage() {
                       min={0}
                       max={365}
                       value={imggenAutoDeleteDays}
-                      onChange={(e) => setImggenAutoDeleteDays(e.target.value ? parseInt(e.target.value) : "")}
+                      onChange={(e) => setImggenAutoDeleteDays(e.target.value ? parseInt(e.target.value, 10) : "")}
                       placeholder="Never"
                     />
                     <p className="text-xs text-muted-foreground">Leave blank to keep forever.</p>
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="imggenMaxGen" className="text-sm font-medium">
+                    <label htmlFor="imggenMaxGen" className="text-sm font-medium flex items-center gap-1.5">
                       Max stored generations
+                      <FieldHelp slug="imagegen-max-generations" tip="Limit retained generated images" />
                     </label>
                     <Input
                       id="imggenMaxGen"
@@ -855,7 +963,7 @@ export default function SettingsPage() {
                       min={0}
                       max={10000}
                       value={imggenMaxGenerations}
-                      onChange={(e) => setImggenMaxGenerations(e.target.value ? parseInt(e.target.value) : "")}
+                      onChange={(e) => setImggenMaxGenerations(e.target.value ? parseInt(e.target.value, 10) : "")}
                       placeholder="Unlimited"
                     />
                     <p className="text-xs text-muted-foreground">Leave blank for no limit.</p>
@@ -866,8 +974,9 @@ export default function SettingsPage() {
               <div className="border-t pt-4">
                 <h3 className="text-sm font-semibold mb-3">ComfyUI Connection</h3>
                 <div className="space-y-2">
-                  <label htmlFor="comfyuiUrl" className="text-sm font-medium">
+                  <label htmlFor="comfyuiUrl" className="text-sm font-medium flex items-center gap-1.5">
                     ComfyUI Base URL
+                    <FieldHelp slug="imagegen-comfyui-base-url" tip="Override ComfyUI endpoint" />
                   </label>
                   <Input
                     id="comfyuiUrl"
@@ -887,7 +996,7 @@ export default function SettingsPage() {
 
             <Button onClick={handleImggenPreferencesSave} disabled={preferencesSaving}>
               {preferencesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Image Generation Preferences
+              {t("saveImageGenPreferences")}
             </Button>
           </TabsContent>
 
@@ -940,5 +1049,6 @@ export default function SettingsPage() {
         </Tabs>
       )}
     </div>
+    </TooltipProvider>
   );
 }

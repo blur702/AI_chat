@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Input, Badge } from "@workstation/ui";
+import { Input } from "@workstation/ui";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface ParameterSchema {
   type?: string;
@@ -49,6 +49,7 @@ export function ToolParameterForm({
         const isRequired = required.includes(key);
         const currentValue =
           values[key] ?? prefill?.[key] ?? param.default ?? "";
+        const helpTip = param.description ?? `Configure ${key} parameter.`;
 
         if (param.type === "boolean") {
           return (
@@ -60,9 +61,10 @@ export function ToolParameterForm({
                 onChange={(e) => handleChange(key, e.target.checked)}
                 className="h-4 w-4 rounded border"
               />
-              <label htmlFor={`param-${key}`} className="text-xs font-medium">
+              <label htmlFor={`param-${key}`} className="text-xs font-medium flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
+                <FieldHelp tip={helpTip} />
               </label>
               {param.description && (
                 <span className="text-[10px] text-muted-foreground">
@@ -76,9 +78,10 @@ export function ToolParameterForm({
         if (param.enum) {
           return (
             <div key={key}>
-              <label className="text-xs font-medium block mb-1">
+              <label className="text-xs font-medium mb-1 flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
+                <FieldHelp tip={helpTip} />
               </label>
               <select
                 value={String(currentValue)}
@@ -104,9 +107,10 @@ export function ToolParameterForm({
         if (param.type === "number" || param.type === "integer") {
           return (
             <div key={key}>
-              <label className="text-xs font-medium block mb-1">
+              <label className="text-xs font-medium mb-1 flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
+                <FieldHelp tip={helpTip} />
               </label>
               <Input
                 type="number"
@@ -131,9 +135,10 @@ export function ToolParameterForm({
         // Default: string input
         return (
           <div key={key}>
-            <label className="text-xs font-medium block mb-1">
+            <label className="text-xs font-medium mb-1 flex items-center gap-1">
               {key}
               {isRequired && <span className="text-destructive ml-0.5">*</span>}
+              <FieldHelp tip={helpTip} />
             </label>
             <Input
               type="text"

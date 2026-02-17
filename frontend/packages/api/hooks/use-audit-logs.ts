@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getClient } from "../client";
-import type { AuditLogEntry, AuditLogFilters, AuditLogListResponse } from "../types";
+import type { AuditLogEntry, AuditLogFilters } from "../types";
 
 export interface UseAuditLogsReturn {
   logs: AuditLogEntry[];

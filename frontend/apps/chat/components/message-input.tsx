@@ -11,6 +11,7 @@ import {
 } from "@workstation/ui";
 import { Send, Square } from "lucide-react";
 import { useHelp } from "./help/help-provider";
+import { t } from "@/lib/i18n";
 
 interface MessageInputProps {
   onSend: (content: string) => void | Promise<void> | Promise<boolean>;
@@ -23,10 +24,11 @@ interface MessageInputProps {
 export function MessageInput({
   onSend,
   disabled = false,
-  placeholder = "Type a message...",
+  placeholder,
   processing = false,
   onStop,
 }: MessageInputProps) {
+  const resolvedPlaceholder = placeholder ?? t("typeMessage");
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { openHelp } = useHelp();
@@ -65,7 +67,7 @@ export function MessageInput({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             disabled={disabled}
             aria-disabled={disabled || undefined}
             aria-label="Message input"
@@ -100,8 +102,8 @@ export function MessageInput({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Stop generating (Esc)</p>
-                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("chat-stop"); }}>Learn more</button>
+                <p>{t("stopGenerating")}</p>
+                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("chat-stop"); }} aria-label={t("learnMore")}>{t("learnMore")}</button>
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -118,16 +120,16 @@ export function MessageInput({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Send message (Enter)</p>
-                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("chat-send"); }}>Learn more</button>
+                <p>{t("sendMessage")}</p>
+                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("chat-send"); }} aria-label={t("learnMore")}>{t("learnMore")}</button>
               </TooltipContent>
             </Tooltip>
           )}
         </div>
         <p id="message-input-hint" className="mt-2 text-xs text-muted-foreground">
           {processing
-            ? "Press Escape to stop generating"
-            : "Press Enter to send, Shift+Enter for new line"}
+            ? t("pressEscapeToStop")
+            : t("pressEnterToSend")}
         </p>
       </div>
     </TooltipProvider>

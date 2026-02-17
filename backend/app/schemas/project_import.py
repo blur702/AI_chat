@@ -4,7 +4,7 @@ import ipaddress
 import re
 import socket
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
@@ -63,6 +63,68 @@ class GitImportRequest(BaseModel):
 
 class GitImportResponse(BaseModel):
     """Response after starting a Git import."""
+
+    import_id: str
+    project_id: str
+    status: str
+    message: str
+
+
+# -------------------------------------------------------------------------
+# Website Import
+# -------------------------------------------------------------------------
+
+
+class WebsiteImportRequest(BaseModel):
+    """Request to mirror a website into a new project."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    website_url: str = Field(..., min_length=1)
+    depth: int = Field(default=2, ge=1, le=5)
+    include_assets: bool = Field(default=True)
+    same_domain_only: bool = Field(default=True)
+    install_deps: bool = Field(default=False)
+    max_pages: int = Field(default=30, ge=1, le=200)
+    strategy: Literal["auto", "rendered"] = Field(default="auto")
+    path: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("website_url")
+    @classmethod
+    def validate_website_url(cls, v: str) -> str:
+        v = v.strip()
+        parsed = urlparse(v)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError("Only HTTP/HTTPS URLs are allowed")
+        hostname = parsed.hostname or ""
+        if not hostname:
+            raise ValueError("Invalid website URL")
+        blocked = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+        if hostname in blocked:
+            raise ValueError("Website URLs pointing to localhost are not allowed")
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+                raise ValueError("Website URLs pointing to private networks are not allowed")
+        except ValueError as exc:
+            if "not allowed" in str(exc):
+                raise
+            try:
+                resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                for _, _, _, _, sockaddr in resolved:
+                    ip_str = sockaddr[0]
+                    addr = ipaddress.ip_address(ip_str)
+                    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_multicast:
+                        raise ValueError("Website URLs pointing to private networks are not allowed")
+            except socket.gaierror:
+                pass
+            except ValueError as inner_exc:
+                if "not allowed" in str(inner_exc):
+                    raise
+        return v
+
+
+class WebsiteImportResponse(BaseModel):
+    """Response after starting a website mirror import."""
 
     import_id: str
     project_id: str

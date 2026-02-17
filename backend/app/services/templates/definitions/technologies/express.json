@@ -1,0 +1,20 @@
+{
+  "id": "express",
+  "name": "Express.js",
+  "description": "Express.js web application framework for Node.js",
+  "category": "backend",
+  "dependencies": ["express@^4.21.0"],
+  "install_commands": ["cd /workspace && npm install"],
+  "scaffold_files": {
+    "package.json": "{\n  \"name\": \"express-app\",\n  \"version\": \"1.0.0\",\n  \"main\": \"src/server.js\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  }\n}\n",
+    "src/server.js": "const express = require('express');\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\napp.use(express.json());\n\napp.get('/', (req, res) => {\n  res.json({ message: 'Hello from Express' });\n});\n\napp.get('/health', (req, res) => {\n  res.json({ status: 'ok' });\n});\n\napp.listen(PORT, '0.0.0.0', () => {\n  console.log(`Server running on port ${PORT}`);\n});\n"
+  },
+  "environment": {
+    "PORT": "3000"
+  },
+  "sidecar_services": [],
+  "requires_technologies": ["node"],
+  "conflicts_with": [],
+  "docker_image": null,
+  "exposed_ports": [3000]
+}

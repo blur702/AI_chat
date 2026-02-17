@@ -62,6 +62,11 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
         default=0.7,
     )
 
+    default_num_ctx: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
     email_notifications: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -103,6 +108,16 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
         Float,
         nullable=True,
         default=7.0,
+    )
+
+    imggen_default_prompt: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    imggen_system_prompt: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     imggen_default_negative_prompt: Mapped[Optional[str]] = mapped_column(

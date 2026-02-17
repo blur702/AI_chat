@@ -5,18 +5,22 @@ import { getClient } from "../client";
 import type {
   GitImportRequest,
   GitImportResponse,
+  WebsiteImportRequest,
+  WebsiteImportResponse,
   ArchiveUploadResponse,
   ImportStatusResponse,
   DetectionResultResponse,
   CloneProjectRequest,
   CloneProjectResponse,
   SnapshotInfo,
-  SnapshotListResponse,
 } from "../types";
 
 export interface UseProjectImportReturn {
   // Import
   importFromGit: (data: GitImportRequest) => Promise<GitImportResponse>;
+  importFromWebsite: (
+    data: WebsiteImportRequest
+  ) => Promise<WebsiteImportResponse>;
   importFromArchive: (
     name: string,
     file: File,
@@ -152,6 +156,33 @@ export function useProjectImport(): UseProjectImportReturn {
     [pollImportStatus]
   );
 
+  const importFromWebsite = useCallback(
+    async (data: WebsiteImportRequest) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await getClient().importFromWebsite(data);
+        setImportStatus({
+          import_id: res.import_id,
+          project_id: res.project_id,
+          import_type: "website",
+          status: res.status,
+          progress_message: res.message,
+          import_options: {},
+        });
+        pollImportStatus(res.import_id);
+        return res;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Website import failed";
+        setError(msg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pollImportStatus]
+  );
+
   const exportProject = useCallback(async (projectId: string) => {
     try {
       setLoading(true);
@@ -275,6 +306,7 @@ export function useProjectImport(): UseProjectImportReturn {
 
   return {
     importFromGit,
+    importFromWebsite,
     importFromArchive,
     importStatus,
     pollImportStatus,

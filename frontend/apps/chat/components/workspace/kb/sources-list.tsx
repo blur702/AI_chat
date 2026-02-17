@@ -35,7 +35,10 @@ const statusConfig: Record<
   { icon: React.ElementType; variant: "secondary" | "outline" | "destructive" | "default"; label: string }
 > = {
   pending: { icon: Clock, variant: "outline", label: "Pending" },
+  pending_embeddings: { icon: Clock, variant: "outline", label: "Pending Embeddings" },
   processing: { icon: Loader2, variant: "secondary", label: "Processing" },
+  embedding: { icon: Loader2, variant: "secondary", label: "Embedding" },
+  embedded: { icon: CheckCircle2, variant: "default", label: "Embedded" },
   completed: { icon: CheckCircle2, variant: "default", label: "Completed" },
   failed: { icon: XCircle, variant: "destructive", label: "Failed" },
 };

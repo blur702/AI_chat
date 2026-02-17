@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 interface HelpContextValue {
   isOpen: boolean;
@@ -29,6 +29,20 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const closeHelp = useCallback(() => {
     setIsOpen(false);
     setActiveSection(null);
+  }, []);
+
+  // Keyboard shortcut: "?" opens help (when not focused on an input)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.target as HTMLElement)?.isContentEditable) return;
+      e.preventDefault();
+      setIsOpen((prev) => !prev);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
   return (

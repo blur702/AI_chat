@@ -1,0 +1,29 @@
+{
+  "id": "mariadb",
+  "name": "MariaDB",
+  "description": "MariaDB relational database with sidecar container",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {},
+  "environment": {
+    "DATABASE_URL": "mysql://root:mariadb@mariadb:3306/appdb"
+  },
+  "sidecar_services": [
+    {
+      "name": "mariadb",
+      "image": "mariadb:11",
+      "environment": {
+        "MARIADB_ROOT_PASSWORD": "mariadb",
+        "MARIADB_DATABASE": "appdb"
+      },
+      "exposed_ports": [3306],
+      "volumes": {},
+      "memory_limit": "512m"
+    }
+  ],
+  "requires_technologies": [],
+  "conflicts_with": ["mysql", "postgresql", "pgvector"],
+  "docker_image": null,
+  "exposed_ports": []
+}

@@ -18,6 +18,29 @@ export interface GitImportResponse {
 }
 
 // -------------------------------------------------------------------------
+// Website Import
+// -------------------------------------------------------------------------
+
+export interface WebsiteImportRequest {
+  name: string;
+  website_url: string;
+  depth?: number;
+  include_assets?: boolean;
+  same_domain_only?: boolean;
+  install_deps?: boolean;
+  max_pages?: number;
+  strategy?: "auto" | "rendered";
+  path?: string;
+}
+
+export interface WebsiteImportResponse {
+  import_id: string;
+  project_id: string;
+  status: string;
+  message: string;
+}
+
+// -------------------------------------------------------------------------
 // Archive Upload
 // -------------------------------------------------------------------------
 

@@ -6,8 +6,17 @@ import type {
   DrupalConnectRequest,
   DrupalSiteInfo,
   DrupalSiteConfig,
+  DrupalContentType,
+  DrupalNode,
+  DrupalNodeCreateRequest,
+  DrupalNodeUpdateRequest,
   DrushCommandResponse,
   SyncStatus,
+  StagingStatus,
+  CloneRequest,
+  CloneResponse,
+  PushRequest,
+  PushResponse,
 } from "../types";
 
 export interface UseDrupalReturn {
@@ -30,6 +39,28 @@ export interface UseDrupalReturn {
   syncLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  // Content CRUD
+  contentTypes: DrupalContentType[];
+  contentTypesLoading: boolean;
+  nodes: DrupalNode[];
+  nodesLoading: boolean;
+  selectedBundle: string | null;
+  setSelectedBundle: (bundle: string | null) => void;
+  fetchContentTypes: () => Promise<void>;
+  fetchNodes: (bundle: string) => Promise<void>;
+  createNode: (bundle: string, data: DrupalNodeCreateRequest) => Promise<DrupalNode>;
+  updateNode: (bundle: string, nodeUuid: string, data: DrupalNodeUpdateRequest) => Promise<DrupalNode>;
+  // Staging
+  stagingStatus: StagingStatus | null;
+  stagingLoading: boolean;
+  cloning: boolean;
+  cloneProduction: (opts?: CloneRequest) => Promise<CloneResponse | null>;
+  pushToProduction: (opts: PushRequest) => Promise<PushResponse | null>;
+  startStaging: () => Promise<void>;
+  stopStaging: () => Promise<void>;
+  stagingStarting: boolean;
+  stagingStopping: boolean;
+  refreshStaging: () => Promise<void>;
 }
 
 export function useDrupal(projectId: string): UseDrupalReturn {
@@ -46,6 +77,20 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Content state
+  const [contentTypes, setContentTypes] = useState<DrupalContentType[]>([]);
+  const [contentTypesLoading, setContentTypesLoading] = useState(false);
+  const [nodes, setNodes] = useState<DrupalNode[]>([]);
+  const [nodesLoading, setNodesLoading] = useState(false);
+  const [selectedBundle, setSelectedBundle] = useState<string | null>(null);
+
+  // Staging state
+  const [stagingStatus, setStagingStatus] = useState<StagingStatus | null>(null);
+  const [stagingLoading, setStagingLoading] = useState(false);
+  const [cloning, setCloning] = useState(false);
+  const [stagingStarting, setStagingStarting] = useState(false);
+  const [stagingStopping, setStagingStopping] = useState(false);
 
   const fetchSite = useCallback(async () => {
     try {
@@ -83,6 +128,9 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     setSyncStatus(null);
     setError(null);
     setDrushOutput(null);
+    setContentTypes([]);
+    setNodes([]);
+    setSelectedBundle(null);
     refresh();
   }, [refresh]);
 
@@ -111,6 +159,9 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       setSite(null);
       setConfig(null);
       setSyncStatus(null);
+      setContentTypes([]);
+      setNodes([]);
+      setSelectedBundle(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Disconnect failed");
     } finally {
@@ -181,6 +232,163 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     }
   }, [projectId, fetchSyncStatus]);
 
+  // Content CRUD
+
+  const fetchContentTypes = useCallback(async () => {
+    try {
+      setContentTypesLoading(true);
+      setError(null);
+      const data = await getClient().getDrupalContentTypes(projectId);
+      setContentTypes(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load content types");
+    } finally {
+      setContentTypesLoading(false);
+    }
+  }, [projectId]);
+
+  const fetchNodes = useCallback(
+    async (bundle: string) => {
+      try {
+        setNodesLoading(true);
+        setError(null);
+        const data = await getClient().listDrupalContent(projectId, bundle);
+        setNodes(data.nodes);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load content");
+      } finally {
+        setNodesLoading(false);
+      }
+    },
+    [projectId]
+  );
+
+  const createNode = useCallback(
+    async (bundle: string, data: DrupalNodeCreateRequest): Promise<DrupalNode> => {
+      setError(null);
+      try {
+        const node = await getClient().createDrupalNode(projectId, bundle, data);
+        // Refresh the list
+        await fetchNodes(bundle);
+        return node;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create node");
+        throw err;
+      }
+    },
+    [projectId, fetchNodes]
+  );
+
+  const updateNode = useCallback(
+    async (bundle: string, nodeUuid: string, data: DrupalNodeUpdateRequest): Promise<DrupalNode> => {
+      setError(null);
+      try {
+        const node = await getClient().updateDrupalNode(projectId, bundle, nodeUuid, data);
+        // Refresh the list
+        await fetchNodes(bundle);
+        return node;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update node");
+        throw err;
+      }
+    },
+    [projectId, fetchNodes]
+  );
+
+  // Auto-fetch content types when site is connected
+  useEffect(() => {
+    if (siteConnected) {
+      fetchContentTypes();
+    }
+  }, [siteConnected, fetchContentTypes]);
+
+  // Staging methods
+
+  const fetchStagingStatus = useCallback(async () => {
+    try {
+      setStagingLoading(true);
+      const data = await getClient().getDrupalStagingStatus(projectId);
+      setStagingStatus(data);
+    } catch {
+      // ignore — staging may not be configured
+    } finally {
+      setStagingLoading(false);
+    }
+  }, [projectId]);
+
+  const refreshStaging = useCallback(async () => {
+    await fetchStagingStatus();
+  }, [fetchStagingStatus]);
+
+  // Auto-fetch staging status when site is connected
+  useEffect(() => {
+    if (siteConnected) {
+      fetchStagingStatus();
+    }
+  }, [siteConnected, fetchStagingStatus]);
+
+  const cloneProduction = useCallback(
+    async (opts?: CloneRequest): Promise<CloneResponse | null> => {
+      try {
+        setCloning(true);
+        setError(null);
+        const result = await getClient().cloneDrupalProduction(projectId, opts);
+        await fetchStagingStatus();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Clone failed");
+        return null;
+      } finally {
+        setCloning(false);
+      }
+    },
+    [projectId, fetchStagingStatus]
+  );
+
+  const pushToProduction = useCallback(
+    async (opts: PushRequest): Promise<PushResponse | null> => {
+      try {
+        setPushing(true);
+        setError(null);
+        const result = await getClient().pushDrupalToProduction(projectId, opts);
+        await fetchSyncStatus();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Push failed");
+        return null;
+      } finally {
+        setPushing(false);
+      }
+    },
+    [projectId, fetchSyncStatus]
+  );
+
+  const startStaging = useCallback(async () => {
+    try {
+      setStagingStarting(true);
+      setError(null);
+      await getClient().startDrupalStaging(projectId);
+      await fetchStagingStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start staging");
+    } finally {
+      setStagingStarting(false);
+    }
+  }, [projectId, fetchStagingStatus]);
+
+  const stopStaging = useCallback(async () => {
+    try {
+      setStagingStopping(true);
+      setError(null);
+      await getClient().stopDrupalStaging(projectId);
+      await fetchStagingStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to stop staging");
+    } finally {
+      setStagingStopping(false);
+    }
+  }, [projectId, fetchStagingStatus]);
+
   return {
     site,
     siteLoading,
@@ -201,5 +409,26 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     syncLoading,
     error,
     refresh,
+    contentTypes,
+    contentTypesLoading,
+    nodes,
+    nodesLoading,
+    selectedBundle,
+    setSelectedBundle,
+    fetchContentTypes,
+    fetchNodes,
+    createNode,
+    updateNode,
+    // Staging
+    stagingStatus,
+    stagingLoading,
+    cloning,
+    cloneProduction,
+    pushToProduction,
+    startStaging,
+    stopStaging,
+    stagingStarting,
+    stagingStopping,
+    refreshStaging,
   };
 }

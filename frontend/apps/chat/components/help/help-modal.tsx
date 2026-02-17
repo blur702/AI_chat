@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
   ScrollArea,
   Input,
-  Button,
   Badge,
 } from "@workstation/ui";
-import { Search, BookOpen, Loader2 } from "lucide-react";
+import { Search, BookOpen, Loader2, X } from "lucide-react";
 import { useHelp } from "./help-provider";
 import { useHelpTopics } from "@workstation/api/hooks/use-help-topics";
 import type { HelpTopic, HelpSearchResult } from "@workstation/api/hooks/use-help-topics";
@@ -25,6 +20,22 @@ export function HelpModal() {
   const [searching, setSearching] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleId = useId();
+
+  // Drag state — use refs for dragging flag to avoid stale closures
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Store drag listener cleanup so we can call it on unmount
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  // Reset position when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setPosition(null);
+    }
+  }, [isOpen]);
 
   // Scroll to active section when modal opens or section changes
   useEffect(() => {
@@ -42,8 +53,83 @@ export function HelpModal() {
     if (!isOpen) {
       setSearchQuery("");
       setSearchResults(null);
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
     }
   }, [isOpen]);
+
+  // Cleanup search timer and drag listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      dragCleanupRef.current?.();
+    };
+  }, []);
+
+  // Focus trap: keep focus within the dialog panel
+  useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const handleFocusTrap = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const focusable = panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleFocusTrap);
+    return () => document.removeEventListener("keydown", handleFocusTrap);
+  }, [isOpen]);
+
+  // Drag: use document-level listeners for robust pointer tracking
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    draggingRef.current = true;
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!draggingRef.current) return;
+      const panelW = panel.offsetWidth;
+      const panelH = panel.offsetHeight;
+      const maxX = Math.max(0, window.innerWidth - panelW);
+      const maxY = Math.max(0, window.innerHeight - panelH);
+      const newX = Math.max(0, Math.min(maxX, ev.clientX - dragOffset.current.x));
+      const newY = Math.max(0, Math.min(maxY, ev.clientY - dragOffset.current.y));
+      setPosition({ x: newX, y: newY });
+    };
+
+    const cleanup = () => {
+      draggingRef.current = false;
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", cleanup);
+      dragCleanupRef.current = null;
+    };
+
+    dragCleanupRef.current = cleanup;
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", cleanup);
+  }, []);
 
   const handleSearch = useCallback(
     (query: string) => {
@@ -70,6 +156,21 @@ export function HelpModal() {
     [search]
   );
 
+  // Escape to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeHelp();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, closeHelp]);
+
+  if (!isOpen) return null;
+
   const displayTopics: (HelpTopic | HelpSearchResult)[] = searchResults ?? topics;
 
   // Group topics by section_id
@@ -83,32 +184,73 @@ export function HelpModal() {
     {}
   );
 
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && closeHelp()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            Help
-          </DialogTitle>
-          <DialogDescription>
-            Browse help topics or search for answers.
-          </DialogDescription>
-        </DialogHeader>
+  const panelStyle: React.CSSProperties = position
+    ? { left: position.x, top: position.y }
+    : { left: "50%", top: "50%", transform: "translate(-50%, -50%)" };
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search help topics..."
-            className="pl-9"
-            autoFocus
-          />
+  const modal = (
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 z-50 bg-black/50"
+        onClick={(e) => { e.stopPropagation(); closeHelp(); }}
+        aria-hidden="true"
+      />
+
+      {/* Draggable panel */}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="fixed z-[51] w-full max-w-2xl flex flex-col rounded-lg border bg-background shadow-lg"
+        style={{ ...panelStyle, maxHeight: "80vh" }}
+      >
+        {/* Drag handle header */}
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b select-none cursor-grab active:cursor-grabbing"
+          onPointerDown={handlePointerDown}
+        >
+          <div>
+            <h2 id={titleId} className="text-lg font-semibold flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Help
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Browse help topics or search for answers.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={closeHelp}
+            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            aria-label="Close help"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-2" ref={scrollRef}>
-          {loading && !topics.length ? (
+        <div className="px-4 pt-3 pb-2">
+          <div className="relative" role="search" aria-label="Search help topics">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search help topics..."
+              className="pl-9"
+              autoFocus
+              aria-label="Search help topics"
+            />
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1 min-h-0 px-4 pb-4 pr-2" style={{ maxHeight: "55vh" }} ref={scrollRef}>
+          {searching ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+              <span className="text-sm text-muted-foreground">Searching...</span>
+            </div>
+          ) : loading && !topics.length ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
@@ -163,14 +305,10 @@ export function HelpModal() {
               ))}
             </div>
           )}
-          {searching && (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
-              <span className="text-sm text-muted-foreground">Searching...</span>
-            </div>
-          )}
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
+
+  return createPortal(modal, document.body);
 }

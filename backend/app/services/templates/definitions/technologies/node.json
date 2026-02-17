@@ -1,0 +1,19 @@
+{
+  "id": "node",
+  "name": "Node.js",
+  "description": "Node.js 20 runtime environment for JavaScript/TypeScript applications",
+  "category": "language",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {
+    ".gitignore": "node_modules/\ndist/\n.env\n"
+  },
+  "environment": {
+    "NODE_ENV": "development"
+  },
+  "sidecar_services": [],
+  "requires_technologies": [],
+  "conflicts_with": [],
+  "docker_image": "node:20-slim",
+  "exposed_ports": []
+}

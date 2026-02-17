@@ -12,6 +12,9 @@ COPY tsconfig.base.json ./
 # Copy packages
 COPY packages/ ./packages/
 
+# Copy locales (shared translations)
+COPY locales/ ./locales/
+
 # Copy this app
 COPY apps/chat/ ./apps/chat/
 
@@ -32,6 +35,7 @@ WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/locales ./locales
 COPY --from=builder /app/apps/chat ./apps/chat
 COPY --from=builder /app/package.json /app/pnpm-workspace.yaml /app/.npmrc ./
 COPY --from=builder /app/tsconfig.base.json ./

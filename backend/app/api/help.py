@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_payload, require_admin
@@ -19,8 +19,6 @@ from app.schemas.help import (
     HelpTopicResponse,
     HelpTopicUpdateRequest,
 )
-from app.services.embedding_service import EmbeddingService
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/help", tags=["help"])
@@ -43,23 +41,6 @@ def _topic_to_response(t: HelpTopic) -> HelpTopicResponse:
         created_at=t.created_at.isoformat() if t.created_at else None,
         updated_at=t.updated_at.isoformat() if t.updated_at else None,
     )
-
-
-def _get_embedding_service(request: Request) -> EmbeddingService:
-    """Dependency to get EmbeddingService from kernel."""
-    kernel = getattr(request.app.state, "kernel", None)
-    if kernel is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kernel not initialized",
-        )
-    svc = kernel.get_service("embedding_service")
-    if svc is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="EmbeddingService not available",
-        )
-    return svc
 
 
 # -------------------------------------------------------------------------
@@ -153,39 +134,89 @@ async def get_help_topic(
 @router.post("/search", response_model=HelpSearchResponse)
 async def search_help(
     body: HelpSearchRequest,
+    request: Request,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
-    embedding_svc: EmbeddingService = Depends(_get_embedding_service),
 ) -> HelpSearchResponse:
-    """Semantic search across help topics using cosine similarity."""
-    query_embedding = await embedding_svc.generate_embedding(body.query)
+    """Search help topics. Uses semantic search when embeddings exist, falls back to text search."""
+    # Check if any topics have embeddings
+    embed_count = await db.execute(
+        select(func.count()).select_from(
+            select(HelpTopic.id).where(HelpTopic.embedding.isnot(None)).subquery()
+        )
+    )
+    has_embeddings = (embed_count.scalar() or 0) > 0
 
-    from pgvector.sqlalchemy import cosine_distance
+    # Try semantic search if embeddings exist and embedding service is available
+    if has_embeddings:
+        try:
+            kernel = getattr(request.app.state, "kernel", None)
+            embedding_svc = kernel.get_service("embedding_service") if kernel else None
+            if embedding_svc:
+                query_embedding = await embedding_svc.generate_embedding(body.query)
+                from pgvector.sqlalchemy import cosine_distance
 
-    distance_expr = cosine_distance(HelpTopic.embedding, query_embedding)
-    similarity_expr = (1 - distance_expr).label("similarity")
+                distance_expr = cosine_distance(HelpTopic.embedding, query_embedding)
+                similarity_expr = (1 - distance_expr).label("similarity")
 
+                stmt = (
+                    select(HelpTopic, similarity_expr)
+                    .where(HelpTopic.embedding.isnot(None))
+                    .order_by(distance_expr)
+                    .limit(body.top_k)
+                )
+
+                result = await db.execute(stmt)
+                rows = result.all()
+
+                results = [
+                    HelpSearchResult(
+                        id=str(topic.id),
+                        slug=topic.slug,
+                        section_id=topic.section_id,
+                        title=topic.title,
+                        body=topic.body,
+                        tags=topic.tags or [],
+                        similarity=float(sim),
+                    )
+                    for topic, sim in rows
+                ]
+
+                return HelpSearchResponse(results=results, query=body.query, count=len(results))
+        except Exception:
+            logger.warning("Semantic search failed, falling back to text search", exc_info=True)
+
+    # Fallback: ILIKE text search on title, body, and tags
+    # Escape LIKE wildcards to prevent wildcard injection
+    escaped_query = body.query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped_query}%"
     stmt = (
-        select(HelpTopic, similarity_expr)
-        .where(HelpTopic.embedding.isnot(None))
-        .order_by(distance_expr)
+        select(HelpTopic)
+        .where(
+            or_(
+                HelpTopic.title.ilike(pattern),
+                HelpTopic.body.ilike(pattern),
+                cast(HelpTopic.tags, String).ilike(pattern),
+            )
+        )
+        .order_by(HelpTopic.section_id, HelpTopic.title)
         .limit(body.top_k)
     )
 
     result = await db.execute(stmt)
-    rows = result.all()
+    topics = result.scalars().all()
 
     results = [
         HelpSearchResult(
-            id=str(topic.id),
-            slug=topic.slug,
-            section_id=topic.section_id,
-            title=topic.title,
-            body=topic.body,
-            tags=topic.tags or [],
-            similarity=float(sim),
+            id=str(t.id),
+            slug=t.slug,
+            section_id=t.section_id,
+            title=t.title,
+            body=t.body,
+            tags=t.tags or [],
+            similarity=1.0 if body.query.lower() in (t.title or "").lower() else 0.8,
         )
-        for topic, sim in rows
+        for t in topics
     ]
 
     return HelpSearchResponse(results=results, query=body.query, count=len(results))

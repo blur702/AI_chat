@@ -4,7 +4,12 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+import re
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# Matches base64 data URLs or safe filenames (no path traversal)
+_SAFE_FILENAME_RE = re.compile(r"^[a-zA-Z0-9_\-][a-zA-Z0-9_\-. ]*$")
 
 
 # -------------------------------------------------------------------------
@@ -17,7 +22,12 @@ class ImageGenerationRequest(BaseModel):
 
     workflow_type: str = Field(
         default="text-to-image",
-        pattern="^(text-to-image|image-to-image|inpainting|face-morph)$",
+        pattern="^(text-to-image|image-to-image|inpainting|face-morph|upscale)$",
+    )
+    system_context: Optional[str] = Field(
+        default=None,
+        max_length=4000,
+        description="Image-specific system context/instructions applied before prompt text",
     )
     prompt: str = Field(..., min_length=1, max_length=2000)
     negative_prompt: Optional[str] = Field(default=None, max_length=2000)
@@ -68,6 +78,50 @@ class ImageGenerationRequest(BaseModel):
         description="Optional LoRA stack: [{name, strength_model, strength_clip}]",
     )
 
+    # Reference image (IPAdapter style transfer)
+    reference_image: Optional[str] = Field(
+        default=None,
+        description="Reference image for style transfer (base64 data URL or ComfyUI filename)",
+    )
+    reference_weight: float = Field(default=0.7, ge=0.0, le=1.5)
+    reference_noise: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    # ControlNet
+    controlnet_image: Optional[str] = Field(
+        default=None,
+        description="ControlNet guide image (base64 data URL or ComfyUI filename)",
+    )
+    controlnet_type: Optional[str] = Field(
+        default=None,
+        pattern="^(canny|depth|openpose|lineart|scribble|softedge)$",
+        description="ControlNet type: canny, depth, openpose, lineart, scribble, softedge",
+    )
+    controlnet_strength: float = Field(default=1.0, ge=0.0, le=2.0)
+
+    # Upscaling (only used with workflow_type=upscale)
+    upscale_model: Optional[str] = Field(default=None, max_length=255)
+    source_generation_id: Optional[str] = Field(
+        default=None,
+        description="Source generation to upscale from",
+    )
+
+    @field_validator(
+        "input_image", "mask_image", "target_image", "reference_image", "controlnet_image",
+        mode="before",
+    )
+    @classmethod
+    def validate_image_source(cls, v: str | None) -> str | None:
+        """Reject path traversal in image filenames (base64 data URLs pass through)."""
+        if v is None:
+            return v
+        if v.startswith("data:"):
+            return v
+        if ".." in v or "/" in v or "\\" in v:
+            raise ValueError("Image filename must not contain path separators or '..'")
+        if not _SAFE_FILENAME_RE.match(v):
+            raise ValueError("Image filename contains invalid characters")
+        return v
+
     @model_validator(mode="after")
     def validate_input_image_for_img2img(self) -> "ImageGenerationRequest":
         if self.workflow_type == "image-to-image" and not self.input_image:
@@ -92,6 +146,14 @@ class ImageGenerationRequest(BaseModel):
 # -------------------------------------------------------------------------
 
 
+class ImageGenerationProgress(BaseModel):
+    """Live progress info from ComfyUI queue."""
+
+    queue_position: Optional[int] = Field(default=None, description="Position in ComfyUI queue (0 = currently running)")
+    queue_pending: int = Field(default=0, description="Total pending jobs in ComfyUI queue")
+    queue_running: int = Field(default=0, description="Total running jobs in ComfyUI queue")
+
+
 class ImageGenerationResponse(BaseModel):
     """Response for a single image generation job."""
 
@@ -105,6 +167,11 @@ class ImageGenerationResponse(BaseModel):
     result_images: List[str] = Field(default_factory=list)
     error_message: Optional[str] = None
     comfyui_job_id: Optional[str] = None
+    progress: Optional[ImageGenerationProgress] = None
+    seed_used: Optional[int] = Field(default=None, description="Actual seed used for generation")
+    is_favorite: bool = False
+    generation_metadata: Optional[dict] = None
+    source_generation_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -134,11 +201,18 @@ class ImageGenerationOptionsResponse(BaseModel):
     loras: List[str] = Field(default_factory=list)
     samplers: List[str] = Field(default_factory=list)
     schedulers: List[str] = Field(default_factory=list)
+    upscale_models: List[str] = Field(default_factory=list)
+    controlnet_types: List[str] = Field(
+        default_factory=lambda: [
+            "canny", "depth", "openpose", "lineart", "scribble", "softedge",
+        ]
+    )
     workflows: List[str] = Field(
         default_factory=lambda: [
             "text-to-image",
             "image-to-image",
             "inpainting",
             "face-morph",
+            "upscale",
         ]
     )

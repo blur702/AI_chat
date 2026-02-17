@@ -26,8 +26,9 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, HelpCircle } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette } from "lucide-react";
 import { useHelp } from "./help/help-provider";
+import { t } from "@/lib/i18n";
 
 interface ChatSidebarProps {
   projectId: string | null;
@@ -173,7 +174,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename Chat</DialogTitle>
+            <DialogTitle>{t("renameChat")}</DialogTitle>
           </DialogHeader>
           <Input
             value={renameValue}
@@ -184,10 +185,10 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRenameTarget(null)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleRename} disabled={!renameValue.trim()}>
-              Save
+              {t("save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -197,17 +198,17 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Chat</DialogTitle>
+            <DialogTitle>{t("deleteChat")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete &quot;{deleteTarget?.title}&quot;? This action cannot be undone.
+            {t("deleteChatConfirm", { title: deleteTarget?.title ?? "" })}
           </p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -300,7 +301,7 @@ function SidebarContent({
   return (
     <>
       <div className="flex items-center justify-between p-4">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">Chats</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">{t("chats")}</h2>
         <Button
           variant="ghost"
           size="icon"
@@ -324,13 +325,13 @@ function SidebarContent({
           </div>
         ) : chats.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
-            No chats yet. Click + to create one.
+            {t("noChatsYet")}
           </p>
         ) : (
           <div className="space-y-1" role="list" aria-label="Chat list">
             {pinnedChats.length > 0 && (
               <>
-                <p className="px-3 py-1 text-xs font-medium text-muted-foreground">Pinned</p>
+                <p className="px-3 py-1 text-xs font-medium text-muted-foreground">{t("pinned")}</p>
                 {pinnedChats.map((chat) => (
                   <ChatItem
                     key={chat.id}
@@ -348,7 +349,7 @@ function SidebarContent({
             {regularChats.length > 0 && (
               <>
                 {pinnedChats.length > 0 && (
-                  <p className="px-3 py-1 text-xs font-medium text-muted-foreground">Recent</p>
+                  <p className="px-3 py-1 text-xs font-medium text-muted-foreground">{t("recent")}</p>
                 )}
                 {regularChats.map((chat) => (
                   <ChatItem
@@ -366,7 +367,7 @@ function SidebarContent({
             )}
             {archivedChats.length > 0 && (
               <>
-                <p className="px-3 py-1 pt-2 text-xs font-medium text-muted-foreground">Archived</p>
+                <p className="px-3 py-1 pt-2 text-xs font-medium text-muted-foreground">{t("archived")}</p>
                 {archivedChats.map((chat) => (
                   <ChatItem
                     key={chat.id}
@@ -395,12 +396,12 @@ function SidebarContent({
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Code2 className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Projects</span>
+                <span className="text-sm">{t("projects")}</span>
               </Link>
             </TooltipTrigger>
             <TooltipContent side="right">
               <p>Manage your projects</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-projects"); }}>Learn more</button>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-projects"); }} aria-label="Learn more about projects">Learn more</button>
             </TooltipContent>
           </Tooltip>
           {projectId && (
@@ -412,15 +413,34 @@ function SidebarContent({
                   className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <Monitor className="h-4 w-4" aria-hidden="true" />
-                  <span className="text-sm">Open IDE</span>
+                  <span className="text-sm">{t("openIDE")}</span>
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right">
                 <p>Open the workspace IDE with editor, terminal, and tools</p>
-                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-ide"); }}>Learn more</button>
+                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-ide"); }} aria-label="Learn more about IDE">Learn more</button>
               </TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/drupal"
+                onClick={onChatSelect}
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/drupal" && "bg-accent text-accent-foreground"
+                )}
+              >
+                <Globe className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">{t("Drupal")}</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Manage your Drupal site</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-drupal"); }} aria-label="Learn more about Drupal manager">Learn more</button>
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
@@ -429,12 +449,31 @@ function SidebarContent({
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Settings className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Settings</span>
+                <span className="text-sm">{t("settings")}</span>
               </Link>
             </TooltipTrigger>
             <TooltipContent side="right">
               <p>User preferences and configuration</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-settings"); }}>Learn more</button>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-settings"); }} aria-label="Learn more about settings">Learn more</button>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/palettes"
+                onClick={onChatSelect}
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/palettes" && "bg-accent text-accent-foreground"
+                )}
+              >
+                <Palette className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">{t("Palettes")}</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Create and reuse saved color palettes anywhere</p>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-palettes"); }} aria-label="Learn more about palettes">Learn more</button>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
@@ -442,14 +481,15 @@ function SidebarContent({
               <button
                 onClick={() => onHelp()}
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label="Help"
               >
                 <HelpCircle className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Help</span>
+                <span className="text-sm">{t("help")}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
               <p>Browse help topics and search for answers</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-help"); }}>Learn more</button>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-help"); }} aria-label="Learn more about help">Learn more</button>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
@@ -459,12 +499,12 @@ function SidebarContent({
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Log out</span>
+                <span className="text-sm">{t("logOut")}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
               <p>Sign out of your account</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-logout"); }}>Learn more</button>
+              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-logout"); }} aria-label="Learn more about logging out">Learn more</button>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -561,15 +601,15 @@ function ChatItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={() => onRename(chat.id, chat.title)}>
           <Pencil className="mr-2 h-4 w-4" />
-          Rename
+          {t("rename")}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onTogglePin(chat.id, !!chat.is_pinned)}>
           <Pin className="mr-2 h-4 w-4" />
-          {chat.is_pinned ? "Unpin" : "Pin"}
+          {chat.is_pinned ? t("unpin") : t("pin")}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleArchive(chat.id, !!chat.is_archived)}>
           <Archive className="mr-2 h-4 w-4" />
-          {chat.is_archived ? "Unarchive" : "Archive"}
+          {chat.is_archived ? t("unarchive") : t("archive")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -577,7 +617,7 @@ function ChatItem({
           onClick={() => onDelete(chat.id, chat.title)}
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete
+          {t("delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

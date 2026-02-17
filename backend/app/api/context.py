@@ -27,6 +27,9 @@ from app.schemas.context import (
     ModelListResponse,
     TokenUsageRequest,
     TokenUsageResponse,
+    TokenizeRequest,
+    TokenizeResponse,
+    TokenSpan,
     UserPreferencesResponse,
     UserPreferencesUpdateRequest,
 )
@@ -111,6 +114,7 @@ async def update_user_preferences(
         response_style=pref.response_style,
         default_model=pref.default_model,
         default_temperature=pref.default_temperature,
+        default_num_ctx=pref.default_num_ctx,
         email_notifications=pref.email_notifications,
         in_app_notifications=pref.in_app_notifications,
         imggen_default_workflow=pref.imggen_default_workflow,
@@ -118,6 +122,8 @@ async def update_user_preferences(
         imggen_default_height=pref.imggen_default_height,
         imggen_default_steps=pref.imggen_default_steps,
         imggen_default_cfg_scale=pref.imggen_default_cfg_scale,
+        imggen_default_prompt=pref.imggen_default_prompt,
+        imggen_system_prompt=pref.imggen_system_prompt,
         imggen_default_negative_prompt=pref.imggen_default_negative_prompt,
         imggen_completion_notification=pref.imggen_completion_notification,
         imggen_desktop_notification=pref.imggen_desktop_notification,
@@ -230,6 +236,7 @@ async def get_token_usage(
         messages=state.get("messages", []),
         compactions=state.get("compactions", []),
         model_name=resolved_model,
+        chat_mode=state.get("chat_mode") or "agent",
     )
 
     return TokenUsageResponse(
@@ -237,4 +244,40 @@ async def get_token_usage(
         max_tokens=breakdown.context_window,
         usage_ratio=breakdown.fill_ratio,
         compaction_triggered=False,
+    )
+
+
+# -------------------------------------------------------------------------
+# Tokenize Text Endpoint
+# -------------------------------------------------------------------------
+
+
+@router.post("/tokenize", response_model=TokenizeResponse)
+async def tokenize_text(
+    body: TokenizeRequest,
+    _payload: dict = Depends(get_current_user_payload),
+) -> TokenizeResponse:
+    """Tokenize text and return individual token spans with character offsets."""
+    text = body.text
+    encoding = _token_counter._encoding
+
+    token_ids = encoding.encode(text)
+    spans: list[TokenSpan] = []
+    offset = 0
+
+    for tid in token_ids:
+        token_text = encoding.decode([tid])
+        char_len = len(token_text)
+        spans.append(TokenSpan(text=token_text, start=offset, end=offset + char_len))
+        offset += char_len
+
+    total = len(spans)
+    characters = len(text)
+    chars_per_token = characters / total if total > 0 else 0.0
+
+    return TokenizeResponse(
+        tokens=spans,
+        total=total,
+        characters=characters,
+        chars_per_token=round(chars_per_token, 2),
     )

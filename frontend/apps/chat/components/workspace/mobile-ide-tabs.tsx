@@ -15,6 +15,8 @@ import {
   BookOpen,
   Camera,
   Layers,
+  LayoutTemplate,
+  Map as MapIcon,
 } from "lucide-react";
 
 export type MobileIdeTab =
@@ -30,7 +32,9 @@ export type MobileIdeTab =
   | "drupal"
   | "kb"
   | "snapshots"
-  | "context";
+  | "context"
+  | "ui-builder"
+  | "planning";
 
 const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "files", label: "Files", icon: FolderOpen },
@@ -46,6 +50,8 @@ const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "kb", label: "KB", icon: BookOpen },
   { id: "snapshots", label: "Snaps", icon: Camera },
   { id: "context", label: "Context", icon: Layers },
+  { id: "ui-builder", label: "Builder", icon: LayoutTemplate },
+  { id: "planning", label: "Plans", icon: MapIcon },
 ];
 
 interface MobileIdeTabsProps {

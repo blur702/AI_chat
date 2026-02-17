@@ -9,8 +9,13 @@ from app.kernel.base import BaseKernelService
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
+DEFAULT_EMBEDDING_MODEL = "snowflake-arctic-embed:l"
 EMBEDDING_DIMENSION = 1024
+# snowflake-arctic-embed:l (Ollama tag for snowflake-arctic-embed-l-v2.0)
+# has a 512-token context window (num_ctx=512 by default).
+# Code/template text tokenizes ~1 char/token, prose ~4 chars/token.
+# Use conservative limit to handle worst-case tokenization.
+MAX_EMBED_CHARS = 1000
 
 
 class EmbeddingService(BaseKernelService):
@@ -87,9 +92,11 @@ class EmbeddingService(BaseKernelService):
         if self._client is None:
             raise RuntimeError("EmbeddingService not started")
 
+        # Truncate to avoid exceeding model context window
+        truncated = text[:MAX_EMBED_CHARS] if len(text) > MAX_EMBED_CHARS else text
         resp = await self._client.post(
             "/api/embeddings",
-            json={"model": model, "prompt": text},
+            json={"model": model, "prompt": truncated, "options": {"num_ctx": 8192}},
         )
         resp.raise_for_status()
         data = resp.json()

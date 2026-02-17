@@ -2,28 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
+import type { HelpTopic, HelpSearchResult } from "../types/help";
 
-export interface HelpTopic {
-  id: string;
-  slug: string;
-  section_id: string;
-  title: string;
-  body: string;
-  tags: string[];
-  has_embedding: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface HelpSearchResult {
-  id: string;
-  slug: string;
-  section_id: string;
-  title: string;
-  body: string;
-  tags: string[];
-  similarity: number;
-}
+export type { HelpTopic, HelpSearchResult };
 
 export interface UseHelpTopicsReturn {
   topics: HelpTopic[];
@@ -43,7 +24,7 @@ export function useHelpTopics(): UseHelpTopicsReturn {
     setError(null);
     try {
       const data = await getClient().listHelpTopics();
-      setTopics(data.topics as HelpTopic[]);
+      setTopics(data.topics);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load help topics";
       setError(message);
@@ -58,7 +39,7 @@ export function useHelpTopics(): UseHelpTopicsReturn {
 
   const search = useCallback(async (query: string): Promise<HelpSearchResult[]> => {
     const data = await getClient().searchHelpTopics(query);
-    return data.results as HelpSearchResult[];
+    return data.results;
   }, []);
 
   return { topics, loading, error, search, refresh: fetchTopics };

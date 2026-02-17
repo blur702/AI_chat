@@ -5,6 +5,7 @@ import base64
 import io
 import logging
 import os
+import posixpath
 import shlex
 import tarfile
 import time
@@ -15,7 +16,7 @@ import docker
 from docker.errors import APIError, DockerException, NotFound
 
 from app.kernel.base import BaseKernelService
-from app.services.templates import TemplateDefinition, TemplateRegistry
+from app.services.templates import TechnologyDefinition, TemplateDefinition, TemplateRegistry
 
 logger = logging.getLogger("workstation.sandbox")
 
@@ -113,6 +114,7 @@ class SandboxManager(BaseKernelService):
         project_id: UUID,
         template_id: Optional[str] = None,
         custom_image: Optional[str] = None,
+        selected_technologies: Optional[List[str]] = None,
     ) -> str:
         """Get existing or create new container for a project.
 
@@ -120,10 +122,16 @@ class SandboxManager(BaseKernelService):
             project_id: The project UUID.
             template_id: Optional template ID to resolve image/config from registry.
             custom_image: Optional Docker image override (takes precedence over template).
+            selected_technologies: Optional list of technology IDs to merge for provisioning.
 
         Returns the container ID.
         """
         pid = str(project_id)
+
+        # Build a tracking key that covers both template and technology modes
+        config_key = template_id or ""
+        if selected_technologies:
+            config_key = ",".join(sorted(selected_technologies))
 
         # Circuit breaker: refuse creation if this project failed recently
         if pid in self._creation_failures:
@@ -137,8 +145,8 @@ class SandboxManager(BaseKernelService):
             self._creation_failures.pop(pid, None)
 
         # Fast path (no lock): container already tracked and running,
-        # AND no pending template application needed (compare actual template value).
-        if pid in self._containers and (not template_id or self._applied_templates.get(pid) == template_id):
+        # AND no pending template/technology application needed.
+        if pid in self._containers and (not config_key or self._applied_templates.get(pid) == config_key):
             container_id = self._containers[pid]
             try:
                 container = await asyncio.to_thread(
@@ -158,9 +166,6 @@ class SandboxManager(BaseKernelService):
                     del self._last_activity[container_id]
 
         # Acquire per-project lock to prevent concurrent creation races.
-        # Without this, a concurrent call (e.g. from the files endpoint
-        # without template_id) can create a bare container before the
-        # project-creation call (with template_id) finishes scaffolding.
         lock = self._creation_locks.setdefault(pid, asyncio.Lock())
 
         async with lock:
@@ -175,13 +180,19 @@ class SandboxManager(BaseKernelService):
                         await asyncio.to_thread(container.start)
                     self._last_activity[container_id] = time.time()
 
-                    # Apply template if requested and not yet applied (or different template)
-                    if template_id and self._applied_templates.get(pid) != template_id:
-                        template = self._template_registry.get(template_id)
-                        if template:
-                            await self._apply_template(container_id, pid, template)
-                            self._applied_templates[pid] = template_id
-                            logger.info("Applied template '%s' to existing container for project %s", template_id, pid[:12])
+                    # Apply template/technologies if requested and not yet applied
+                    if config_key and self._applied_templates.get(pid) != config_key:
+                        if selected_technologies:
+                            merged = self._merge_technologies(selected_technologies)
+                            await self._apply_template(container_id, pid, merged)
+                            self._applied_templates[pid] = config_key
+                            logger.info("Applied technologies %s to existing container for project %s", selected_technologies, pid[:12])
+                        elif template_id:
+                            template = self._template_registry.get(template_id)
+                            if template:
+                                await self._apply_template(container_id, pid, template)
+                                self._applied_templates[pid] = config_key
+                                logger.info("Applied template '%s' to existing container for project %s", template_id, pid[:12])
 
                     return container_id
                 except NotFound:
@@ -189,9 +200,12 @@ class SandboxManager(BaseKernelService):
                     if container_id in self._last_activity:
                         del self._last_activity[container_id]
 
-            # Resolve template configuration
+            # Resolve configuration from technologies or template
             template: Optional[TemplateDefinition] = None
-            if template_id:
+
+            if selected_technologies:
+                template = self._merge_technologies(selected_technologies)
+            elif template_id:
                 template = self._template_registry.get(template_id)
                 if template is None:
                     logger.warning("Template '%s' not found, using default image", template_id)
@@ -222,6 +236,7 @@ class SandboxManager(BaseKernelService):
                     "project_id": pid,
                     "managed_by": "workstation",
                     "template_id": template_id or "",
+                    "technologies": ",".join(selected_technologies) if selected_technologies else "",
                 },
                 network=SANDBOX_NETWORK,
                 working_dir="/workspace",
@@ -250,13 +265,13 @@ class SandboxManager(BaseKernelService):
             self._last_activity[container_id] = time.time()
             logger.info("Created sandbox container %s for project %s", container_id[:12], pid[:12])
 
-            # Apply template scaffolding if provided
+            # Apply template/technology scaffolding if provided
             if template:
                 try:
                     await self._apply_template(container_id, pid, template)
                 except Exception:
                     logger.exception("Template application failed for project %s, marking as applied to prevent infinite retry", pid[:12])
-                self._applied_templates[pid] = template_id
+                self._applied_templates[pid] = config_key
 
             return container_id
 
@@ -602,6 +617,10 @@ class SandboxManager(BaseKernelService):
         result = await self._exec_simple(container_id, f"test -d {shlex.quote(path)} && echo yes || echo no")
         return result.strip() == "yes"
 
+    async def exec_simple(self, container_id: str, command: str) -> str:
+        """Execute a command and return stdout. Raises RuntimeError on non-zero exit."""
+        return await self._exec_simple(container_id, command)
+
     async def _exec_simple(self, container_id: str, command: str) -> str:
         """Execute a command and return stdout. Raises on non-zero exit."""
         exec_info = await self.execute_command(container_id, command)
@@ -616,6 +635,155 @@ class SandboxManager(BaseKernelService):
         if exit_code != 0:
             raise RuntimeError(stderr.strip() or f"Command failed with exit code {exit_code}")
         return output
+
+    # -- Technology merging ---------------------------------------------------
+
+    def _merge_technologies(self, technology_ids: List[str]) -> TemplateDefinition:
+        """Merge multiple technology definitions into a synthetic TemplateDefinition.
+
+        Resolves dependencies, checks for conflicts, and combines all configurations.
+        Raises ValueError on conflicts or missing technologies.
+        """
+        registry = self._template_registry
+
+        # Resolve all technologies including transitive dependencies (topological order)
+        resolved_ids = self._resolve_technology_deps(technology_ids)
+
+        # Load all technology definitions
+        technologies: List[TechnologyDefinition] = []
+        for tid in resolved_ids:
+            tech = registry.get_technology(tid)
+            if tech is None:
+                raise ValueError(f"Technology '{tid}' not found in registry")
+            technologies.append(tech)
+
+        # Check for conflicts (bidirectional — check both directions)
+        all_ids = {t.id for t in technologies}
+        conflict_pairs: set = set()
+        for tech in technologies:
+            for conflict in tech.conflicts_with:
+                conflict_pairs.add((tech.id, conflict))
+                conflict_pairs.add((conflict, tech.id))
+        for src, dst in conflict_pairs:
+            if src in all_ids and dst in all_ids:
+                raise ValueError(
+                    f"Technology '{src}' conflicts with '{dst}'. "
+                    f"Cannot use both in the same project."
+                )
+
+        # Detect conflicting base images: only one language runtime allowed
+        docker_image_providers = [t for t in technologies if t.docker_image]
+        if len(docker_image_providers) > 1:
+            conflicts = ", ".join(
+                f"'{t.id}' ({t.docker_image})" for t in docker_image_providers
+            )
+            raise ValueError(
+                f"Multiple technologies provide conflicting base images: {conflicts}. "
+                f"Only one language runtime can be selected per project."
+            )
+
+        docker_image = docker_image_providers[0].docker_image if docker_image_providers else None
+
+        # Merge configurations in dependency order
+        merged_scaffold: Dict[str, str] = {}
+        merged_setup: List[str] = []
+        merged_env: Dict[str, str] = {}
+        merged_sidecars: List = []
+        merged_ports: List[int] = []
+        sidecar_names: set = set()
+
+        for tech in technologies:
+            # Scaffold files: later technologies override earlier ones for same path
+            merged_scaffold.update(tech.scaffold_files)
+
+            # Install commands: concatenate in dependency order
+            merged_setup.extend(tech.install_commands)
+
+            # Environment variables: later overrides earlier
+            merged_env.update(tech.environment)
+
+            # Sidecar services: aggregate, deduplicate by name
+            for sidecar in tech.sidecar_services:
+                if sidecar.name not in sidecar_names:
+                    sidecar_names.add(sidecar.name)
+                    merged_sidecars.append(sidecar)
+
+            # Exposed ports: aggregate unique
+            for port in tech.exposed_ports:
+                if port not in merged_ports:
+                    merged_ports.append(port)
+
+        # Install technology dependencies (packages declared but not yet handled)
+        all_deps = []
+        for tech in technologies:
+            all_deps.extend(tech.dependencies)
+
+        if all_deps:
+            if "python" in all_ids:
+                # Append dependencies to requirements.txt scaffold
+                existing_reqs = merged_scaffold.get("requirements.txt", "")
+                if existing_reqs and not existing_reqs.endswith("\n"):
+                    existing_reqs += "\n"
+                merged_scaffold["requirements.txt"] = existing_reqs + "\n".join(all_deps) + "\n"
+                # Add pip install ahead of framework-specific commands if not present
+                pip_cmd = "/workspace/.venv/bin/pip install -r /workspace/requirements.txt"
+                if not any("pip install -r" in cmd for cmd in merged_setup):
+                    # Insert after venv setup commands (from the python tech)
+                    insert_at = 0
+                    for i, cmd in enumerate(merged_setup):
+                        if ".venv" in cmd and ("venv" in cmd or "upgrade" in cmd):
+                            insert_at = i + 1
+                    merged_setup.insert(insert_at, pip_cmd)
+            elif "node" in all_ids:
+                # Add npm install command for all collected dependencies
+                merged_setup.append(f"npm install {' '.join(all_deps)}")
+
+        return TemplateDefinition(
+            id=f"merged-{'_'.join(t.id for t in technologies)}",
+            name=f"Merged: {', '.join(t.name for t in technologies)}",
+            description=f"Auto-merged from technologies: {', '.join(t.id for t in technologies)}",
+            category="merged",
+            docker_image=docker_image,
+            scaffold_files=merged_scaffold,
+            setup_commands=merged_setup,
+            exposed_ports=merged_ports,
+            environment=merged_env,
+            sidecar_services=merged_sidecars,
+            selected_technologies=[t.id for t in technologies],
+        )
+
+    def _resolve_technology_deps(self, technology_ids: List[str], max_depth: int = 20) -> List[str]:
+        """Resolve technology dependencies via topological sort.
+
+        Returns an ordered list of technology IDs with dependencies before dependents.
+        Raises ValueError on circular dependencies, missing technologies, or
+        dependency chains deeper than *max_depth*.
+        """
+        registry = self._template_registry
+        # Build dependency graph
+        visited: Dict[str, int] = {}  # 0=visiting, 1=visited
+        order: List[str] = []
+
+        def _visit(tid: str, depth: int = 0) -> None:
+            if depth > max_depth:
+                raise ValueError(f"Technology dependency chain exceeds max depth ({max_depth})")
+            if tid in visited:
+                if visited[tid] == 0:
+                    raise ValueError(f"Circular dependency detected involving '{tid}'")
+                return  # Already processed
+            tech = registry.get_technology(tid)
+            if tech is None:
+                raise ValueError(f"Technology '{tid}' not found in registry")
+            visited[tid] = 0  # Mark as visiting
+            for dep in tech.requires_technologies:
+                _visit(dep, depth + 1)
+            visited[tid] = 1  # Mark as visited
+            order.append(tid)
+
+        for tid in technology_ids:
+            _visit(tid)
+
+        return order
 
     # -- Template helpers -----------------------------------------------------
 
@@ -655,26 +823,42 @@ class SandboxManager(BaseKernelService):
         """Scaffold files, run setup commands, and create sidecars for a template."""
         # Scaffold files into the container
         for file_path, content in template.scaffold_files.items():
-            abs_path = f"/workspace/{file_path}"
+            # Prevent path traversal: reject "..", absolute paths, and null bytes
+            if "\0" in file_path or file_path.startswith("/") or ".." in file_path.split("/"):
+                logger.warning("Rejected scaffold path with traversal attempt: %s", file_path)
+                continue
+            abs_path = posixpath.normpath(f"/workspace/{file_path}")
+            if not abs_path.startswith("/workspace/"):
+                logger.warning("Rejected scaffold path escaping /workspace: %s", file_path)
+                continue
             try:
                 await self.write_file(container_id, abs_path, content)
             except Exception:
                 logger.exception("Failed to scaffold %s in container %s", file_path, container_id[:12])
 
-        # Run setup commands
+        # Run setup commands (with per-command timeout)
+        setup_timeout = COMMAND_TIMEOUT  # 5 minutes per command
         for cmd in template.setup_commands:
             try:
-                exec_info = await self.execute_command(container_id, cmd)
-                stderr = ""
-                async for stream_type, chunk in self.stream_exec_output(exec_info["exec_id"]):
-                    if stream_type == "stderr":
-                        stderr += chunk
-                exit_code = await self.get_exec_exit_code(exec_info["exec_id"])
-                if exit_code != 0:
-                    logger.warning(
-                        "Setup command failed (exit %d) in %s: %s — %s",
-                        exit_code, container_id[:12], cmd, stderr[:200],
-                    )
+                async def _run_setup_cmd() -> None:
+                    exec_info = await self.execute_command(container_id, cmd)
+                    stderr = ""
+                    async for stream_type, chunk in self.stream_exec_output(exec_info["exec_id"]):
+                        if stream_type == "stderr":
+                            stderr += chunk
+                    exit_code = await self.get_exec_exit_code(exec_info["exec_id"])
+                    if exit_code != 0:
+                        logger.warning(
+                            "Setup command failed (exit %d) in %s: %s — %s",
+                            exit_code, container_id[:12], cmd, stderr[:200],
+                        )
+
+                await asyncio.wait_for(_run_setup_cmd(), timeout=setup_timeout)
+            except asyncio.TimeoutError:
+                logger.error(
+                    "Setup command timed out after %ds in %s: %s",
+                    setup_timeout, container_id[:12], cmd,
+                )
             except Exception:
                 logger.exception("Setup command error in %s: %s", container_id[:12], cmd)
 
@@ -891,6 +1075,162 @@ class SandboxManager(BaseKernelService):
         except NotFound:
             raise RuntimeError(f"Snapshot '{snapshot_name}' not found")
 
+    # -- Docker Image Export ---------------------------------------------------
+
+    async def export_as_docker_image(
+        self,
+        project_id: UUID,
+        image_name: str | None = None,
+        include_compose: bool = True,
+        include_tar: bool = False,
+        template_id: str | None = None,
+    ) -> dict:
+        """Export a project container as a portable Docker image.
+
+        Returns dict with image_id, image_name, compose_file (optional),
+        tar_download_url (optional).
+        """
+        pid = str(project_id)
+        container_id = self._containers.get(pid)
+        if not container_id:
+            raise RuntimeError(f"No container for project {pid}")
+
+        # Determine image name
+        if not image_name:
+            image_name = f"workstation-export-{pid[:12]}"
+        image_name = image_name.lower().replace(" ", "-")
+        repo = image_name
+        tag = "latest"
+
+        # Commit container as image
+        result = await asyncio.to_thread(
+            self._client.api.commit, container_id, repo, tag
+        )
+        image_id = result.get("Id", "")
+        logger.info("Exported project %s as image %s:%s", pid[:12], repo, tag)
+
+        response: dict = {
+            "image_id": image_id,
+            "image_name": f"{repo}:{tag}",
+        }
+
+        # Generate docker-compose.yml from container metadata
+        if include_compose:
+            compose = self._generate_compose_file(
+                pid, image_name, tag, container_id, template_id
+            )
+            response["compose_file"] = compose
+
+        # Provide download URL marker (actual tar streaming is done via separate endpoint)
+        if include_tar:
+            response["tar_download_url"] = f"/api/projects/{pid}/export-docker/{image_id}/download"
+
+        return response
+
+    def _generate_compose_file(
+        self,
+        project_id: str,
+        image_name: str,
+        tag: str,
+        container_id: str,
+        template_id: str | None,
+    ) -> str:
+        """Generate a docker-compose.yml based on the container and template metadata."""
+        import yaml
+
+        # Get container inspect data
+        try:
+            container = self._client.containers.get(container_id)
+            config = container.attrs.get("Config", {})
+            labels = container.labels or {}
+        except Exception:
+            config = {}
+            labels = {}
+
+        exposed_ports_raw = config.get("ExposedPorts", {})
+        ports = []
+        for port_key in exposed_ports_raw:
+            port_num = port_key.split("/")[0]
+            ports.append(f"{port_num}:{port_num}")
+
+        env_vars = config.get("Env", [])
+        environment = [e for e in env_vars if not e.startswith("PATH=")]
+
+        # Resolve sidecars and ports from either template or technologies
+        sidecar_services: list = []
+        technology_ports: List[int] = []
+
+        if template_id:
+            template_def = self._template_registry.get(template_id)
+            if template_def:
+                sidecar_services = list(template_def.sidecar_services)
+                technology_ports = list(template_def.exposed_ports)
+        else:
+            # Resolve from technologies label on the container
+            tech_label = labels.get("technologies", "")
+            if tech_label:
+                tech_ids = [t.strip() for t in tech_label.split(",") if t.strip()]
+                seen_sidecars: set = set()
+                for tech_id in tech_ids:
+                    tech = self._template_registry.get_technology(tech_id)
+                    if tech is None:
+                        continue
+                    for sc in tech.sidecar_services:
+                        if sc.name not in seen_sidecars:
+                            seen_sidecars.add(sc.name)
+                            sidecar_services.append(sc)
+                    for p in tech.exposed_ports:
+                        if p not in technology_ports:
+                            technology_ports.append(p)
+
+        # Merge technology-defined ports into the main service ports
+        if not ports and technology_ports:
+            ports = [f"{p}:{p}" for p in technology_ports]
+
+        service = {
+            "image": f"{image_name}:{tag}",
+            "ports": ports if ports else ["3000:3000"],
+            "volumes": ["./workspace:/workspace"],
+            "working_dir": "/workspace",
+            "restart": "unless-stopped",
+        }
+        if environment:
+            service["environment"] = environment
+
+        compose_dict = {
+            "version": "3.8",
+            "services": {
+                "app": service,
+            },
+        }
+
+        # Add sidecar services
+        for sidecar in sidecar_services:
+            sidecar_ports = [f"{p}:{p}" for p in sidecar.exposed_ports]
+            sidecar_svc: dict = {
+                "image": sidecar.image,
+                "restart": "unless-stopped",
+            }
+            if sidecar_ports:
+                sidecar_svc["ports"] = sidecar_ports
+            if sidecar.environment:
+                sidecar_svc["environment"] = sidecar.environment
+            compose_dict["services"][sidecar.name] = sidecar_svc
+
+        return yaml.dump(compose_dict, default_flow_style=False, sort_keys=False)
+
+    async def export_docker_tar_streaming(self, image_id: str):
+        """Async generator yielding tar chunks of a Docker image for download."""
+        try:
+            image = await asyncio.to_thread(self._client.images.get, image_id)
+        except Exception as e:
+            raise RuntimeError(f"Image not found: {e}")
+
+        # Get image as tar generator
+        tar_stream = await asyncio.to_thread(image.save, named=True)
+        for chunk in tar_stream:
+            yield chunk
+
     # -- Internal helpers -----------------------------------------------------
 
     async def _recover_containers(self) -> None:
@@ -921,9 +1261,12 @@ class SandboxManager(BaseKernelService):
                     continue
                 self._containers[pid] = container.id
                 self._last_activity[container.id] = time.time()
-                # Restore template tracking from container labels
-                recovered_template = container.labels.get("template_id")
-                if recovered_template:
+                # Restore template/technology tracking from container labels
+                recovered_techs = container.labels.get("technologies", "")
+                recovered_template = container.labels.get("template_id", "")
+                if recovered_techs:
+                    self._applied_templates[pid] = ",".join(sorted(recovered_techs.split(",")))
+                elif recovered_template:
                     self._applied_templates[pid] = recovered_template
             if self._containers:
                 logger.info("Recovered %d sandbox containers", len(self._containers))

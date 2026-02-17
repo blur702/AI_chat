@@ -1,11 +1,12 @@
 """Message submission and streaming endpoints."""
 
+import asyncio
 import json
 import logging
 import re
 import time
-from typing import Optional
-from uuid import UUID
+from typing import Any, Dict, List, Optional, Set
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -22,6 +23,7 @@ from app.api.context_deps import (
 from app.kernel.context_manager import ContextManager
 from app.kernel.prompt_builder import PromptBuilder
 from app.kernel.token_counter import TokenCounter
+from app.kernel.tool_registry import ToolRegistry
 from app.models.automation_action import AutomationAction
 from app.models.chat import Chat
 from app.models.context_compaction import ContextCompaction
@@ -41,6 +43,7 @@ from app.schemas.context import (
     TokenBreakdownResponse,
 )
 from app.services.ollama_client import OllamaClient
+from app.services.plan_parser import extract_plan_blocks, has_plan_blocks, create_from_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +95,83 @@ async def _extract_and_create_actions(
         )
 
     return action_ids
+
+
+# -------------------------------------------------------------------------
+# Tool Call Loop Helpers
+# -------------------------------------------------------------------------
+
+# Max tool-call iterations before forcing stop
+_MAX_TOOL_ITERATIONS = 10
+
+# Tools that are safe to auto-execute without user approval
+_AUTO_EXECUTE_TOOLS: Set[str] = {
+    "web_search", "code_read",
+    "brevo_get_account", "brevo_list_contacts", "brevo_list_templates",
+    "brevo_list_campaigns",
+}
+
+# Chat modes where tool calling is enabled
+_TOOL_ENABLED_MODES: Set[str] = {"agent", "suggest"}
+
+
+def _get_tool_registry_from_request(request: Request) -> Optional[ToolRegistry]:
+    """Get ToolRegistry from kernel, returning None if unavailable."""
+    kernel = getattr(request.app.state, "kernel", None)
+    if kernel is None:
+        return None
+    return kernel.get_service("tool_registry")
+
+
+async def _execute_tool_call(
+    registry: ToolRegistry,
+    tool_name: str,
+    arguments: Dict[str, Any],
+    chat_mode: str,
+    chat_id: UUID,
+    project_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Execute a single tool call through the registry.
+
+    In 'agent' mode, safe tools auto-execute; others need approval.
+    In 'suggest' mode, all tools need approval (handled via frontend).
+    """
+    try:
+        # Use a permissive permission set — tools handle their own safety
+        caller_permissions: Set[str] = {"tools.execute", "tools.read", "tools.write"}
+
+        # Pass project_id in context so code tools can resolve the sandbox
+        context_data = {}
+        if project_id:
+            context_data["project_id"] = project_id
+
+        result = await registry.execute_tool(
+            tool_name=tool_name,
+            parameters=arguments,
+            caller_permissions=caller_permissions,
+            use_cache=True,
+            chat_id=chat_id,
+            context_data=context_data if context_data else None,
+        )
+        return result
+    except ValueError as e:
+        return {
+            "tool": tool_name,
+            "success": False,
+            "error": str(e),
+            "cached": False,
+            "duration_ms": 0,
+        }
+    except Exception as e:
+        logger.exception("Tool execution failed: %s", tool_name)
+        return {
+            "tool": tool_name,
+            "success": False,
+            "error": f"Execution error: {str(e)}",
+            "cached": False,
+            "duration_ms": 0,
+        }
 
 
 # -------------------------------------------------------------------------
@@ -336,6 +416,7 @@ async def get_token_breakdown(
         messages=state.get("messages", []),
         compactions=state.get("compactions", []),
         model_name=resolved_model,
+        chat_mode=state.get("chat_mode") or "agent",
     )
 
 
@@ -384,12 +465,14 @@ async def get_assembled_context(
 
     # Build layers
     layers: list[AssembledContextLayer] = []
+    assembled_chat_mode = state.get("chat_mode") or "agent"
 
     # System prompt layer
     system_prompt = _prompt_builder.build_system_prompt(
         prefs, project_context,
         system_prompt_content=system_prompt_content,
         chat_instructions=chat_instructions,
+        chat_mode=assembled_chat_mode,
     )
     layers.append(AssembledContextLayer(
         name="system_prompt",
@@ -638,10 +721,18 @@ async def submit_message(
     )
     chat_instructions = state.get("chat_instructions") if state else None
 
+    # Resolve chat_mode from DB
+    chat_mode = (state.get("chat_mode") or "agent") if state else "agent"
+
+    # Retrieve active plan context if any
+    active_plan = await cm.get_active_plan(chat_id)
+
     system_prompt = _prompt_builder.build_system_prompt(
         prefs, project_context,
         system_prompt_content=system_prompt_content,
         chat_instructions=chat_instructions,
+        chat_mode=chat_mode,
+        active_plan=active_plan,
     )
 
     # -- 2b. Retrieve KB context (RAG) -----------------------------------------
@@ -668,6 +759,7 @@ async def submit_message(
     )
 
     temperature = prefs.get("default_temperature") or 0.7
+    num_ctx = prefs.get("default_num_ctx")
 
     # -- 4. Call Ollama (no open DB transaction) ----------------------------
     t0 = time.monotonic()
@@ -676,6 +768,7 @@ async def submit_message(
             messages=history_messages,
             model=model,
             temperature=temperature,
+            num_ctx=num_ctx,
         )
     except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as exc:
         # Use a fresh session to avoid race conditions with the injected session
@@ -716,20 +809,35 @@ async def submit_message(
         chat_id=chat_id,
         role="assistant",
         content=assistant_content,
-        message_metadata={"model": model},
+        message_metadata={"model": model, "chat_mode": chat_mode},
     )
     db.add(assistant_msg)
     await db.commit()
     assistant_msg_id = str(assistant_msg.id)
     assistant_created = str(assistant_msg.created_at) if assistant_msg.created_at else None
 
-    # -- 6. Extract action proposals ----------------------------------------
+    # -- 6. Extract action proposals (agent mode only) -----------------------
     action_ids: list[str] = []
     project_id = state.get("project_id") if state else None
-    if project_id and _ACTION_PATTERN.search(assistant_content):
+    if chat_mode == "agent" and project_id and _ACTION_PATTERN.search(assistant_content):
         action_ids = await _extract_and_create_actions(
             assistant_content, UUID(str(project_id)), db
         )
+
+    # -- 6b. Extract plan blocks (plan mode) --------------------------------
+    if chat_mode == "plan" and project_id and has_plan_blocks(assistant_content):
+        try:
+            blocks = extract_plan_blocks(assistant_content)
+            if blocks:
+                await create_from_blocks(
+                    blocks=blocks,
+                    project_id=UUID(str(project_id)),
+                    chat_id=chat_id,
+                    user_id=UUID(str(user_id)),
+                    db=db,
+                )
+        except Exception as plan_exc:
+            logger.warning("Failed to create plan from blocks: %s", plan_exc)
 
     # -- 7. Invalidate cache and track token usage -------------------------
     await cm.invalidate_conversation_cache(chat_id)
@@ -800,6 +908,14 @@ async def stream_message(
     body = await request.json()
     content: str = body.get("content", "").strip()
     model: Optional[str] = body.get("model")
+    request_chat_mode: Optional[str] = body.get("chat_mode")
+    if request_chat_mode is not None:
+        from app.schemas.context import VALID_CHAT_MODES
+        if request_chat_mode not in VALID_CHAT_MODES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid chat_mode '{request_chat_mode}'. Must be one of: {VALID_CHAT_MODES}",
+            )
     if not content:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -844,10 +960,18 @@ async def stream_message(
     )
     chat_instructions = state.get("chat_instructions") if state else None
 
+    # Resolve chat_mode: request body overrides DB value
+    chat_mode = request_chat_mode or (state.get("chat_mode") if state else None) or "agent"
+
+    # Retrieve active plan context if any
+    active_plan_stream = await cm.get_active_plan(chat_id)
+
     system_prompt = _prompt_builder.build_system_prompt(
         prefs, project_context,
         system_prompt_content=system_prompt_content,
         chat_instructions=chat_instructions,
+        chat_mode=chat_mode,
+        active_plan=active_plan_stream,
     )
 
     # -- Retrieve KB context (RAG) for streaming ---------------------------
@@ -873,20 +997,191 @@ async def stream_message(
     )
 
     temperature = prefs.get("default_temperature") or 0.7
+    num_ctx = prefs.get("default_num_ctx")
+
+    # -- Resolve tools for this chat mode -----------------------------------
+    tool_registry = _get_tool_registry_from_request(request)
+    openai_tools: Optional[List[Dict[str, Any]]] = None
+    if (
+        tool_registry
+        and chat_mode in _TOOL_ENABLED_MODES
+        and tool_registry.is_running
+    ):
+        fmt = tool_registry.get_tools_openai_format()
+        if fmt:
+            openai_tools = fmt
 
     # -- SSE generator -----------------------------------------------------
     async def event_generator():
         full_content = ""
         t0 = time.monotonic()
+        # Mutable copy of messages for the tool call loop
+        loop_messages = list(history_messages)
         try:
-            async for token_text in ollama.chat_completion_stream(
-                messages=history_messages,
-                model=resolved_model,
-                temperature=temperature,
-            ):
-                full_content += token_text
-                event = json.dumps({"type": "token", "content": token_text})
-                yield f"data: {event}\n\n"
+            for iteration in range(_MAX_TOOL_ITERATIONS):
+                iteration_content = ""
+                pending_tool_calls = None
+
+                async for chunk in ollama.chat_completion_stream(
+                    messages=loop_messages,
+                    model=resolved_model,
+                    temperature=temperature,
+                    num_ctx=num_ctx,
+                    tools=openai_tools,
+                ):
+                    if isinstance(chunk, dict) and "tool_calls" in chunk:
+                        # Model wants to call tools — don't yield as token
+                        pending_tool_calls = chunk["tool_calls"]
+                    elif isinstance(chunk, str):
+                        iteration_content += chunk
+                        full_content += chunk
+                        event = json.dumps({"type": "token", "content": chunk})
+                        yield f"data: {event}\n\n"
+
+                # If no tool calls, we're done streaming
+                if not pending_tool_calls:
+                    break
+
+                # -- Handle tool calls ------------------------------------
+                # Append the assistant message with tool_calls to history
+                assistant_tc_msg: Dict[str, Any] = {"role": "assistant", "content": iteration_content}
+                assistant_tc_msg["tool_calls"] = pending_tool_calls
+                loop_messages.append(assistant_tc_msg)
+
+                for tc in pending_tool_calls:
+                    fn = tc.get("function", {})
+                    tool_name = fn.get("name", "unknown")
+                    tool_args = fn.get("arguments", {})
+                    call_id = str(uuid4())
+
+                    # Notify frontend about tool invocation
+                    tc_event = json.dumps({
+                        "type": "tool_call",
+                        "call_id": call_id,
+                        "tool_name": tool_name,
+                        "arguments": tool_args,
+                        "iteration": iteration,
+                    })
+                    yield f"data: {tc_event}\n\n"
+
+                    # Determine if we should auto-execute or need approval
+                    auto_execute = (
+                        chat_mode == "agent"
+                        and tool_name in _AUTO_EXECUTE_TOOLS
+                    )
+
+                    if chat_mode == "suggest":
+                        # In suggest mode, all tools need approval — send
+                        # a pending event and provide placeholder result.
+                        tool_result_content = json.dumps({
+                            "status": "pending_approval",
+                            "message": f"Tool '{tool_name}' requires user approval before execution.",
+                        })
+                        result_event = json.dumps({
+                            "type": "tool_result",
+                            "call_id": call_id,
+                            "tool_name": tool_name,
+                            "status": "pending_approval",
+                        })
+                        yield f"data: {result_event}\n\n"
+
+                    elif auto_execute:
+                        # Safe tool in agent mode — execute immediately
+                        result = await _execute_tool_call(
+                            registry=tool_registry,
+                            tool_name=tool_name,
+                            arguments=tool_args,
+                            chat_mode=chat_mode,
+                            chat_id=chat_id,
+                            project_id=str(project_id) if project_id else None,
+                        )
+
+                        tool_result_content = json.dumps(
+                            result.get("result") if result.get("success") else {"error": result.get("error", "Unknown error")}
+                        )
+
+                        result_event = json.dumps({
+                            "type": "tool_result",
+                            "call_id": call_id,
+                            "tool_name": tool_name,
+                            "success": result.get("success", False),
+                            "duration_ms": result.get("duration_ms", 0),
+                            "result_preview": tool_result_content[:500],
+                        })
+                        yield f"data: {result_event}\n\n"
+
+                    else:
+                        # Non-safe tool in agent mode — request approval
+                        # via Redis pubsub, then execute if approved.
+                        approval_event = json.dumps({
+                            "type": "tool_approval_required",
+                            "call_id": call_id,
+                            "tool_name": tool_name,
+                            "arguments": tool_args,
+                        })
+                        yield f"data: {approval_event}\n\n"
+
+                        # Wait for approval via Redis pubsub
+                        from app.api.tool_approvals import wait_for_approval
+                        redis_client = tool_registry.get_redis_client()
+                        approval = None
+                        if redis_client:
+                            approval = await wait_for_approval(redis_client, call_id)
+
+                        if approval and approval.get("approved"):
+                            # Use modified arguments if provided
+                            final_args = approval.get("modified_arguments") or tool_args
+                            result = await _execute_tool_call(
+                                registry=tool_registry,
+                                tool_name=tool_name,
+                                arguments=final_args,
+                                chat_mode=chat_mode,
+                                chat_id=chat_id,
+                                project_id=str(project_id) if project_id else None,
+                            )
+                            tool_result_content = json.dumps(
+                                result.get("result") if result.get("success") else {"error": result.get("error", "Unknown error")}
+                            )
+                            result_event = json.dumps({
+                                "type": "tool_result",
+                                "call_id": call_id,
+                                "tool_name": tool_name,
+                                "success": result.get("success", False),
+                                "duration_ms": result.get("duration_ms", 0),
+                                "result_preview": tool_result_content[:500],
+                            })
+                            yield f"data: {result_event}\n\n"
+                        else:
+                            # Denied or timed out
+                            reason = "denied" if approval else "timed_out"
+                            tool_result_content = json.dumps({
+                                "status": reason,
+                                "message": f"Tool '{tool_name}' was {reason.replace('_', ' ')}.",
+                            })
+                            result_event = json.dumps({
+                                "type": "tool_result",
+                                "call_id": call_id,
+                                "tool_name": tool_name,
+                                "status": reason,
+                            })
+                            yield f"data: {result_event}\n\n"
+
+                    # Append tool result to message history for next iteration
+                    loop_messages.append({
+                        "role": "tool",
+                        "content": tool_result_content,
+                        "tool_name": tool_name,
+                    })
+
+                # In suggest mode, break after first tool call round
+                # (tools are proposed but not executed)
+                if chat_mode == "suggest":
+                    break
+
+                logger.info(
+                    "SSE: tool iteration %d complete, %d tool(s) called",
+                    iteration, len(pending_tool_calls),
+                )
 
             elapsed_ms = (time.monotonic() - t0) * 1000
             logger.info(
@@ -901,7 +1196,7 @@ async def stream_message(
                     chat_id=chat_id,
                     role="assistant",
                     content=full_content,
-                    message_metadata={"model": resolved_model},
+                    message_metadata={"model": resolved_model, "chat_mode": chat_mode},
                 )
                 persist_db.add(assistant_msg)
                 await persist_db.commit()
@@ -915,10 +1210,25 @@ async def stream_message(
                 await cm.invalidate_conversation_cache(chat_id)
 
                 action_ids: list[str] = []
-                if project_id and _ACTION_PATTERN.search(full_content):
+                if chat_mode == "agent" and project_id and _ACTION_PATTERN.search(full_content):
                     action_ids = await _extract_and_create_actions(
                         full_content, UUID(str(project_id)), persist_db
                     )
+
+                # Extract plan blocks (plan mode)
+                if chat_mode == "plan" and project_id and has_plan_blocks(full_content):
+                    try:
+                        blocks = extract_plan_blocks(full_content)
+                        if blocks:
+                            await create_from_blocks(
+                                blocks=blocks,
+                                project_id=UUID(str(project_id)),
+                                chat_id=chat_id,
+                                user_id=UUID(str(user_id)),
+                                db=persist_db,
+                            )
+                    except Exception as plan_exc:
+                        logger.warning("SSE: failed to create plan from blocks: %s", plan_exc)
 
             # Track token usage and enqueue compaction if threshold exceeded
             response_tokens = _token_counter.count_tokens(full_content)

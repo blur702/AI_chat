@@ -78,6 +78,17 @@ class ImageGeneration(UUIDMixin, TimestampMixin, Base):
         nullable=True,
     )
 
+    # Favorites and metadata
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    generation_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True
+    )
+    source_generation_id: Mapped[Optional[UUID]] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("image_generations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Soft deletion
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(

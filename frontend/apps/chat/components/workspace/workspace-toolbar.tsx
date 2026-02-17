@@ -37,9 +37,13 @@ import {
   Power,
   Layers,
   HelpCircle,
+  LayoutTemplate,
+  Map,
+  GraduationCap,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 import { useHelp } from "../help/help-provider";
+import { t } from "@/lib/i18n";
 
 interface WorkspaceToolbarProps {
   onFilesClick?: () => void;
@@ -55,6 +59,9 @@ interface WorkspaceToolbarProps {
   onKBClick?: () => void;
   onSnapshotsClick?: () => void;
   onContextClick?: () => void;
+  onUIBuilderClick?: () => void;
+  onPlanningClick?: () => void;
+  onKBBuilderClick?: () => void;
   onCloseProject?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
@@ -77,6 +84,9 @@ export function WorkspaceToolbar({
   onKBClick,
   onSnapshotsClick,
   onContextClick,
+  onUIBuilderClick,
+  onPlanningClick,
+  onKBBuilderClick,
   onCloseProject,
   onSettingsClick,
   pendingActionsCount = 0,
@@ -101,7 +111,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onFilesClick}>
               <FolderOpen className="h-4 w-4" />
-              {!isMobile && "Files"}
+              {!isMobile && t("files")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -114,7 +124,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onRunClick}>
               <Play className="h-4 w-4" />
-              {!isMobile && "Run"}
+              {!isMobile && t("run")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -127,7 +137,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0 relative" onClick={onActionsClick}>
               <ListChecks className="h-4 w-4" />
-              {!isMobile && "Actions"}
+              {!isMobile && t("actions")}
               {pendingActionsCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
                   {pendingActionsCount > 9 ? "9+" : pendingActionsCount}
@@ -146,7 +156,7 @@ export function WorkspaceToolbar({
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onHistoryClick}>
                 <History className="h-4 w-4" />
-                History
+                {t("history")}
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -160,7 +170,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onImageGenClick}>
               <ImageIcon className="h-4 w-4" />
-              {!isMobile && "Images"}
+              {!isMobile && t("images")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -173,7 +183,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onResourcesClick}>
               <HardDrive className="h-4 w-4" />
-              {!isMobile && "Resources"}
+              {!isMobile && t("resources")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -186,7 +196,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onEventsClick}>
               <Zap className="h-4 w-4" />
-              {!isMobile && "Events"}
+              {!isMobile && t("events")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -199,7 +209,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onDrupalClick}>
               <Globe className="h-4 w-4" />
-              {!isMobile && "Drupal"}
+              {!isMobile && t("drupal")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -212,7 +222,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onKBClick}>
               <BookOpen className="h-4 w-4" />
-              {!isMobile && "KB"}
+              {!isMobile && t("kb")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -225,7 +235,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onSnapshotsClick}>
               <Camera className="h-4 w-4" />
-              {!isMobile && "Snapshots"}
+              {!isMobile && t("snapshots")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -238,12 +248,50 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onContextClick}>
               <Layers className="h-4 w-4" />
-              {!isMobile && "Context"}
+              {!isMobile && t("context")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Edit context layers sent to the AI</p>
             <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-context"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onUIBuilderClick}>
+              <LayoutTemplate className="h-4 w-4" />
+              {!isMobile && t("uiBuilder")}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Drag-and-drop UI component builder</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onPlanningClick}>
+              <Map className="h-4 w-4" />
+              {!isMobile && t("plans")}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Plan, execute, verify and ship with structured workflows</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("workspace-planning"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onKBBuilderClick}>
+              <GraduationCap className="h-4 w-4" />
+              {!isMobile && t("kbBuilder")}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Build a vector knowledge base step-by-step with educational wizard</p>
+            <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("kb-what-are-embeddings"); }}>Learn more</button>
           </TooltipContent>
         </Tooltip>
 
@@ -254,7 +302,7 @@ export function WorkspaceToolbar({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-1 shrink-0 relative">
                   <Wrench className="h-4 w-4" />
-                  {!isMobile && "Tools"}
+                  {!isMobile && t("tools")}
                   {toolsCount > 0 && (
                     <Badge variant="secondary" className="h-4 text-[9px] px-1 ml-0.5">
                       {toolsCount}
@@ -308,7 +356,7 @@ export function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onChatClick}>
               <MessageSquare className="h-4 w-4" />
-              {!isMobile && "AI Chat"}
+              {!isMobile && t("aiChat")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>

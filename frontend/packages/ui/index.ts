@@ -3,6 +3,8 @@ export { Button, buttonVariants } from "./components/ui/button";
 export type { ButtonProps } from "./components/ui/button";
 export { Input } from "./components/ui/input";
 export type { InputProps } from "./components/ui/input";
+export { Textarea } from "./components/ui/textarea";
+export type { TextareaProps } from "./components/ui/textarea";
 export {
   Dialog,
   DialogPortal,
@@ -73,6 +75,7 @@ export {
   ContextMenuRadioGroup,
 } from "./components/ui/context-menu";
 
+export { Progress } from "./components/ui/progress";
 export { SkipNav } from "./components/ui/skip-nav";
 
 // Theme

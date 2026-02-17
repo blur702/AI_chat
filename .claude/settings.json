@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
     "ralph-loop@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
   }
 }

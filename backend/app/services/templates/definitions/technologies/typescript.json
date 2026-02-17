@@ -1,0 +1,17 @@
+{
+  "id": "typescript",
+  "name": "TypeScript",
+  "description": "TypeScript compiler and configuration for type-safe JavaScript development",
+  "category": "language",
+  "dependencies": ["typescript@^5.4.0"],
+  "install_commands": [],
+  "scaffold_files": {
+    "tsconfig.json": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"module\": \"ESNext\",\n    \"lib\": [\"ES2020\", \"DOM\", \"DOM.Iterable\"],\n    \"jsx\": \"react-jsx\",\n    \"strict\": true,\n    \"moduleResolution\": \"bundler\",\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true\n  },\n  \"include\": [\"src\"]\n}\n"
+  },
+  "environment": {},
+  "sidecar_services": [],
+  "requires_technologies": ["node"],
+  "conflicts_with": [],
+  "docker_image": null,
+  "exposed_ports": []
+}

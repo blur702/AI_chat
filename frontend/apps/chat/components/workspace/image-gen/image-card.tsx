@@ -8,6 +8,7 @@ import {
   Eye,
   ImageIcon,
   Loader2,
+  Star,
   Trash2,
 } from "lucide-react";
 import type {
@@ -20,6 +21,7 @@ interface ImageCardProps {
   onView: () => void;
   onDelete: () => void;
   onDownload?: () => void;
+  onToggleFavorite?: () => void;
   bulkMode?: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
@@ -56,6 +58,7 @@ export function ImageCard({
   onView,
   onDelete,
   onDownload,
+  onToggleFavorite,
   bulkMode = false,
   selected = false,
   onSelect,
@@ -110,9 +113,22 @@ export function ImageCard({
               alt={generation.prompt}
               className="h-full w-full object-cover"
             />
+            {generation.is_favorite && (
+              <div className="absolute top-2 right-2 z-10">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              </div>
+            )}
             <div className="absolute inset-0 hidden items-center justify-center gap-2 bg-black/50 group-hover:flex">
               <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); onView(); }}>
                 <Eye className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
+                title={generation.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Star className={cn("h-4 w-4", generation.is_favorite && "fill-yellow-400 text-yellow-400")} />
               </Button>
               <Button
                 size="icon"

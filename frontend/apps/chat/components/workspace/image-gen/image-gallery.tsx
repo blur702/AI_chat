@@ -8,6 +8,7 @@ import {
   ImageIcon,
   RefreshCw,
   Square,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import { ImageViewer } from "./image-viewer";
 interface ImageGalleryProps {
   projectId: string;
   hookState?: UseImageGenerationReturn;
+  onRegenerate?: (generation: ImageGenerationResponse) => void;
 }
 
 type SortOrder = "newest" | "oldest";
@@ -48,6 +50,7 @@ const FILTERS: Array<{ label: string; value: ImageGenerationStatus | "all" }> = 
   { label: "Failed", value: "failed" },
 ];
 
+
 const PAGE_SIZE = 20;
 
 function getFilenameFromUrl(url: string): string {
@@ -55,7 +58,7 @@ function getFilenameFromUrl(url: string): string {
   return path.substring(path.lastIndexOf("/") + 1) || "image.png";
 }
 
-export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
+export function ImageGallery({ projectId, hookState, onRegenerate }: ImageGalleryProps) {
   const internalHook = useImageGeneration(hookState ? null : projectId);
   const { services, refresh: refreshServiceStatus } = useServiceStatus();
   const hook = hookState ?? internalHook;
@@ -72,7 +75,11 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
     downloadImage,
     setPage,
     setFilter,
+    toggleFavorite,
+    upscaleGeneration,
   } = hook;
+
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [selectedGeneration, setSelectedGeneration] =
@@ -145,14 +152,17 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
   }, [selectedIds, generations, downloadImage]);
 
   const sortedGenerations = useMemo(() => {
-    const sorted = [...generations];
-    sorted.sort((a, b) => {
+    let filtered = [...generations];
+    if (showFavoritesOnly) {
+      filtered = filtered.filter((g) => g.is_favorite);
+    }
+    filtered.sort((a, b) => {
       const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
       const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
       return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
-    return sorted;
-  }, [generations, sortOrder]);
+    return filtered;
+  }, [generations, sortOrder, showFavoritesOnly]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -223,12 +233,20 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
               <Button
                 key={filter.value}
                 size="sm"
-                variant={filterStatus === filter.value ? "secondary" : "ghost"}
-                onClick={() => setFilter(filter.value)}
+                variant={filterStatus === filter.value && !showFavoritesOnly ? "secondary" : "ghost"}
+                onClick={() => { setShowFavoritesOnly(false); setFilter(filter.value); }}
               >
                 {filter.label}
               </Button>
             ))}
+            <Button
+              size="sm"
+              variant={showFavoritesOnly ? "secondary" : "ghost"}
+              onClick={() => setShowFavoritesOnly((v) => !v)}
+            >
+              <Star className={`h-3.5 w-3.5 mr-1 ${showFavoritesOnly ? "fill-yellow-400 text-yellow-400" : ""}`} />
+              Favorites
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -366,6 +384,7 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
                   if (!image) return;
                   downloadImage(generation.id, getFilenameFromUrl(image));
                 }}
+                onToggleFavorite={() => toggleFavorite(generation.id)}
                 bulkMode={bulkMode}
                 selected={selectedIds.has(generation.id)}
                 onSelect={toggleSelect}
@@ -415,6 +434,13 @@ export function ImageGallery({ projectId, hookState }: ImageGalleryProps) {
           open={selectedGeneration !== null}
           onOpenChange={(open) => !open && setSelectedGeneration(null)}
           onNavigate={navigateSelected}
+          onToggleFavorite={(id) => {
+            toggleFavorite(id);
+          }}
+          onUpscale={(id) => {
+            upscaleGeneration(id);
+          }}
+          onRegenerate={onRegenerate}
         />
       )}
 

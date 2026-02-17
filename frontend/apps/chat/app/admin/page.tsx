@@ -12,6 +12,7 @@ import { ServiceHealth } from "@/components/admin/service-health";
 import { UserManagement } from "@/components/admin/user-management";
 import { AuditLogs } from "@/components/admin/audit-logs";
 import { EventStats } from "@/components/admin/event-stats";
+import { HelpTopicManagement } from "@/components/admin/help-topic-management";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -87,6 +88,7 @@ export default function AdminDashboardPage() {
               <TabsTrigger value="system">System</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
+              <TabsTrigger value="help-topics">Help Topics</TabsTrigger>
             </TabsList>
 
             <TabsContent value="system" className="space-y-6 mt-4">
@@ -122,6 +124,10 @@ export default function AdminDashboardPage() {
 
             <TabsContent value="audit-logs" className="mt-4">
               <AuditLogs />
+            </TabsContent>
+
+            <TabsContent value="help-topics" className="mt-4">
+              <HelpTopicManagement />
             </TabsContent>
           </Tabs>
         </div>

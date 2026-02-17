@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -18,6 +18,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  TooltipProvider,
 } from "@workstation/ui";
 import {
   FolderOpen,
@@ -35,13 +40,21 @@ import {
   Download,
   Copy,
   Loader2,
+  Box,
+  Layers,
+  Globe,
 } from "lucide-react";
-import { useProjects, useTemplates, useProjectImport } from "@workstation/api/hooks";
-import type { ProjectSummary, TemplateInfo } from "@workstation/api/types";
+import { useProjects, useTemplates, useProjectImport, useTechnologies } from "@workstation/api/hooks";
+import type { ProjectSummary, TemplateInfo, TechnologyInfo } from "@workstation/api/types";
+import { TechnologyCheckbox } from "../../components/projects/technology-checkbox";
+import { DockerExportDialog } from "../../components/projects/docker-export-dialog";
+import { FieldHelp } from "@/components/help/field-help";
+import { t } from "@/lib/i18n";
 
 const IMPORT_STATUS_LABELS: Record<string, string> = {
   pending: "Queued",
   cloning: "Cloning repository...",
+  crawling: "Mirroring website...",
   extracting: "Extracting archive...",
   detecting: "Detecting project type...",
   installing: "Installing dependencies...",
@@ -49,11 +62,63 @@ const IMPORT_STATUS_LABELS: Record<string, string> = {
   failed: "Failed",
 };
 
+/** Resolve all transitive dependencies for a set of selected tech IDs. */
+function resolveSelectedTechnologies(
+  selected: Set<string>,
+  allTechs: TechnologyInfo[]
+): { finalSet: Set<string>; autoSelected: Set<string> } {
+  const techMap = new Map(allTechs.map((t) => [t.id, t]));
+  const finalSet = new Set(selected);
+  const autoSelected = new Set<string>();
+
+  const queue = [...finalSet];
+  const visited = new Set<string>();
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const tech = techMap.get(id);
+    if (!tech) continue;
+    for (const dep of tech.requires_technologies) {
+      if (!finalSet.has(dep)) {
+        finalSet.add(dep);
+        autoSelected.add(dep);
+      }
+      if (!visited.has(dep)) {
+        queue.push(dep);
+      }
+    }
+  }
+  return { finalSet, autoSelected };
+}
+
+/** Check which techs conflict with the current selection. */
+function getConflicts(
+  selected: Set<string>,
+  allTechs: TechnologyInfo[]
+): Map<string, string> {
+  const conflicts = new Map<string, string>();
+  const techMap = new Map(allTechs.map((t) => [t.id, t]));
+
+  for (const id of selected) {
+    const tech = techMap.get(id);
+    if (!tech) continue;
+    for (const conflictId of tech.conflicts_with) {
+      if (!selected.has(conflictId)) {
+        conflicts.set(conflictId, `Conflicts with ${tech.name}`);
+      }
+    }
+  }
+  return conflicts;
+}
+
 export default function ProjectsPage() {
   const { projects, loading, error, createProject, updateProject, deleteProject } = useProjects();
   const { templates, categories, loading: templatesLoading } = useTemplates();
+  const { groups: techGroups, loading: techLoading } = useTechnologies();
   const {
     importFromGit,
+    importFromWebsite,
     importFromArchive,
     importStatus,
     stopPolling,
@@ -63,14 +128,58 @@ export default function ProjectsPage() {
     error: importError,
   } = useProjectImport();
 
+  // Flatten all technologies for dependency resolution
+  const allTechnologies = useMemo(
+    () => techGroups.flatMap((g) => g.technologies),
+    [techGroups]
+  );
+
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createPath, setCreatePath] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateInfo | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [selectedTechs, setSelectedTechs] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Derived technology state
+  const { finalSet: resolvedTechs, autoSelected } = useMemo(
+    () => resolveSelectedTechnologies(selectedTechs, allTechnologies),
+    [selectedTechs, allTechnologies]
+  );
+  const conflicts = useMemo(
+    () => getConflicts(resolvedTechs, allTechnologies),
+    [resolvedTechs, allTechnologies]
+  );
+
+  // Merged ports/sidecars preview
+  const mergedPreview = useMemo(() => {
+    const ports = new Set<number>();
+    const sidecars: string[] = [];
+    for (const id of resolvedTechs) {
+      const tech = allTechnologies.find((t) => t.id === id);
+      if (!tech) continue;
+      tech.exposed_ports.forEach((p) => ports.add(p));
+      tech.sidecar_services.forEach((s) => {
+        if (!sidecars.includes(s.name)) sidecars.push(s.name);
+      });
+    }
+    return { ports: Array.from(ports).sort((a, b) => a - b), sidecars };
+  }, [resolvedTechs, allTechnologies]);
+
+  const handleToggleTech = useCallback((techId: string) => {
+    setSelectedTechs((prev) => {
+      const next = new Set(prev);
+      if (next.has(techId)) {
+        next.delete(techId);
+      } else {
+        next.add(techId);
+      }
+      return next;
+    });
+  }, []);
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -102,6 +211,17 @@ export default function ProjectsPage() {
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Website import dialog state
+  const [websiteImportOpen, setWebsiteImportOpen] = useState(false);
+  const [websiteName, setWebsiteName] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteDepth, setWebsiteDepth] = useState(2);
+  const [websiteMaxPages, setWebsiteMaxPages] = useState(30);
+  const [websiteIncludeAssets, setWebsiteIncludeAssets] = useState(true);
+  const [websiteSameDomainOnly, setWebsiteSameDomainOnly] = useState(true);
+  const [websiteInstallDeps, setWebsiteInstallDeps] = useState(false);
+  const [websiteError, setWebsiteError] = useState<string | null>(null);
+
   // Clone dialog state
   const [cloneOpen, setCloneOpen] = useState(false);
   const [cloneTarget, setCloneTarget] = useState<ProjectSummary | null>(null);
@@ -109,6 +229,10 @@ export default function ProjectsPage() {
   const [clonePath, setClonePath] = useState("");
   const [cloneSubmitting, setCloneSubmitting] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
+
+  // Docker export dialog state
+  const [dockerExportOpen, setDockerExportOpen] = useState(false);
+  const [dockerExportTarget, setDockerExportTarget] = useState<ProjectSummary | null>(null);
 
   const filteredTemplates = categoryFilter
     ? templates.filter((t) => t.category === categoryFilter)
@@ -127,12 +251,14 @@ export default function ProjectsPage() {
         path: createPath.trim(),
         type: selectedTemplate?.category,
         template_id: selectedTemplate?.id,
+        selected_technologies: resolvedTechs.size > 0 ? Array.from(resolvedTechs) : undefined,
       });
       setCreateOpen(false);
       setCreateName("");
       setCreatePath("");
       setSelectedTemplate(null);
       setCategoryFilter(null);
+      setSelectedTechs(new Set());
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
@@ -249,6 +375,47 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleWebsiteImport = async () => {
+    if (!websiteName.trim() || !websiteUrl.trim()) {
+      setWebsiteError("Name and website URL are required.");
+      return;
+    }
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(websiteUrl.trim());
+    } catch {
+      setWebsiteError("Enter a valid HTTP or HTTPS URL.");
+      return;
+    }
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      setWebsiteError("Only HTTP and HTTPS URLs are supported.");
+      return;
+    }
+    const blockedHosts = ["localhost", "127.0.0.1", "[::1]", "0.0.0.0"];
+    const isPrivateHost =
+      blockedHosts.includes(parsedUrl.hostname) ||
+      /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(parsedUrl.hostname);
+    if (!parsedUrl.hostname || /\s/.test(parsedUrl.hostname) || isPrivateHost) {
+      setWebsiteError("Enter a valid public website URL (private/local hosts are blocked).");
+      return;
+    }
+    try {
+      setWebsiteError(null);
+      await importFromWebsite({
+        name: websiteName.trim(),
+        website_url: websiteUrl.trim(),
+        depth: websiteDepth,
+        include_assets: websiteIncludeAssets,
+        same_domain_only: websiteSameDomainOnly,
+        install_deps: websiteInstallDeps,
+        max_pages: websiteMaxPages,
+        strategy: "auto",
+      });
+    } catch (err) {
+      setWebsiteError(err instanceof Error ? err.message : "Website import failed");
+    }
+  };
+
   const handleExport = async (project: ProjectSummary) => {
     try {
       await exportProject(project.id);
@@ -286,18 +453,23 @@ export default function ProjectsPage() {
     }
   };
 
+  const openDockerExport = (project: ProjectSummary) => {
+    setDockerExportTarget(project);
+    setDockerExportOpen(true);
+  };
+
   const isImporting = importStatus && !["completed", "failed"].includes(importStatus.status);
 
   return (
     <div className="mx-auto max-w-4xl p-8">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Projects</h1>
+        <h1 className="text-3xl font-bold">{t("projects")}</h1>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Download className="mr-2 h-4 w-4" />
-                Import
+                {t("import")}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -309,11 +481,15 @@ export default function ProjectsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 From Archive
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setWebsiteImportOpen(true)}>
+                <Globe className="mr-2 h-4 w-4" />
+                From Website (Mirror)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            New Project
+            {t("newProject")}
           </Button>
         </div>
       </div>
@@ -343,7 +519,7 @@ export default function ProjectsPage() {
       {!loading && !error && projects.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <FolderOpen className="mx-auto h-12 w-12 mb-4" />
-          <p>No projects yet. Create one to get started.</p>
+          <p>{t("noProjectsYet")}</p>
         </div>
       )}
 
@@ -358,6 +534,18 @@ export default function ProjectsPage() {
                   <p className="text-sm text-muted-foreground truncate">{project.path}</p>
                 </div>
                 {project.type && <Badge variant="secondary">{project.type}</Badge>}
+                {project.template_id && (
+                  <Badge variant="outline" className="text-[10px]">
+                    <Server className="mr-1 h-3 w-3" />
+                    {project.template_id}
+                  </Badge>
+                )}
+                {project.selected_technologies && project.selected_technologies.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    <Layers className="mr-1 h-3 w-3" />
+                    {project.selected_technologies.length} tech{project.selected_technologies.length !== 1 ? "s" : ""}
+                  </Badge>
+                )}
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -373,6 +561,10 @@ export default function ProjectsPage() {
                   <DropdownMenuItem onClick={() => handleExport(project)}>
                     <Upload className="mr-2 h-4 w-4" />
                     Export
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openDockerExport(project)}>
+                    <Box className="mr-2 h-4 w-4" />
+                    Export as Docker Image
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openClone(project)}>
                     <Copy className="mr-2 h-4 w-4" />
@@ -399,111 +591,202 @@ export default function ProjectsPage() {
           setCreatePath("");
           setSelectedTemplate(null);
           setCategoryFilter(null);
+          setSelectedTechs(new Set());
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Project</DialogTitle>
             <DialogDescription>
-              Choose a template and provide a name for your project.
+              Choose a template or select technologies, then provide a name.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {/* Template selection */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Template</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                <button
-                  type="button"
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    categoryFilter === null
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                  onClick={() => setCategoryFilter(null)}
-                >
-                  All
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
-                      categoryFilter === cat
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                    onClick={() => setCategoryFilter(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              {templatesLoading ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-28 rounded-lg" />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className={`relative rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50 ${
-                      selectedTemplate === null
-                        ? "border-primary bg-primary/5"
-                        : "border-muted"
-                    }`}
-                    onClick={() => setSelectedTemplate(null)}
-                  >
-                    {selectedTemplate === null && (
-                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
-                    )}
-                    <FolderOpen className="h-6 w-6 text-muted-foreground mb-2" />
-                    <div className="font-medium text-sm">Blank Project</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Empty workspace, no template applied.
-                    </p>
-                  </button>
-                  {filteredTemplates.map((tmpl) => (
+            <Tabs defaultValue="templates">
+              <TabsList className="w-full">
+                <TabsTrigger value="templates" className="flex-1">
+                  <Server className="mr-1.5 h-3.5 w-3.5" />
+                  Templates
+                </TabsTrigger>
+                <TabsTrigger value="technologies" className="flex-1">
+                  <Layers className="mr-1.5 h-3.5 w-3.5" />
+                  Technologies
+                  {resolvedTechs.size > 0 && (
+                    <Badge variant="secondary" className="ml-1.5 text-[10px]">
+                      {resolvedTechs.size}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Templates Tab */}
+              <TabsContent value="templates" className="mt-4">
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap gap-2 mb-2">
                     <button
-                      key={tmpl.id}
                       type="button"
-                      className={`relative rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50 ${
-                        selectedTemplate?.id === tmpl.id
-                          ? "border-primary bg-primary/5"
-                          : "border-muted"
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        categoryFilter === null
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
-                      onClick={() => setSelectedTemplate(tmpl)}
+                      onClick={() => setCategoryFilter(null)}
                     >
-                      {selectedTemplate?.id === tmpl.id && (
-                        <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
-                      )}
-                      <div className="flex items-center gap-2 mb-2">
-                        <Server className="h-5 w-5 text-muted-foreground" />
-                        <Badge variant="outline" className="text-[10px] capitalize">{tmpl.category}</Badge>
-                      </div>
-                      <div className="font-medium text-sm">{tmpl.name}</div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                        {tmpl.description}
-                      </p>
-                      <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                        {tmpl.exposed_ports.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Cpu className="h-3 w-3" />
-                            {tmpl.exposed_ports.join(", ")}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <HardDrive className="h-3 w-3" />
-                          {tmpl.memory_limit}
-                        </span>
-                      </div>
+                      All
                     </button>
-                  ))}
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
+                          categoryFilter === cat
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                        onClick={() => setCategoryFilter(cat)}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                  {templatesLoading ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-28 rounded-lg" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        className={`relative rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50 ${
+                          selectedTemplate === null
+                            ? "border-primary bg-primary/5"
+                            : "border-muted"
+                        }`}
+                        onClick={() => setSelectedTemplate(null)}
+                      >
+                        {selectedTemplate === null && (
+                          <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                        )}
+                        <FolderOpen className="h-6 w-6 text-muted-foreground mb-2" />
+                        <div className="font-medium text-sm">Blank Project</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Empty workspace, no template applied.
+                        </p>
+                      </button>
+                      {filteredTemplates.map((tmpl) => (
+                        <button
+                          key={tmpl.id}
+                          type="button"
+                          className={`relative rounded-lg border-2 p-4 text-left transition-colors hover:border-primary/50 ${
+                            selectedTemplate?.id === tmpl.id
+                              ? "border-primary bg-primary/5"
+                              : "border-muted"
+                          }`}
+                          onClick={() => setSelectedTemplate(tmpl)}
+                        >
+                          {selectedTemplate?.id === tmpl.id && (
+                            <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                          )}
+                          <div className="flex items-center gap-2 mb-2">
+                            <Server className="h-5 w-5 text-muted-foreground" />
+                            <Badge variant="outline" className="text-[10px] capitalize">{tmpl.category}</Badge>
+                          </div>
+                          <div className="font-medium text-sm">{tmpl.name}</div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {tmpl.description}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                            {tmpl.exposed_ports.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Cpu className="h-3 w-3" />
+                                {tmpl.exposed_ports.join(", ")}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <HardDrive className="h-3 w-3" />
+                              {tmpl.memory_limit}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </TabsContent>
+
+              {/* Technologies Tab */}
+              <TabsContent value="technologies" className="mt-4">
+                <TooltipProvider delayDuration={300}>
+                  {techLoading ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-24 rounded-lg" />
+                      ))}
+                    </div>
+                  ) : techGroups.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No technologies available.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {techGroups.map((group) => (
+                        <div key={group.category}>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                            {group.category}
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {group.technologies.map((tech) => {
+                              const isSelected = resolvedTechs.has(tech.id);
+                              const isAutoSelected = autoSelected.has(tech.id);
+                              const conflictReason = conflicts.get(tech.id);
+                              return (
+                                <TechnologyCheckbox
+                                  key={tech.id}
+                                  technology={tech}
+                                  selected={isSelected}
+                                  disabled={!!conflictReason}
+                                  autoSelected={isAutoSelected}
+                                  conflictReason={conflictReason}
+                                  onToggle={handleToggleTech}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Merged preview */}
+                      {resolvedTechs.size > 0 && (
+                        <div className="rounded-lg border bg-muted/30 p-3">
+                          <h4 className="text-xs font-semibold mb-2">Selection Summary</h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from(resolvedTechs).map((id) => (
+                              <Badge key={id} variant={autoSelected.has(id) ? "outline" : "secondary"} className="text-[10px]">
+                                {allTechnologies.find((t) => t.id === id)?.name ?? id}
+                                {autoSelected.has(id) && " (dep)"}
+                              </Badge>
+                            ))}
+                          </div>
+                          {mergedPreview.ports.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-2">
+                              Ports: {mergedPreview.ports.join(", ")}
+                            </p>
+                          )}
+                          {mergedPreview.sidecars.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              Sidecars: {mergedPreview.sidecars.join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </TooltipProvider>
+              </TabsContent>
+            </Tabs>
+
             <div className="grid gap-2">
               <label htmlFor="create-name" className="text-sm font-medium">
                 Name
@@ -825,6 +1108,165 @@ export default function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Website Import Dialog */}
+      <Dialog open={websiteImportOpen} onOpenChange={(open) => {
+        if (!open) {
+          stopPolling();
+          setWebsiteName("");
+          setWebsiteUrl("");
+          setWebsiteDepth(2);
+          setWebsiteMaxPages(30);
+          setWebsiteIncludeAssets(true);
+          setWebsiteSameDomainOnly(true);
+          setWebsiteInstallDeps(false);
+          setWebsiteError(null);
+        }
+        setWebsiteImportOpen(open);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import from Website</DialogTitle>
+            <DialogDescription>
+              Mirror a website into a local project workspace (similar to HTTrack).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label htmlFor="website-name" className="text-sm font-medium flex items-center gap-1.5">
+                Project Name
+                <FieldHelp slug="project-import-website-name" tip="Name for the imported website project" />
+              </label>
+              <Input
+                id="website-name"
+                placeholder="Website Mirror"
+                value={websiteName}
+                onChange={(e) => setWebsiteName(e.target.value)}
+                maxLength={255}
+                disabled={!!isImporting}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="website-url" className="text-sm font-medium flex items-center gap-1.5">
+                Website URL
+                <FieldHelp slug="project-import-website-url" tip="Starting page used to crawl and mirror the site" />
+              </label>
+              <Input
+                id="website-url"
+                placeholder="https://example.com"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                disabled={!!isImporting}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="website-depth" className="text-sm font-medium flex items-center gap-1.5">
+                Crawl Depth (1-5)
+                <FieldHelp slug="project-import-website-depth" tip="How many link levels to follow from the start page" />
+              </label>
+              <Input
+                id="website-depth"
+                type="number"
+                min={1}
+                max={5}
+                value={websiteDepth}
+                onChange={(e) => {
+                  const value = Number(e.target.value || 2);
+                  setWebsiteDepth(Math.max(1, Math.min(5, value)));
+                }}
+                disabled={!!isImporting}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="website-max-pages" className="text-sm font-medium flex items-center gap-1.5">
+                Max Pages (1-200)
+                <FieldHelp slug="project-import-website-max-pages" tip="Safety cap on number of pages downloaded" />
+              </label>
+              <Input
+                id="website-max-pages"
+                type="number"
+                min={1}
+                max={200}
+                value={websiteMaxPages}
+                onChange={(e) => {
+                  const value = Number(e.target.value || 30);
+                  setWebsiteMaxPages(Math.max(1, Math.min(200, value)));
+                }}
+                disabled={!!isImporting}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={websiteIncludeAssets}
+                onChange={(e) => setWebsiteIncludeAssets(e.target.checked)}
+                disabled={!!isImporting}
+                className="rounded border-input"
+              />
+              Include CSS/JS/images
+              <FieldHelp slug="project-import-website-include-assets" tip="Save same-domain images, scripts, and styles locally" />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={websiteSameDomainOnly}
+                onChange={(e) => setWebsiteSameDomainOnly(e.target.checked)}
+                disabled={!!isImporting}
+                className="rounded border-input"
+              />
+              Restrict to same domain
+              <FieldHelp slug="project-import-website-same-domain" tip="Only download content from the exact starting domain" />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={websiteInstallDeps}
+                onChange={(e) => setWebsiteInstallDeps(e.target.checked)}
+                disabled={!!isImporting}
+                className="rounded border-input"
+              />
+              Auto-install dependencies if a framework is detected
+              <FieldHelp slug="project-import-website-install-deps" tip="Run package install automatically when a framework is detected" />
+            </label>
+            {importStatus && (
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  {isImporting && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                  {importStatus.status === "completed" && <Check className="h-4 w-4 text-green-500" />}
+                  {importStatus.status === "failed" && <AlertCircle className="h-4 w-4 text-destructive" />}
+                  <span className="text-sm font-medium">
+                    {IMPORT_STATUS_LABELS[importStatus.status] || importStatus.status}
+                  </span>
+                </div>
+                {importStatus.progress_message && (
+                  <p className="text-xs text-muted-foreground mt-1">{importStatus.progress_message}</p>
+                )}
+                {importStatus.error_message && (
+                  <p className="text-xs text-destructive mt-1">{importStatus.error_message}</p>
+                )}
+                {importStatus.detected_type && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Detected: {importStatus.detected_type}
+                    {importStatus.detected_template_id && ` (${importStatus.detected_template_id})`}
+                  </p>
+                )}
+              </div>
+            )}
+            {websiteError && <p className="text-sm text-destructive">{websiteError}</p>}
+            {importError && <p className="text-sm text-destructive">{importError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWebsiteImportOpen(false)}>
+              {importStatus?.status === "completed" ? "Close" : "Cancel"}
+            </Button>
+            {!isImporting && importStatus?.status !== "completed" && (
+              <Button onClick={handleWebsiteImport} disabled={importLoading}>
+                {importLoading ? "Starting..." : "Import"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Clone Project Dialog */}
       <Dialog open={cloneOpen} onOpenChange={(open) => {
         setCloneOpen(open);
@@ -875,6 +1317,16 @@ export default function ProjectsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Docker Export Dialog */}
+      {dockerExportTarget && (
+        <DockerExportDialog
+          open={dockerExportOpen}
+          onOpenChange={setDockerExportOpen}
+          projectId={dockerExportTarget.id}
+          projectName={dockerExportTarget.name}
+        />
+      )}
     </div>
   );
 }

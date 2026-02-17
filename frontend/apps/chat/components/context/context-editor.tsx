@@ -38,11 +38,14 @@ import {
   Maximize2,
   BookOpen,
   Scissors,
+  Highlighter,
 } from "lucide-react";
 import { ContextEditorFullscreen } from "./context-editor-fullscreen";
 import { SnippetBrowser } from "./snippet-browser";
 import { CompactionProgress } from "./compaction-progress";
-import { estimateTokens, getLayerLabel, getLayerColor } from "./context-utils";
+import { estimateTokens, getLayerLabel, getLayerColor, getTokenColor } from "./context-utils";
+import type { TokenizeResponse, TokenSpan } from "@workstation/api";
+import { getClient } from "@workstation/api";
 
 interface ContextEditorProps {
   chatId: string;
@@ -68,6 +71,10 @@ interface MarkdownEditorProps {
 function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef: externalRef, gutterRef: externalGutterRef }: MarkdownEditorProps) {
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
   const [wordWrap, setWordWrap] = useState(true);
+  const [tokenHighlight, setTokenHighlight] = useState(false);
+  const [tokenData, setTokenData] = useState<TokenizeResponse | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const tokenCacheRef = useRef<{ hash: string; data: TokenizeResponse } | null>(null);
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
   const internalGutterRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = externalRef ?? internalRef;
@@ -75,6 +82,44 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef:
 
   const lines = useMemo(() => content.split("\n"), [content]);
   const lowerQuery = searchQuery.toLowerCase();
+
+  // Simple hash for caching
+  const contentHash = useMemo(() => {
+    let h = 0;
+    for (let i = 0; i < content.length; i++) {
+      h = ((h << 5) - h + content.charCodeAt(i)) | 0;
+    }
+    return String(h);
+  }, [content]);
+
+  const fetchTokenization = useCallback(async () => {
+    if (!content) return;
+    // Check cache
+    if (tokenCacheRef.current?.hash === contentHash) {
+      setTokenData(tokenCacheRef.current.data);
+      return;
+    }
+    setTokenLoading(true);
+    try {
+      const client = getClient();
+      const result = await client.tokenizeText(content);
+      tokenCacheRef.current = { hash: contentHash, data: result };
+      setTokenData(result);
+    } catch {
+      setTokenData(null);
+    } finally {
+      setTokenLoading(false);
+    }
+  }, [content, contentHash]);
+
+  const handleToggleTokenize = useCallback(() => {
+    if (tokenHighlight) {
+      setTokenHighlight(false);
+      return;
+    }
+    setTokenHighlight(true);
+    fetchTokenization();
+  }, [tokenHighlight, fetchTokenization]);
 
   const toggleLine = (lineIdx: number) => {
     setSelectedLines((prev) => {
@@ -100,6 +145,9 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef:
 
   const tokenCount = estimateTokens(content);
 
+  // Can show token highlight in read-only or combined view
+  const canTokenize = readOnly && content.length > 0;
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -116,14 +164,36 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef:
               Delete {selectedLines.size} line{selectedLines.size > 1 ? "s" : ""}
             </Button>
           )}
-          {readOnly && (
+          {readOnly && !tokenHighlight && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <Eye className="h-3 w-3" />
               Read-only
             </div>
           )}
+          {tokenHighlight && tokenData && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Highlighter className="h-3 w-3" />
+              Token view
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {canTokenize && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0"
+              onClick={handleToggleTokenize}
+              disabled={tokenLoading}
+              title={tokenHighlight ? "Hide token highlights" : "Show token highlights"}
+            >
+              {tokenLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Highlighter className={`h-3 w-3 ${tokenHighlight ? "text-primary" : "text-muted-foreground"}`} />
+              )}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -141,7 +211,22 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef:
       </div>
 
       {/* Editor body */}
-      {readOnly ? (
+      {readOnly && tokenHighlight && tokenData ? (
+        /* Token-highlighted read-only view */
+        <div className="flex-1 overflow-auto">
+          <pre className={`p-2 text-xs font-mono leading-[20px] ${wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+            {tokenData.tokens.map((span, idx) => (
+              <span
+                key={idx}
+                className={`${getTokenColor(idx)} rounded-sm`}
+                title={`Token ${idx + 1}: "${span.text}" (${span.end - span.start} chars)`}
+              >
+                {span.text}
+              </span>
+            ))}
+          </pre>
+        </div>
+      ) : readOnly ? (
         /* Read-only: single scroll container for gutter + content sync */
         <div className="flex-1 overflow-auto">
           <div className="flex">
@@ -220,6 +305,21 @@ function MarkdownEditor({ content, readOnly, searchQuery, onChange, textareaRef:
             }`}
             spellCheck={false}
           />
+        </div>
+      )}
+
+      {/* Token stats bar */}
+      {tokenHighlight && tokenData && (
+        <div className="flex items-center gap-4 border-t px-3 py-1.5 bg-muted/20 text-[10px] text-muted-foreground">
+          <span className="tabular-nums">
+            <strong className="text-foreground">{tokenData.total.toLocaleString()}</strong> tokens
+          </span>
+          <span className="tabular-nums">
+            <strong className="text-foreground">{tokenData.characters.toLocaleString()}</strong> chars
+          </span>
+          <span className="tabular-nums">
+            <strong className="text-foreground">{tokenData.chars_per_token}</strong> chars/token
+          </span>
         </div>
       )}
     </div>

@@ -25,8 +25,13 @@ export function useEvents(params?: {
   const [error, setError] = useState<string | null>(null);
 
   const stableParams = useMemo(
-    () => params,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => ({
+      event_type: params?.event_type,
+      severity: params?.severity,
+      source: params?.source,
+      limit: params?.limit,
+      offset: params?.offset,
+    }),
     [params?.event_type, params?.severity, params?.source, params?.limit, params?.offset]
   );
 

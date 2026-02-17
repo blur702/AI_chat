@@ -1,4 +1,5 @@
 import os
+import uuid
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -16,8 +17,12 @@ from app.services.ollama_client import OllamaClient
 from app.services.kb_ingestion import KBIngestionService
 from app.services.embedding_service import EmbeddingService
 from app.services.comfyui_client import ComfyUIClient
+from app.services.brevo_client import BrevoClient
 from app.services.drupal_mcp import DrupalMCPService
+from app.services.ssh_client import SSHClient
 from app.services.sandbox_manager import SandboxManager
+from app.services.searxng_client import SearXNGClient
+from app.auth import get_jwt_secret_key
 from app.api.auth import router as auth_router, users_router
 from app.api.resources import router as resources_router
 from app.api.events import router as events_router
@@ -34,10 +39,17 @@ from app.api.automation import router as automation_router
 from app.api.yolo import router as yolo_router
 from app.api.templates import router as templates_router
 from app.api.project_import import router as project_import_router
+from app.api.brevo import router as brevo_router
 from app.api.drupal import router as drupal_router
 from app.api.models import router as models_router
 from app.api.snippets import router as snippets_router
 from app.api.help import router as help_router
+from app.api.ui_components import router as ui_components_router
+from app.api.planning import router as planning_router
+from app.api.prompt_presets import router as prompt_presets_router
+from app.api.drupal_local import router as drupal_local_router
+from app.api.palettes import router as palettes_router
+from app.api.tool_approvals import router as tool_approvals_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -54,6 +66,9 @@ async def lifespan(app: FastAPI):
 
     Note: Alembic handles schema migrations, not create_all()
     """
+    # Fail fast on insecure JWT configuration
+    get_jwt_secret_key()
+
     # Startup: verify database connection
     logger.info("Verifying database connection...")
     async with engine.connect() as conn:
@@ -84,6 +99,30 @@ async def lifespan(app: FastAPI):
     tool_registry = ToolRegistry()
     kernel.register_service(tool_registry)
     logger.info("ToolRegistry registered with kernel")
+
+    # Register SearXNGClient and WebSearchTool
+    searxng_client = SearXNGClient()
+    await searxng_client.startup()
+    from app.tools.web_search import WebSearchTool
+    tool_registry.register_tool(WebSearchTool(searxng_client))
+    logger.info("WebSearchTool registered with ToolRegistry")
+
+    # Register Desktop Control tools (gated by env var)
+    if os.environ.get("DESKTOP_CONTROL_ENABLED", "false").lower() in ("true", "1", "yes"):
+        from app.tools.desktop import (
+            ScreenshotTool, ClickTool, TypeTextTool, PressKeyTool, ScreenInfoTool,
+        )
+        for tool_cls in (ScreenshotTool, ClickTool, TypeTextTool, PressKeyTool, ScreenInfoTool):
+            tool_registry.register_tool(tool_cls())
+        logger.info("Desktop control tools registered (5 tools)")
+    else:
+        logger.info("Desktop control tools skipped (DESKTOP_CONTROL_ENABLED=false)")
+
+    # Register Code editing tools
+    from app.tools.code import CodeReadTool, CodeWriteTool, CodePatchTool, RunCommandTool
+    for tool_cls in (CodeReadTool, CodeWriteTool, CodePatchTool, RunCommandTool):
+        tool_registry.register_tool(tool_cls())
+    logger.info("Code editing tools registered (4 tools)")
 
     # Register ContextManager with database session factory
     context_manager = ContextManager(session_factory=AsyncSessionLocal)
@@ -126,6 +165,14 @@ async def lifespan(app: FastAPI):
     kernel.register_service(sandbox_manager)
     logger.info("SandboxManager registered with kernel")
 
+    # Register SSHClient for VPS operations (Drupal staging)
+    ssh_client = SSHClient()
+    if ssh_client.is_configured:
+        kernel.register_service(ssh_client)
+        logger.info("SSHClient registered with kernel")
+    else:
+        logger.info("SSHClient skipped (no DRUPAL_VPS_HOST or credentials)")
+
     # Register DrupalMCPService for remote Drupal site management
     try:
         drupal_mcp = DrupalMCPService()
@@ -133,6 +180,28 @@ async def lifespan(app: FastAPI):
         logger.info("DrupalMCPService registered with kernel")
     except Exception as e:
         logger.warning("DrupalMCPService not available: %s", e)
+
+    # Register BrevoClient for email/SMS marketing
+    brevo_client = BrevoClient()
+    if brevo_client.is_configured:
+        kernel.register_service(brevo_client)
+        logger.info("BrevoClient registered with kernel")
+
+        # Register Brevo tools with ToolRegistry
+        from app.tools.brevo import (
+            BrevoSendEmailTool, BrevoSendSMSTool, BrevoListContactsTool,
+            BrevoCreateContactTool, BrevoListTemplatesTool,
+            BrevoListCampaignsTool, BrevoGetAccountTool,
+        )
+        for tool_cls in (
+            BrevoSendEmailTool, BrevoSendSMSTool, BrevoListContactsTool,
+            BrevoCreateContactTool, BrevoListTemplatesTool,
+            BrevoListCampaignsTool, BrevoGetAccountTool,
+        ):
+            tool_registry.register_tool(tool_cls(brevo_client))
+        logger.info("Brevo tools registered (7 tools)")
+    else:
+        logger.info("BrevoClient skipped (no BREVO_API_KEY or BREVO_MCP_TOKEN)")
 
     try:
         await kernel.startup()
@@ -151,7 +220,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: stop kernel, close database connections
+    # Shutdown: stop kernel and external clients, close database connections
+    try:
+        await searxng_client.shutdown()
+    except Exception:
+        pass
     try:
         logger.info("Shutting down kernel...")
         await kernel.shutdown()
@@ -311,10 +384,39 @@ app.include_router(automation_router, prefix="/api", tags=["automation"])
 app.include_router(yolo_router, prefix="/api", tags=["yolo"])
 app.include_router(templates_router, prefix="/api", tags=["templates"])
 app.include_router(project_import_router, prefix="/api", tags=["projects"])
+app.include_router(brevo_router, prefix="/api", tags=["brevo"])
 app.include_router(drupal_router, prefix="/api", tags=["drupal"])
 app.include_router(models_router, prefix="/api", tags=["models"])
 app.include_router(snippets_router, prefix="/api", tags=["context"])
 app.include_router(help_router, prefix="/api", tags=["help"])
+app.include_router(ui_components_router, prefix="/api", tags=["ui-components"])
+app.include_router(planning_router, prefix="/api", tags=["planning"])
+app.include_router(prompt_presets_router, prefix="/api", tags=["image"])
+app.include_router(drupal_local_router, prefix="/api", tags=["drupal-local"])
+app.include_router(palettes_router, prefix="/api", tags=["palettes"])
+app.include_router(tool_approvals_router, prefix="/api", tags=["tools"])
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return structured JSON for unhandled exceptions instead of HTML 500."""
+    request_id = str(uuid.uuid4())
+    logger.error(
+        "Unhandled exception [request_id=%s] %s %s: %s",
+        request_id,
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "request_id": request_id,
+            "detail": str(exc) if os.getenv("ENVIRONMENT", "development").lower() != "production" else None,
+        },
+    )
 
 
 async def check_postgres() -> tuple[bool, str]:

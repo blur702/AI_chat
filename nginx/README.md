@@ -1,129 +1,69 @@
-# Nginx Configuration
+# Nginx
 
-This directory contains the nginx reverse proxy configuration for the AI Workstation.
+Reverse proxy configuration for AI Workstation.
 
-## Overview
+## Request Routing
 
-Nginx serves as the entry point for all HTTP/HTTPS traffic, routing requests to the appropriate backend services:
-
-| Route | Destination | Purpose |
-|-------|-------------|---------|
-| `/` | Frontend (port 3000) | Next.js web application |
-| `/api` | Backend (port 8000) | FastAPI REST endpoints |
-| `/ws` | Backend (port 8000) | WebSocket connections |
-| `/health` | Nginx | Health check endpoint |
+| Path | Upstream | Purpose |
+| --- | --- | --- |
+| `/` | `chat:3001` | Next.js chat app |
+| `/api` | `backend:8000` | FastAPI REST API |
+| `/api/ws` | `backend:8000` | WebSocket endpoints |
+| `/health` | nginx | Container health check |
 
 ## Ports
 
-| Port | Protocol | Description |
-|------|----------|-------------|
-| 8080 | HTTP | Non-SSL access (configurable via `NGINX_HTTP_PORT`) |
-| 8443 | HTTPS | SSL-encrypted access (configurable via `NGINX_HTTPS_PORT`) |
+Nginx container listens on `80` and `443`.
+Host mapping is controlled by:
+- `NGINX_HTTP_PORT` (default `80`)
+- `NGINX_HTTPS_PORT` (default `443`)
 
-## SSL Setup (Required for HTTPS)
+## TLS Setup
 
-Before using HTTPS, you must generate self-signed SSL certificates:
+### Localhost (`https://localhost`)
+
+Generate self-signed certs:
 
 ```bash
-# Navigate to the SSL directory
 cd nginx/ssl
-
-# Make the script executable (Linux/macOS)
 chmod +x generate-certs.sh
-
-# Generate certificates
 ./generate-certs.sh
 ```
 
-On Windows (Git Bash or WSL):
+Windows (Git Bash / WSL):
+
 ```bash
 cd nginx/ssl
 bash generate-certs.sh
 ```
 
-### Generated Files
+Generated files:
+- `nginx/ssl/nginx-selfsigned.crt`
+- `nginx/ssl/nginx-selfsigned.key`
 
-- `nginx-selfsigned.crt` - SSL certificate
-- `nginx-selfsigned.key` - Private key
+### Production (`ssdd.kevinalthaus.com`)
 
-These files are excluded from version control via `.gitignore`.
+- Nginx uses certificates from `nginx/certbot/conf`
+- `certbot` service runs `certbot renew` every 12 hours
+- Nginx reloads every 6 hours to pick up renewed certs
 
-### Browser Security Warning
+## Behavior Notes
 
-When accessing `https://localhost:8443`, your browser will display a security warning because the certificate is self-signed. This is expected behavior in development. Click "Advanced" and "Proceed" to continue.
-
-## Configuration Details
-
-### Streaming Support
-
-The configuration is optimized for AI streaming responses:
-
-- **Proxy buffering**: Disabled globally for real-time streaming
-- **API timeouts**: 300 seconds (5 minutes) for long-running AI operations
-- **Request buffering**: Disabled for streaming requests
-
-### WebSocket Support
-
-WebSocket connections (`/ws`) are configured with:
-
-- 7-day timeout for persistent connections
-- Proper upgrade headers for HTTP/WebSocket protocol switching
-
-### Health Check
-
-The nginx container includes a health check that monitors the `/health` endpoint every 30 seconds.
-
-## Production Considerations
-
-### Enable HTTP to HTTPS Redirect
-
-To force HTTPS in production, uncomment the redirect block in `nginx.conf`:
-
-```nginx
-# HTTP to HTTPS redirect (excludes /health for container health checks)
-# Uncomment the following block to enable redirect in production:
-if ($request_uri !~ ^/health) {
-    return 301 https://$host:8443$request_uri;
-}
-```
-
-Note: The `/health` endpoint is excluded from the redirect to ensure container health checks continue to work over HTTP.
-
-### Use Proper SSL Certificates
-
-For production, replace the self-signed certificates with certificates from a trusted CA (e.g., Let's Encrypt).
-
-### Security Headers
-
-Consider adding security headers for production:
-
-```nginx
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-```
+- Proxy buffering is disabled for streaming API responses.
+- `/api/ws` WebSocket routes use long timeouts for persistent sessions.
+- For `ssdd.kevinalthaus.com`, HTTP requests are redirected to HTTPS except `/health`.
 
 ## Troubleshooting
 
-### SSL Certificate Errors
+```bash
+# Container and health status
+docker compose ps
+curl http://localhost/health
+curl -k https://localhost/health
 
-If nginx fails to start with SSL errors:
+# Nginx logs
+docker compose logs -f nginx
 
-1. Ensure certificates are generated: `ls nginx/ssl/`
-2. Regenerate certificates if corrupted: `cd nginx/ssl && ./generate-certs.sh`
-3. Check certificate validity: `openssl x509 -in nginx/ssl/nginx-selfsigned.crt -noout -dates`
-
-### Connection Timeouts
-
-If AI requests are timing out:
-
-1. Check `proxy_read_timeout` in `nginx.conf` (default: 300s)
-2. Increase if needed for very long operations
-
-### WebSocket Disconnections
-
-If WebSocket connections are dropping:
-
-1. Verify the `/ws` route timeout settings
-2. Check for intermediate proxies that may have shorter timeouts
+# Validate local cert dates
+openssl x509 -in nginx/ssl/nginx-selfsigned.crt -noout -dates
+```

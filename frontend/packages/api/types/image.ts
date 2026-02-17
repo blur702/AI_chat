@@ -8,7 +8,8 @@ export type WorkflowType =
   | "text-to-image"
   | "image-to-image"
   | "inpainting"
-  | "face-morph";
+  | "face-morph"
+  | "upscale";
 
 export interface LoraConfig {
   name: string;
@@ -19,6 +20,7 @@ export interface LoraConfig {
 export interface ImageGenerationRequest {
   project_id?: string;
   workflow_type: WorkflowType;
+  system_context?: string;
   prompt: string;
   negative_prompt?: string;
   width: number;
@@ -36,6 +38,23 @@ export interface ImageGenerationRequest {
   batch_size?: number;
   model_name?: string;
   loras?: LoraConfig[];
+  // IPAdapter reference image
+  reference_image?: string;
+  reference_weight?: number;
+  reference_noise?: number;
+  // ControlNet
+  controlnet_image?: string;
+  controlnet_type?: string;
+  controlnet_strength?: number;
+  // Upscaling
+  upscale_model?: string;
+  source_generation_id?: string;
+}
+
+export interface ImageGenerationProgress {
+  queue_position?: number | null;
+  queue_pending: number;
+  queue_running: number;
 }
 
 export interface ImageGenerationResponse {
@@ -49,6 +68,11 @@ export interface ImageGenerationResponse {
   result_images: string[];
   error_message?: string | null;
   comfyui_job_id?: string | null;
+  progress?: ImageGenerationProgress | null;
+  seed_used?: number | null;
+  is_favorite: boolean;
+  generation_metadata?: Record<string, unknown> | null;
+  source_generation_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -73,4 +97,6 @@ export interface ImageGenerationOptionsResponse {
   samplers: string[];
   schedulers: string[];
   workflows: WorkflowType[];
+  upscale_models: string[];
+  controlnet_types: string[];
 }

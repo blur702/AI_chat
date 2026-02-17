@@ -72,6 +72,7 @@ async def create_chat(
         title=body.title,
         chat_instructions=body.chat_instructions,
         system_prompt_id=body.system_prompt_id,
+        chat_mode=body.chat_mode or "agent",
     )
     db.add(chat)
     await db.commit()
@@ -85,6 +86,7 @@ async def create_chat(
         project_id=str(chat.project_id),
         chat_instructions=chat.chat_instructions,
         system_prompt_id=str(chat.system_prompt_id) if chat.system_prompt_id else None,
+        chat_mode=chat.chat_mode,
         created_at=chat.created_at.isoformat() if chat.created_at else None,
     )
 
@@ -134,6 +136,7 @@ async def update_chat(
         is_archived=chat.is_archived,
         chat_instructions=chat.chat_instructions,
         system_prompt_id=str(chat.system_prompt_id) if chat.system_prompt_id else None,
+        chat_mode=chat.chat_mode,
         created_at=chat.created_at.isoformat() if chat.created_at else None,
         updated_at=chat.updated_at.isoformat() if chat.updated_at else None,
     )

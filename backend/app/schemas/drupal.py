@@ -1,6 +1,7 @@
 """Pydantic schemas for Drupal MCP site management."""
 
 import ipaddress
+import os
 import socket
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -13,7 +14,8 @@ class DrupalConnectRequest(BaseModel):
     """Request to connect a Drupal site to a project."""
 
     site_url: str = Field(..., min_length=1, max_length=2048, description="Remote Drupal site URL")
-    api_key: str = Field(..., min_length=1, max_length=4096, description="API key for the remote site")
+    username: str = Field(..., min_length=1, max_length=255, description="Drupal username")
+    password: str = Field(..., min_length=1, max_length=4096, description="Drupal password")
     site_name: Optional[str] = Field(None, max_length=255, description="Friendly name for the site")
 
     @field_validator("site_url")
@@ -26,6 +28,12 @@ class DrupalConnectRequest(BaseModel):
         hostname = parsed.hostname
         if not hostname:
             raise ValueError("Site URL must include a hostname")
+        # Allow explicitly trusted internal hosts (e.g. local Drupal mirror)
+        allowed_hosts = os.getenv("DRUPAL_ALLOWED_HOSTS", "")
+        if allowed_hosts:
+            allowed_set = {h.strip().lower() for h in allowed_hosts.split(",") if h.strip()}
+            if hostname.lower() in allowed_set:
+                return v.strip()
         # Block localhost and common internal hostnames
         blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]"}
         if hostname.lower() in blocked_hosts:
@@ -116,6 +124,103 @@ class SyncStatusResponse(BaseModel):
 
 class SyncResponse(BaseModel):
     """Response from a pull or push operation."""
+
+    success: bool
+    message: str
+    details: Optional[Dict[str, Any]] = None
+
+
+# --- Content CRUD schemas ---
+
+
+class DrupalContentType(BaseModel):
+    """A Drupal content type (node bundle)."""
+
+    id: str
+    label: str
+    description: Optional[str] = None
+
+
+class DrupalNode(BaseModel):
+    """A Drupal node (content entity)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    uuid: str
+    title: str
+    bundle: str
+    status: bool = True
+    created: Optional[str] = None
+    changed: Optional[str] = None
+    body: Optional[str] = None
+    body_format: Optional[str] = None
+
+
+class DrupalNodeListResponse(BaseModel):
+    """Paginated list of Drupal nodes."""
+
+    nodes: List[DrupalNode] = Field(default_factory=list)
+    total: Optional[int] = None
+
+
+class DrupalNodeCreateRequest(BaseModel):
+    """Request to create a Drupal node."""
+
+    title: str = Field(..., min_length=1, max_length=512)
+    body: Optional[str] = None
+    body_format: str = Field(default="basic_html")
+    status: bool = True
+
+
+class DrupalNodeUpdateRequest(BaseModel):
+    """Request to update an existing Drupal node."""
+
+    title: Optional[str] = Field(None, max_length=512)
+    body: Optional[str] = None
+    body_format: Optional[str] = None
+    status: Optional[bool] = None
+
+
+# --- Staging / Clone / Push schemas ---
+
+
+class StagingStatusResponse(BaseModel):
+    """Status of the Drupal staging sandbox."""
+
+    sandbox_running: bool = False
+    container_id: Optional[str] = None
+    preview_url: Optional[str] = None
+    last_clone_at: Optional[datetime] = None
+    site_url: Optional[str] = None
+    site_name: Optional[str] = None
+
+
+class CloneRequest(BaseModel):
+    """Request to clone production Drupal into sandbox."""
+
+    include_files: bool = Field(default=True, description="Include files (themes, modules, uploads)")
+    include_db: bool = Field(default=True, description="Include database")
+
+
+class CloneResponse(BaseModel):
+    """Response from a clone operation."""
+
+    success: bool
+    message: str
+    preview_url: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+class PushRequest(BaseModel):
+    """Request to push sandbox changes to production."""
+
+    include_files: bool = Field(default=True, description="Push files to production")
+    include_db: bool = Field(default=False, description="Push database to production (destructive)")
+    confirm: bool = Field(default=False, description="Must be True to proceed")
+
+
+class PushResponse(BaseModel):
+    """Response from a push operation."""
 
     success: bool
     message: str

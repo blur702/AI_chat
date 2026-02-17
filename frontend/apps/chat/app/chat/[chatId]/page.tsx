@@ -10,8 +10,10 @@ import { ContextDashboard } from "@/components/context/context-dashboard";
 import { ContextEditor } from "@/components/context/context-editor";
 import { useConversation } from "@workstation/api";
 import type { DraftOptions } from "@workstation/api/hooks";
-import { ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "@workstation/api/hooks";
+import { ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT, useChatMode } from "@workstation/api/hooks";
 import { PanelRightOpen, PanelRightClose } from "lucide-react";
+import { ChatModeSelector } from "@/components/chat-mode-selector";
+import { ToolCallDisplay } from "@/components/workspace/tools/tool-call-display";
 
 const DASHBOARD_KEY = "workstation_context_dashboard_open";
 const SIDEBAR_VIEW_KEY = "workstation_sidebar_view";
@@ -57,6 +59,10 @@ export default function ChatPage() {
     [isNewChat, projectId, handleChatCreated],
   );
 
+  const { chatMode, setChatMode, syncFromServer } = useChatMode(
+    isNewChat ? null : chatId,
+  );
+
   const {
     conversation,
     messages,
@@ -64,13 +70,24 @@ export default function ChatPage() {
     processing,
     progress,
     tokenUsage,
+    activeToolCalls,
+    pendingApproval,
+    approveToolCall,
+    denyToolCall,
     sendMessage,
     cancelStream,
     pinMessage,
     excludeMessage,
     updateMessage,
     deleteMessage,
-  } = useConversation(isNewChat ? null : chatId, activeModel, draftOptions);
+  } = useConversation(isNewChat ? null : chatId, activeModel, draftOptions, chatMode);
+
+  // Sync chat mode from conversation state when loaded
+  useEffect(() => {
+    if (conversation?.chat_mode) {
+      syncFromServer(conversation.chat_mode);
+    }
+  }, [conversation?.chat_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [dashboardOpen, setDashboardOpen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -148,7 +165,20 @@ export default function ChatPage() {
           onEdit={handleEdit}
           onDelete={deleteMessage}
         />
+        {activeToolCalls.length > 0 && (
+          <ToolCallDisplay
+            toolCalls={activeToolCalls}
+            pendingApproval={pendingApproval}
+            onApprove={approveToolCall}
+            onDeny={denyToolCall}
+          />
+        )}
         <TokenUsageBar tokenUsage={tokenUsage} />
+        <ChatModeSelector
+          activeMode={chatMode}
+          onModeChange={setChatMode}
+          disabled={processing}
+        />
         <MessageInput onSend={sendMessage} processing={processing} onStop={cancelStream} />
       </div>
 

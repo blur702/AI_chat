@@ -6,7 +6,16 @@ import type {
   ImageGenerationRequest,
   ImageGenerationResponse,
   ImageGenerationStatus,
+  WebSocketMessage,
 } from "../types";
+
+export interface ImageGenerationProgress {
+  generation_id: string;
+  queue_running: number;
+  queue_pending: number;
+  elapsed_seconds: number;
+  poll_attempt: number;
+}
 
 export interface UseImageGenerationReturn {
   generations: ImageGenerationResponse[];
@@ -17,6 +26,7 @@ export interface UseImageGenerationReturn {
   totalCount: number;
   currentPage: number;
   filterStatus: ImageGenerationStatus | "all";
+  progress: ImageGenerationProgress | null;
   refresh: () => Promise<void>;
   generate: (params: ImageGenerationRequest) => Promise<ImageGenerationResponse | null>;
   cancelGeneration: () => void;
@@ -25,13 +35,18 @@ export interface UseImageGenerationReturn {
   downloadImage: (jobId: string, filename: string) => Promise<void>;
   setPage: (page: number) => Promise<void>;
   setFilter: (status: ImageGenerationStatus | "all") => Promise<void>;
+  toggleFavorite: (jobId: string) => Promise<void>;
+  upscaleGeneration: (jobId: string) => Promise<ImageGenerationResponse | null>;
 }
 
-const POLL_INTERVAL_MS = 2000;
+const POLL_INITIAL_MS = 2000;
+const POLL_MAX_MS = 15000;
+const POLL_BACKOFF_FACTOR = 1.5;
 const PAGE_SIZE = 20;
 
 export function useImageGeneration(
-  projectId: string | null
+  projectId: string | null,
+  wsSubscribe?: (eventType: string, handler: (msg: WebSocketMessage) => void) => () => void,
 ): UseImageGenerationReturn {
   const [generations, setGenerations] = useState<ImageGenerationResponse[]>([]);
   const [currentGeneration, setCurrentGeneration] =
@@ -44,27 +59,37 @@ export function useImageGeneration(
   const [filterStatus, setFilterStatus] = useState<ImageGenerationStatus | "all">(
     "all"
   );
+  const [progress, setProgress] = useState<ImageGenerationProgress | null>(null);
 
   const currentPageRef = useRef(currentPage);
   const filterStatusRef = useRef(filterStatus);
   currentPageRef.current = currentPage;
   filterStatusRef.current = filterStatus;
 
-  const listPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const listPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusPollDelayRef = useRef(POLL_INITIAL_MS);
+  const listPollDelayRef = useRef(POLL_INITIAL_MS);
+  const listPollActiveRef = useRef(false);
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
+  const currentGenerationIdRef = useRef<string | null>(null);
 
   const stopStatusPolling = useCallback(() => {
     if (statusPollRef.current) {
-      clearInterval(statusPollRef.current);
+      clearTimeout(statusPollRef.current);
       statusPollRef.current = null;
     }
+    statusPollDelayRef.current = POLL_INITIAL_MS;
   }, []);
 
   const stopListPolling = useCallback(() => {
     if (listPollRef.current) {
-      clearInterval(listPollRef.current);
+      clearTimeout(listPollRef.current);
       listPollRef.current = null;
     }
+    listPollDelayRef.current = POLL_INITIAL_MS;
+    listPollActiveRef.current = false;
   }, []);
 
   const refresh = useCallback(async () => {
@@ -85,10 +110,53 @@ export function useImageGeneration(
     }
   }, [projectId]);
 
+  // Self-contained list polling loop that checks the API response directly
+  // to decide whether to continue. Not driven by React effects on `generations`.
+  const startListPolling = useCallback(() => {
+    if (listPollActiveRef.current || !projectIdRef.current) return;
+    listPollActiveRef.current = true;
+    listPollDelayRef.current = POLL_INITIAL_MS;
+
+    const pollList = async () => {
+      if (!listPollActiveRef.current || !projectIdRef.current) return;
+
+      try {
+        const skip = (currentPageRef.current - 1) * PAGE_SIZE;
+        const statusParam = filterStatusRef.current === "all" ? undefined : filterStatusRef.current;
+        const response = await getClient().listGenerations(
+          projectIdRef.current, skip, PAGE_SIZE, statusParam
+        );
+        setGenerations(response.generations);
+        setTotalCount(response.count);
+
+        const hasPending = response.generations.some(
+          (g) => g.status === "pending" || g.status === "processing"
+        );
+
+        if (!hasPending || !listPollActiveRef.current) {
+          listPollActiveRef.current = false;
+          return;
+        }
+
+        listPollDelayRef.current = Math.min(
+          listPollDelayRef.current * POLL_BACKOFF_FACTOR,
+          POLL_MAX_MS
+        );
+        listPollRef.current = setTimeout(pollList, listPollDelayRef.current);
+      } catch {
+        listPollActiveRef.current = false;
+      }
+    };
+
+    listPollRef.current = setTimeout(pollList, listPollDelayRef.current);
+  }, []);
+
   const pollGenerationStatus = useCallback(
     (jobId: string) => {
       stopStatusPolling();
-      statusPollRef.current = setInterval(async () => {
+      statusPollDelayRef.current = POLL_INITIAL_MS;
+
+      const poll = async () => {
         try {
           const status = await getClient().getGenerationStatus(jobId);
           setCurrentGeneration(status);
@@ -105,7 +173,15 @@ export function useImageGeneration(
             setError(status.error_message ?? "Image generation failed");
             stopStatusPolling();
             await refresh();
+            return;
           }
+
+          // Backoff: increase delay up to max
+          statusPollDelayRef.current = Math.min(
+            statusPollDelayRef.current * POLL_BACKOFF_FACTOR,
+            POLL_MAX_MS
+          );
+          statusPollRef.current = setTimeout(poll, statusPollDelayRef.current);
         } catch (err) {
           setGenerating(false);
           setError(
@@ -113,7 +189,9 @@ export function useImageGeneration(
           );
           stopStatusPolling();
         }
-      }, POLL_INTERVAL_MS);
+      };
+
+      statusPollRef.current = setTimeout(poll, statusPollDelayRef.current);
     },
     [refresh, stopStatusPolling]
   );
@@ -131,8 +209,11 @@ export function useImageGeneration(
           project_id: params.project_id ?? projectId,
         });
         setCurrentGeneration(created);
+        currentGenerationIdRef.current = created.id;
+        setProgress(null);
         await refresh();
         pollGenerationStatus(created.id);
+        startListPolling();
         return created;
       } catch (err) {
         setGenerating(false);
@@ -142,7 +223,7 @@ export function useImageGeneration(
         return null;
       }
     },
-    [pollGenerationStatus, projectId, refresh]
+    [pollGenerationStatus, projectId, refresh, startListPolling]
   );
 
   const cancelGeneration = useCallback(() => {
@@ -229,33 +310,111 @@ export function useImageGeneration(
     await refresh();
   }, [refresh]);
 
+  const toggleFavorite = useCallback(async (jobId: string) => {
+    setError(null);
+    try {
+      const updated = await getClient().toggleFavorite(jobId);
+      setGenerations((prev) =>
+        prev.map((g) => (g.id === jobId ? { ...g, is_favorite: updated.is_favorite } : g))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to toggle favorite");
+    }
+  }, []);
+
+  const upscaleGeneration = useCallback(async (jobId: string): Promise<ImageGenerationResponse | null> => {
+    setError(null);
+    try {
+      const created = await getClient().upscaleImage(jobId);
+      setCurrentGeneration(created);
+      currentGenerationIdRef.current = created.id;
+      setGenerating(true);
+      setProgress(null);
+      await refresh();
+      pollGenerationStatus(created.id);
+      startListPolling();
+      return created;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start upscale");
+      return null;
+    }
+  }, [pollGenerationStatus, refresh, startListPolling]);
+
+  // Initial load
   useEffect(() => {
     if (projectId) {
       refresh();
     }
-    // refresh is stable (depends only on projectId), so this effect
-    // only fires on projectId changes. Page/filter changes trigger
-    // refresh explicitly via setPage/setFilter.
   }, [projectId, refresh]);
 
+  // Start list polling if there are pending items (e.g. on initial load
+  // or page navigation revealing in-progress items)
   useEffect(() => {
     const hasPending = generations.some(
       (generation) =>
         generation.status === "pending" || generation.status === "processing"
     );
 
-    stopListPolling();
-    if (hasPending && projectId) {
-      listPollRef.current = setInterval(() => {
-        refresh();
-      }, POLL_INTERVAL_MS);
+    if (hasPending) {
+      startListPolling(); // no-op if already active
     }
+  }, [generations, startListPolling]);
+
+  // WebSocket subscription for real-time image generation events
+  useEffect(() => {
+    if (!wsSubscribe) return;
+
+    const unsubStarted = wsSubscribe("image_generation_started", (msg) => {
+      const data = msg.data as Record<string, unknown>;
+      const genId = data.generation_id as string;
+      if (currentGenerationIdRef.current && genId !== currentGenerationIdRef.current) return;
+      setProgress(null);
+    });
+
+    const unsubProgress = wsSubscribe("image_generation_progress", (msg) => {
+      const data = msg.data as Record<string, unknown>;
+      const genId = data.generation_id as string;
+      if (currentGenerationIdRef.current && genId !== currentGenerationIdRef.current) return;
+      setProgress({
+        generation_id: genId,
+        queue_running: (data.queue_running as number) ?? 0,
+        queue_pending: (data.queue_pending as number) ?? 0,
+        elapsed_seconds: (data.elapsed_seconds as number) ?? 0,
+        poll_attempt: (data.poll_attempt as number) ?? 0,
+      });
+    });
+
+    const unsubCompleted = wsSubscribe("image_generation_completed", (msg) => {
+      const data = msg.data as Record<string, unknown>;
+      const genId = data.generation_id as string;
+      if (currentGenerationIdRef.current && genId !== currentGenerationIdRef.current) return;
+      setGenerating(false);
+      setProgress(null);
+      stopStatusPolling();
+      // Refresh the list to show the completed generation
+      refresh();
+    });
+
+    const unsubFailed = wsSubscribe("image_generation_failed", (msg) => {
+      const data = msg.data as Record<string, unknown>;
+      const genId = data.generation_id as string;
+      if (currentGenerationIdRef.current && genId !== currentGenerationIdRef.current) return;
+      setGenerating(false);
+      setProgress(null);
+      setError((data.error as string) ?? "Image generation failed");
+      stopStatusPolling();
+      refresh();
+    });
 
     return () => {
-      stopListPolling();
+      unsubStarted();
+      unsubProgress();
+      unsubCompleted();
+      unsubFailed();
     };
-  }, [generations, projectId, refresh, stopListPolling]);
+  }, [wsSubscribe, refresh, stopStatusPolling]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopListPolling();
@@ -272,6 +431,7 @@ export function useImageGeneration(
     totalCount,
     currentPage,
     filterStatus,
+    progress,
     refresh,
     generate,
     cancelGeneration,
@@ -280,5 +440,7 @@ export function useImageGeneration(
     downloadImage,
     setPage,
     setFilter,
+    toggleFavorite,
+    upscaleGeneration,
   };
 }

@@ -22,5 +22,6 @@
   },
   "sidecar_services": [],
   "memory_limit": "512m",
-  "cpu_quota": 50000
+  "cpu_quota": 50000,
+  "selected_technologies": ["python", "fastapi"]
 }

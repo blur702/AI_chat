@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -13,12 +13,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workstation/ui";
-import { AlertCircle, AlertTriangle, Info, Loader2, Plus, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, Info, Loader2, Plus, RotateCcw, Save, Trash2, Wand2, X } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
+import { PromptPresets } from "./prompt-presets";
 import type { UseImageGenerationReturn } from "@workstation/api/hooks";
 import type {
   ImageGenerationOptionsResponse,
   ImageGenerationRequest,
   LoraConfig,
+  PromptPresetResponse,
   UserPreferences,
   WorkflowType,
 } from "@workstation/api/types";
@@ -27,6 +30,8 @@ interface GenerationFormProps {
   projectId: string;
   hookState: UseImageGenerationReturn;
   userPreferences?: UserPreferences | null;
+  projectSystemContext?: string;
+  onSaveProjectSystemContext?: (value: string) => Promise<boolean>;
   onSaveAsDefault?: (defaults: Partial<UserPreferences>) => void;
   comfyuiAvailable?: boolean;
   comfyuiStarting?: boolean;
@@ -56,9 +61,17 @@ interface FormState {
   batch_size: number;
   model_name: string;
   loras: LoraConfig[];
+  // IPAdapter reference image
+  reference_image: string;
+  reference_weight: number;
+  reference_noise: number;
+  // ControlNet
+  controlnet_image: string;
+  controlnet_type: string;
+  controlnet_strength: number;
 }
 
-type UploadField = "input_image" | "mask_image" | "target_image";
+type UploadField = "input_image" | "mask_image" | "target_image" | "reference_image" | "controlnet_image";
 
 const STORAGE_KEY_PREFIX = "image-gen-form:";
 const MAX_UPLOAD_MB = 10;
@@ -83,6 +96,12 @@ const DEFAULT_FORM: FormState = {
   batch_size: 1,
   model_name: "",
   loras: [],
+  reference_image: "",
+  reference_weight: 0.7,
+  reference_noise: 0.0,
+  controlnet_image: "",
+  controlnet_type: "",
+  controlnet_strength: 1.0,
 };
 
 function defaultLora(loras: string[]): LoraConfig {
@@ -97,6 +116,8 @@ export function GenerationForm({
   projectId,
   hookState,
   userPreferences,
+  projectSystemContext,
+  onSaveProjectSystemContext,
   onSaveAsDefault,
   comfyuiAvailable,
   comfyuiStarting = false,
@@ -127,6 +148,7 @@ export function GenerationForm({
     if (userPreferences.imggen_default_height) d.height = userPreferences.imggen_default_height;
     if (userPreferences.imggen_default_steps) d.steps = userPreferences.imggen_default_steps;
     if (userPreferences.imggen_default_cfg_scale) d.cfg_scale = userPreferences.imggen_default_cfg_scale;
+    if (userPreferences.imggen_default_prompt) d.prompt = userPreferences.imggen_default_prompt;
     if (userPreferences.imggen_default_negative_prompt) d.negative_prompt = userPreferences.imggen_default_negative_prompt;
     return d;
   }, [userPreferences]);
@@ -134,16 +156,31 @@ export function GenerationForm({
   const [form, setForm] = useState<FormState>({ ...DEFAULT_FORM, ...prefsDefaults });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [maskEditorError, setMaskEditorError] = useState<string | null>(null);
+  const [brushSize, setBrushSize] = useState(28);
+  const [maskTool, setMaskTool] = useState<"paint" | "erase">("paint");
   const [previews, setPreviews] = useState<Record<UploadField, string | null>>({
     input_image: null,
     mask_image: null,
     target_image: null,
+    reference_image: null,
+    controlnet_image: null,
   });
   const [uploadNames, setUploadNames] = useState<Record<UploadField, string | null>>({
     input_image: null,
     mask_image: null,
     target_image: null,
+    reference_image: null,
+    controlnet_image: null,
   });
+  const [showReferenceImage, setShowReferenceImage] = useState(() => !!form.reference_image);
+  const [showControlNet, setShowControlNet] = useState(() => !!form.controlnet_image);
+  const [projectSystemContextInput, setProjectSystemContextInput] = useState(projectSystemContext ?? "");
+  const [projectSystemContextSaving, setProjectSystemContextSaving] = useState(false);
+  const [projectSystemContextMsg, setProjectSystemContextMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const maskDrawingRef = useRef(false);
+  const maskLastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const {
     generate,
@@ -157,6 +194,100 @@ export function GenerationForm({
     () => `${STORAGE_KEY_PREFIX}${projectId}`,
     [projectId]
   );
+
+  const createImageElement = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = src;
+    });
+
+  const clearMaskValidationError = () => {
+    setErrors((prev) => {
+      if (!prev.mask_image) return prev;
+      const next = { ...prev };
+      delete next.mask_image;
+      return next;
+    });
+  };
+
+  const pushCanvasMaskToForm = () => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL("image/png");
+    setForm((prev) => ({ ...prev, mask_image: dataUrl }));
+    setPreviews((prev) => ({ ...prev, mask_image: dataUrl }));
+    setUploadNames((prev) => ({ ...prev, mask_image: "editor-mask.png" }));
+    clearMaskValidationError();
+  };
+
+  const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const paintMaskStroke = (
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.lineWidth = brushSize;
+    ctx.strokeStyle = maskTool === "paint" ? "#FFFFFF" : "#000000";
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  };
+
+  const onMaskPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const point = getCanvasPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    maskDrawingRef.current = true;
+    maskLastPointRef.current = point;
+    paintMaskStroke(point, point);
+  };
+
+  const onMaskPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!maskDrawingRef.current) return;
+    const point = getCanvasPoint(event);
+    if (!point || !maskLastPointRef.current) return;
+    event.preventDefault();
+    paintMaskStroke(maskLastPointRef.current, point);
+    maskLastPointRef.current = point;
+  };
+
+  const finishMaskDraw = () => {
+    if (!maskDrawingRef.current) return;
+    maskDrawingRef.current = false;
+    maskLastPointRef.current = null;
+    pushCanvasMaskToForm();
+  };
+
+  const clearMaskCanvas = () => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setForm((prev) => ({ ...prev, mask_image: "" }));
+    setPreviews((prev) => ({ ...prev, mask_image: null }));
+    setUploadNames((prev) => ({ ...prev, mask_image: null }));
+  };
 
   useEffect(() => {
     try {
@@ -177,6 +308,40 @@ export function GenerationForm({
   useEffect(() => {
     sessionStorage.setItem(storageKey, JSON.stringify(form));
   }, [form, storageKey]);
+
+  useEffect(() => {
+    setProjectSystemContextInput(projectSystemContext ?? "");
+  }, [projectSystemContext]);
+
+  useEffect(() => {
+    const setupMaskEditor = async () => {
+      if (form.workflow_type !== "inpainting") return;
+      if (!previews.input_image) return;
+      const canvas = maskCanvasRef.current;
+      if (!canvas) return;
+
+      try {
+        setMaskEditorError(null);
+        const baseImage = await createImageElement(previews.input_image);
+        canvas.width = baseImage.naturalWidth;
+        canvas.height = baseImage.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (previews.mask_image) {
+          const maskImage = await createImageElement(previews.mask_image);
+          ctx.drawImage(maskImage, 0, 0, canvas.width, canvas.height);
+        }
+      } catch {
+        setMaskEditorError("Could not initialize the inpaint mask editor.");
+      }
+    };
+
+    void setupMaskEditor();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.workflow_type, previews.input_image]);
 
   useEffect(() => {
     setForm((prev) => {
@@ -232,6 +397,20 @@ export function GenerationForm({
     return Object.keys(nextErrors).length === 0;
   };
 
+  const handlePresetSelect = (preset: PromptPresetResponse) => {
+    setForm((prev) => ({
+      ...prev,
+      prompt: preset.prompt_text,
+      negative_prompt: preset.negative_prompt_text || "",
+      ...(preset.workflow_settings?.width ? { width: preset.workflow_settings.width as number } : {}),
+      ...(preset.workflow_settings?.height ? { height: preset.workflow_settings.height as number } : {}),
+      ...(preset.workflow_settings?.steps ? { steps: preset.workflow_settings.steps as number } : {}),
+      ...(preset.workflow_settings?.cfg_scale ? { cfg_scale: preset.workflow_settings.cfg_scale as number } : {}),
+      ...(preset.workflow_settings?.sampler_name ? { sampler_name: preset.workflow_settings.sampler_name as string } : {}),
+      ...(preset.workflow_settings?.model_name ? { model_name: preset.workflow_settings.model_name as string } : {}),
+    }));
+  };
+
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!validate()) return;
@@ -262,15 +441,43 @@ export function GenerationForm({
       ...(form.workflow_type === "face-morph"
         ? { target_image: form.target_image.trim() }
         : {}),
+      ...(form.reference_image.trim()
+        ? {
+            reference_image: form.reference_image.trim(),
+            reference_weight: form.reference_weight,
+            reference_noise: form.reference_noise,
+          }
+        : {}),
+      ...(form.controlnet_image.trim() && form.controlnet_type
+        ? {
+            controlnet_image: form.controlnet_image.trim(),
+            controlnet_type: form.controlnet_type,
+            controlnet_strength: form.controlnet_strength,
+          }
+        : {}),
     };
 
     await generate(payload);
   };
 
+  const onSaveProjectContext = async () => {
+    if (!onSaveProjectSystemContext) return;
+    setProjectSystemContextMsg(null);
+    setProjectSystemContextSaving(true);
+    const ok = await onSaveProjectSystemContext(projectSystemContextInput);
+    if (ok) {
+      setProjectSystemContextMsg({ text: "Project image context saved", type: "success" });
+    } else {
+      setProjectSystemContextMsg({ text: "Failed to save project image context", type: "error" });
+    }
+    setProjectSystemContextSaving(false);
+  };
+
   const resetUploads = () => {
-    setPreviews({ input_image: null, mask_image: null, target_image: null });
-    setUploadNames({ input_image: null, mask_image: null, target_image: null });
+    setPreviews({ input_image: null, mask_image: null, target_image: null, reference_image: null, controlnet_image: null });
+    setUploadNames({ input_image: null, mask_image: null, target_image: null, reference_image: null, controlnet_image: null });
     setUploadError(null);
+    setMaskEditorError(null);
   };
 
   const onReset = () => {
@@ -312,9 +519,21 @@ export function GenerationForm({
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      setPreviews((prev) => ({ ...prev, [field]: base64 }));
-      setUploadNames((prev) => ({ ...prev, [field]: file.name }));
-      setForm((prev) => ({ ...prev, [field]: base64 }));
+      setPreviews((prev) => {
+        if (field !== "input_image") return { ...prev, [field]: base64 };
+        return { ...prev, input_image: base64, mask_image: null };
+      });
+      setUploadNames((prev) => {
+        if (field !== "input_image") return { ...prev, [field]: file.name };
+        return { ...prev, input_image: file.name, mask_image: null };
+      });
+      setForm((prev) => {
+        if (field !== "input_image") return { ...prev, [field]: base64 };
+        return { ...prev, input_image: base64, mask_image: "" };
+      });
+      if (field === "input_image") {
+        setMaskEditorError(null);
+      }
     };
     reader.onerror = () => {
       setPreviews((prev) => ({ ...prev, [field]: null }));
@@ -477,8 +696,22 @@ export function GenerationForm({
           </TabsList>
         </Tabs>
 
+        <PromptPresets
+          onSelect={handlePresetSelect}
+          currentPrompt={form.prompt}
+          currentNegativePrompt={form.negative_prompt}
+          currentWorkflowSettings={{
+            width: form.width,
+            height: form.height,
+            steps: form.steps,
+            cfg_scale: form.cfg_scale,
+            sampler_name: form.sampler_name,
+            model_name: form.model_name,
+          }}
+        />
+
         <div>
-          <label className="text-xs font-medium">Prompt</label>
+          <label className="text-xs font-medium flex items-center gap-1">Prompt <FieldHelp slug="imagegen-prompt" tip="Describe the image you want" /></label>
           <textarea
             value={form.prompt}
             onChange={(event) =>
@@ -496,8 +729,42 @@ export function GenerationForm({
           {fieldError("prompt")}
         </div>
 
+        {onSaveProjectSystemContext && (
+          <div className="rounded-md border p-3 space-y-2">
+            <label className="text-xs font-medium flex items-center gap-1">
+              Project Image Context
+              <FieldHelp slug="imagegen-project-system-context" tip="Project-wide instructions used for image generation in this project" />
+            </label>
+            <textarea
+              value={projectSystemContextInput}
+              onChange={(event) => setProjectSystemContextInput(event.target.value)}
+              className="min-h-[72px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+              placeholder="Optional project-level image instructions (style, composition, quality rules)"
+              maxLength={4000}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">{projectSystemContextInput.length}/4000</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onSaveProjectContext}
+                disabled={projectSystemContextSaving}
+              >
+                {projectSystemContextSaving && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                Save project context
+              </Button>
+            </div>
+            {projectSystemContextMsg && (
+              <p className={`text-[11px] ${projectSystemContextMsg.type === "success" ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+                {projectSystemContextMsg.text}
+              </p>
+            )}
+          </div>
+        )}
+
         <div>
-          <label className="text-xs font-medium">Negative Prompt</label>
+          <label className="text-xs font-medium flex items-center gap-1">Negative Prompt <FieldHelp slug="imagegen-negative-prompt" tip="What to avoid in the image" /></label>
           <textarea
             value={form.negative_prompt}
             onChange={(event) =>
@@ -558,7 +825,7 @@ export function GenerationForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium">Width</label>
+              <label className="text-xs font-medium flex items-center gap-1">Width <FieldHelp slug="imagegen-width" tip="Image width in pixels" /></label>
               <Input
                 type="number"
                 min={64}
@@ -575,7 +842,7 @@ export function GenerationForm({
               {fieldError("width")}
             </div>
             <div>
-              <label className="text-xs font-medium">Height</label>
+              <label className="text-xs font-medium flex items-center gap-1">Height <FieldHelp slug="imagegen-height" tip="Image height in pixels" /></label>
               <Input
                 type="number"
                 min={64}
@@ -596,7 +863,7 @@ export function GenerationForm({
 
         <div>
           <label className="text-xs font-medium flex items-center justify-between gap-2">
-            <span>Steps</span>
+            <span className="flex items-center gap-1">Steps <FieldHelp slug="imagegen-steps" tip="More steps usually improve quality but take longer." /></span>
             <span>{form.steps}</span>
           </label>
           <input
@@ -614,7 +881,7 @@ export function GenerationForm({
 
         <div>
           <label className="text-xs font-medium flex items-center justify-between gap-2">
-            <span>CFG Scale</span>
+            <span className="flex items-center gap-1">CFG Scale <FieldHelp slug="imagegen-cfg-scale" tip="Controls how strongly generation follows your prompt." /></span>
             <span>{form.cfg_scale.toFixed(1)}</span>
           </label>
           <input
@@ -742,6 +1009,140 @@ export function GenerationForm({
           {fieldError("loras")}
         </div>
 
+        {/* Reference Image (IPAdapter Style Transfer) */}
+        <div className="rounded-md border">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
+            onClick={() => setShowReferenceImage((v) => !v)}
+          >
+            <span>Reference Image (Style Transfer)</span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReferenceImage ? "rotate-180" : ""}`} />
+          </button>
+          {showReferenceImage && (
+            <div className="space-y-3 border-t p-3">
+              <p className="text-[11px] text-muted-foreground">
+                Upload a reference image for IPAdapter style transfer. The output will adopt the visual style and composition of the reference.
+              </p>
+              {renderUploadField("reference_image", "Reference Image", "Upload a style reference image (PNG/JPEG/WEBP).")}
+              {form.reference_image && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[11px]"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, reference_image: "" }));
+                    setPreviews((prev) => ({ ...prev, reference_image: null }));
+                    setUploadNames((prev) => ({ ...prev, reference_image: null }));
+                  }}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Clear reference
+                </Button>
+              )}
+              <div>
+                <label className="text-xs font-medium flex items-center justify-between gap-2">
+                  <span>Style Weight</span>
+                  <span>{(form.reference_weight * 100).toFixed(0)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1.5}
+                  step={0.05}
+                  value={form.reference_weight}
+                  onChange={(e) => setForm((prev) => ({ ...prev, reference_weight: Number(e.target.value) }))}
+                  className="mt-1 w-full"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Higher = stronger style influence (0-150%)</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium flex items-center justify-between gap-2">
+                  <span>Variation/Noise</span>
+                  <span>{(form.reference_noise * 100).toFixed(0)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={form.reference_noise}
+                  onChange={(e) => setForm((prev) => ({ ...prev, reference_noise: Number(e.target.value) }))}
+                  className="mt-1 w-full"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Add variation to the style transfer (0 = exact, 100% = high variation)</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ControlNet */}
+        <div className="rounded-md border">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
+            onClick={() => setShowControlNet((v) => !v)}
+          >
+            <span>ControlNet (Structure Guide)</span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showControlNet ? "rotate-180" : ""}`} />
+          </button>
+          {showControlNet && (
+            <div className="space-y-3 border-t p-3">
+              <p className="text-[11px] text-muted-foreground">
+                Upload a guide image and select a ControlNet type. The output will follow the structure of the guide.
+              </p>
+              <div>
+                <label htmlFor="controlnet-type-select" className="text-xs font-medium">ControlNet Type</label>
+                <select
+                  id="controlnet-type-select"
+                  value={form.controlnet_type}
+                  onChange={(e) => setForm((prev) => ({ ...prev, controlnet_type: e.target.value }))}
+                  className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="">Select type...</option>
+                  {(imageOptions?.controlnet_types ?? ["canny", "depth", "openpose", "lineart", "scribble", "softedge"]).map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              {renderUploadField("controlnet_image", "ControlNet Image", "Upload a structure guide image (edges, depth map, pose, etc.).")}
+              {form.controlnet_image && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[11px]"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, controlnet_image: "", controlnet_type: "" }));
+                    setPreviews((prev) => ({ ...prev, controlnet_image: null }));
+                    setUploadNames((prev) => ({ ...prev, controlnet_image: null }));
+                  }}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Clear ControlNet
+                </Button>
+              )}
+              <div>
+                <label className="text-xs font-medium flex items-center justify-between gap-2">
+                  <span>Strength</span>
+                  <span>{form.controlnet_strength.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={form.controlnet_strength}
+                  onChange={(e) => setForm((prev) => ({ ...prev, controlnet_strength: Number(e.target.value) }))}
+                  className="mt-1 w-full"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">How closely to follow the structure guide (0-2)</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {form.workflow_type !== "text-to-image" && (
           <>
             {renderUploadField("input_image", "Input Image", `Upload max ${MAX_UPLOAD_MB}MB (PNG/JPEG/WEBP).`)}
@@ -769,7 +1170,85 @@ export function GenerationForm({
             </div>
 
             {form.workflow_type === "inpainting" && (
-              renderUploadField("mask_image", "Mask Image", "White areas are repainted; dark areas are preserved.")
+              <div className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium flex items-center gap-1">
+                    Inpaint Mask Editor <FieldHelp slug="imagegen-mask-editor" tip="Paint regions to regenerate" />
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={maskTool === "paint" ? "secondary" : "ghost"}
+                      className="h-6 text-[11px]"
+                      onClick={() => setMaskTool("paint")}
+                    >
+                      Paint
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={maskTool === "erase" ? "secondary" : "ghost"}
+                      className="h-6 text-[11px]"
+                      onClick={() => setMaskTool("erase")}
+                    >
+                      Erase
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                  <label className="text-[11px] text-muted-foreground">Brush: {brushSize}px</label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[11px]"
+                    onClick={clearMaskCanvas}
+                  >
+                    Clear mask
+                  </Button>
+                </div>
+                <input
+                  type="range"
+                  min={4}
+                  max={128}
+                  step={2}
+                  value={brushSize}
+                  onChange={(event) => setBrushSize(Number(event.target.value))}
+                  className="w-full"
+                />
+                {previews.input_image ? (
+                  <div className="relative overflow-hidden rounded-md border bg-black/40">
+                    <img
+                      src={previews.input_image}
+                      alt="Inpaint input preview"
+                      className="block w-full h-auto select-none pointer-events-none"
+                    />
+                    <canvas
+                      ref={maskCanvasRef}
+                      className="absolute inset-0 h-full w-full touch-none cursor-crosshair opacity-50"
+                      onPointerDown={onMaskPointerDown}
+                      onPointerMove={onMaskPointerMove}
+                      onPointerUp={finishMaskDraw}
+                      onPointerCancel={finishMaskDraw}
+                      onPointerLeave={finishMaskDraw}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Upload an input image first to paint an inpainting mask.
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Paint white to regenerate areas, erase back to black to keep the original image.
+                </p>
+                {maskEditorError && (
+                  <p className="text-[11px] text-destructive">{maskEditorError}</p>
+                )}
+                <div className="pt-1 border-t">
+                  {renderUploadField("mask_image", "Mask Image Upload (optional)", "Upload a pre-made mask instead of drawing. White areas are repainted; dark areas are preserved.")}
+                </div>
+              </div>
             )}
 
             {form.workflow_type === "face-morph" && (

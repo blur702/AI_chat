@@ -13,6 +13,7 @@ import {
 } from "@workstation/ui";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import type { DrupalConnectRequest } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface ConnectDialogProps {
   open: boolean;
@@ -28,7 +29,8 @@ export function ConnectDialog({
   connecting,
 }: ConnectDialogProps) {
   const [siteUrl, setSiteUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [siteName, setSiteName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -38,7 +40,8 @@ export function ConnectDialog({
   useEffect(() => {
     if (!open) {
       setSiteUrl("");
-      setApiKey("");
+      setUsername("");
+      setPassword("");
       setSiteName("");
       setError(null);
       setSuccess(false);
@@ -54,15 +57,16 @@ export function ConnectDialog({
       setError(null);
       setSuccess(false);
 
-      if (!siteUrl.trim() || !apiKey.trim()) {
-        setError("Site URL and API key are required");
+      if (!siteUrl.trim() || !username.trim() || !password.trim()) {
+        setError("Site URL, username, and password are required");
         return;
       }
 
       try {
         await onConnect({
           site_url: siteUrl.trim(),
-          api_key: apiKey.trim(),
+          username: username.trim(),
+          password: password,
           site_name: siteName.trim() || undefined,
         });
         setSuccess(true);
@@ -74,7 +78,7 @@ export function ConnectDialog({
         setError(err instanceof Error ? err.message : "Connection failed");
       }
     },
-    [siteUrl, apiKey, siteName, onConnect, onOpenChange]
+    [siteUrl, username, password, siteName, onConnect, onOpenChange]
   );
 
   return (
@@ -83,13 +87,19 @@ export function ConnectDialog({
         <DialogHeader>
           <DialogTitle>Connect Drupal Site</DialogTitle>
           <DialogDescription>
-            Connect a remote Drupal site for config sync and Drush access.
+            Connect a remote Drupal site using JSON:API with Basic Auth.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="site-url" className="text-sm font-medium">Site URL</label>
+            <label htmlFor="site-url" className="text-sm font-medium flex items-center gap-1">
+              Site URL
+              <FieldHelp
+                slug="drupal-connect-site-url"
+                tip="Base URL of the remote Drupal site you want to connect."
+              />
+            </label>
             <Input
               id="site-url"
               placeholder="https://example.com"
@@ -100,20 +110,50 @@ export function ConnectDialog({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="api-key" className="text-sm font-medium">API Key</label>
+            <label htmlFor="drupal-username" className="text-sm font-medium flex items-center gap-1">
+              Username
+              <FieldHelp
+                slug="drupal-connect-username"
+                tip="Drupal admin username with JSON:API access."
+              />
+            </label>
             <Input
-              id="api-key"
-              type="password"
-              autoComplete="off"
-              placeholder="Enter API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              id="drupal-username"
+              autoComplete="username"
+              placeholder="admin"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               disabled={connecting}
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="site-name" className="text-sm font-medium">Site Name (optional)</label>
+            <label htmlFor="drupal-password" className="text-sm font-medium flex items-center gap-1">
+              Password
+              <FieldHelp
+                slug="drupal-connect-password"
+                tip="Drupal account password for Basic Auth."
+              />
+            </label>
+            <Input
+              id="drupal-password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={connecting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="site-name" className="text-sm font-medium flex items-center gap-1">
+              Site Name (optional)
+              <FieldHelp
+                slug="drupal-connect-site-name"
+                tip="Friendly label used in the UI for this connected site."
+              />
+            </label>
             <Input
               id="site-name"
               placeholder="My Drupal Site"

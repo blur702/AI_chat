@@ -113,6 +113,8 @@ tests/e2e/test-results/
 secrets/
 credentials/
 nul
+.claude/settings.local.json
+.mcp.json
 
 # Playwright
 /test-results/
@@ -120,3 +122,4 @@ nul
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+.playwright-mcp/

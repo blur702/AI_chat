@@ -3,6 +3,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.kernel.mode_prompts import get_mode_modifier
 from app.kernel.token_counter import TokenCounter
 from app.schemas.context import TokenBreakdownResponse
 
@@ -11,7 +12,50 @@ logger = logging.getLogger(__name__)
 # Use 75% of context window for history to leave room for the response
 _CONTEXT_FILL_RATIO = 0.75
 
-_DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
+_DEFAULT_SYSTEM_PROMPT = """You are an AI development assistant integrated into the AI Workstation platform. You operate within isolated Docker sandbox environments where users write, run, and preview code in real time.
+
+## Capabilities
+
+You can propose the following actions by embedding them in your response. Each action must start on its own line with the format `[ACTION:type]` followed by an optional JSON block:
+
+- **file_create** — Create a new file in the project workspace.
+- **file_modify** — Replace the contents of an existing file.
+- **file_delete** — Delete a file from the workspace.
+- **run_command** — Execute a shell command inside the sandbox container.
+- **install_package** — Install a dependency via pip, npm, yarn, or pnpm.
+
+### Action format
+
+```
+[ACTION:file_create]
+```json
+{"path": "/workspace/src/app.py", "content": "print('hello')"}
+```
+
+```
+[ACTION:run_command]
+```json
+{"command": "python src/app.py"}
+```
+
+Only propose actions when the user's request clearly calls for creating, modifying, or running code. Always explain what each action does before proposing it.
+
+## Environment
+
+- Each project runs in its own isolated Docker container with a `/workspace` directory.
+- The sandbox supports Python and Node.js environments with common tooling pre-installed.
+- Users can see file changes in the file explorer, run commands via the integrated terminal, and preview web apps through the sandbox preview panel.
+- A knowledge base (RAG) may inject relevant project documentation into the conversation automatically.
+- Previous conversation history may be summarized via compaction when the context window fills up.
+
+## Guidelines
+
+- Be concise and direct. Provide working code, not pseudocode.
+- When modifying existing files, show the complete updated file content rather than partial diffs.
+- If the user's intent is ambiguous, ask a clarifying question before proposing changes.
+- Respect the project's existing conventions (language, framework, style) when suggesting code.
+- When errors occur, diagnose the root cause and suggest a specific fix.
+- Do not fabricate file paths or dependencies that don't exist in the project."""
 
 
 class PromptBuilder:
@@ -30,6 +74,8 @@ class PromptBuilder:
         project_context: Dict[str, Any],
         system_prompt_content: Optional[str] = None,
         chat_instructions: Optional[str] = None,
+        chat_mode: str = "agent",
+        active_plan: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Assemble a system prompt from all stored fields.
 
@@ -40,6 +86,7 @@ class PromptBuilder:
         4. project custom_context
         5. project important_files list
         6. chat_instructions (per-chat layer)
+        7. active_plan context (if a planning session is linked to this chat)
         """
         parts: List[str] = []
 
@@ -95,11 +142,34 @@ class PromptBuilder:
         if chat_instructions and isinstance(chat_instructions, str) and chat_instructions.strip():
             parts.append(f"\n\nChat Instructions:\n{chat_instructions.strip()}")
 
+        # 7. Active plan context
+        if active_plan and isinstance(active_plan, dict):
+            plan_parts = [f"\n\nActive Plan: {active_plan.get('title', 'Untitled')}"]
+            plan_status = active_plan.get("status", "unknown")
+            plan_parts.append(f"Status: {plan_status}")
+            current_phase = active_plan.get("current_phase")
+            if current_phase and isinstance(current_phase, dict):
+                plan_parts.append(f"Current Phase: {current_phase.get('title', 'N/A')} ({current_phase.get('status', 'unknown')})")
+                outputs = current_phase.get("outputs")
+                if outputs and isinstance(outputs, list):
+                    plan_parts.append(f"Expected Outputs: {', '.join(outputs)}")
+            criteria = active_plan.get("success_criteria")
+            if criteria and isinstance(criteria, list):
+                plan_parts.append(f"Success Criteria: {'; '.join(criteria)}")
+            parts.append("\n".join(plan_parts))
+
         prompt = "".join(parts)
+
+        # Prepend mode modifier for non-agent modes
+        mode_modifier = get_mode_modifier(chat_mode)
+        if mode_modifier:
+            prompt = mode_modifier + prompt
+
         logger.debug(
-            "Built system prompt: %d chars, %d tokens",
+            "Built system prompt: %d chars, %d tokens, mode=%s",
             len(prompt),
             self.token_counter.count_tokens(prompt),
+            chat_mode,
         )
         return prompt
 
@@ -208,6 +278,7 @@ class PromptBuilder:
         messages: List[Dict[str, Any]],
         compactions: List[Dict[str, Any]],
         model_name: str,
+        chat_mode: str = "agent",
     ) -> TokenBreakdownResponse:
         """Compute detailed per-layer token counts.
 
@@ -223,6 +294,7 @@ class PromptBuilder:
             project_context=project_context,
             system_prompt_content=system_prompt_content,
             chat_instructions=chat_instructions,
+            chat_mode=chat_mode,
         )
         assembled_tokens = tc.count_tokens(assembled_prompt)
 

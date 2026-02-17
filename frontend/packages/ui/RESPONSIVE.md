@@ -2,98 +2,60 @@
 
 ## Breakpoints
 
-| Token | Width   | Target           |
-|-------|---------|------------------|
-| `xs`  | 0px     | Small phones     |
-| `sm`  | 600px   | Large phones     |
-| `md`  | 960px   | Tablets          |
-| `lg`  | 1280px  | Desktop          |
-| `xl`  | 1920px  | Large desktop    |
+| Token | Width | Target |
+| --- | --- | --- |
+| `xs` | 0px | Small phones |
+| `sm` | 600px | Large phones |
+| `md` | 960px | Tablets |
+| `lg` | 1280px | Desktop |
+| `xl` | 1920px | Large desktop |
 
-These override Tailwind defaults. Use them as prefixes (`md:flex`, `lg:hidden`).
+These values override Tailwind defaults.
 
-## useBreakpoint Hook
+## Hooks
 
-```tsx
-import { useBreakpoint } from "@workstation/ui";
+### `useBreakpoint`
 
-function MyComponent() {
-  const { isMobile, isTablet, isDesktop, current } = useBreakpoint();
+Returns:
+- `isMobile`: below `md`
+- `isTablet`: `md` only
+- `isDesktop`: `lg` and up
+- `current`: exact token (`xs`/`sm`/`md`/`lg`/`xl`)
 
-  if (isMobile) return <MobileLayout />;
-  return <DesktopLayout />;
-}
-```
+### `useMediaQuery`
 
-- `isMobile` — below 960px (`xs` + `sm`)
-- `isTablet` — 960px to 1279px (`md`)
-- `isDesktop` — 1280px and above (`lg` + `xl`)
-- `current` — exact breakpoint token
-
-## useMediaQuery Hook
+`useMediaQuery(query: string): boolean` - Accepts any valid CSS media query string (e.g., `"(orientation: portrait)"`, `"(min-width: 600px)"`) and returns `true` when the query matches. The hook subscribes to `matchMedia` events so the value updates in real time as conditions change.
 
 ```tsx
-import { useMediaQuery } from "@workstation/ui";
-
 const isLandscape = useMediaQuery("(orientation: landscape)");
+const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 ```
 
-## useSwipe Hook
+### `useSwipe`
+
+`useSwipe(ref: RefObject<HTMLElement>, options?: { threshold?: number }): SwipeState` - Attaches touch event listeners to the referenced element and detects horizontal/vertical swipe gestures. Returns `{ direction, deltaX, deltaY, swiping }`. The default distance threshold before a swipe is recognized is 50px; pass `{ threshold: <number> }` to customize.
 
 ```tsx
-import { useSwipe } from "@workstation/ui";
-import { useRef } from "react";
-
-function Drawer() {
-  const ref = useRef<HTMLDivElement>(null);
-  const swipeHandlers = useSwipe(ref, {
-    onSwipeLeft: () => closeDrawer(),
-  });
-
-  return <div ref={ref} {...swipeHandlers}>...</div>;
-}
+const ref = useRef<HTMLDivElement>(null);
+const { direction } = useSwipe(ref, { threshold: 30 });
 ```
 
-Threshold: 50px minimum swipe distance.
+## Touch Target Standard
 
-## Touch Targets
+- Minimum interactive size: `44x44px`
+- Minimum spacing between adjacent targets: `8px`
 
-All interactive elements must meet **44x44px minimum** touch area:
+Common defaults in this package:
+- Buttons/inputs: `h-11`
+- Dropdown/tab items: `min-h-[44px]`
+- Dialog close button: `h-11 w-11`
 
-- Buttons: `h-11` (44px) by default
-- Inputs: `h-11` (44px) by default
-- Dropdown items: `min-h-[44px]`
-- Tab triggers: `min-h-[44px]`
-- File tree items: `min-h-[44px]`
-- Dialog close: `h-11 w-11`
+## Utility Classes
 
-Spacing between adjacent touch targets: **8px minimum**.
-
-## Tailwind Utilities
-
-| Class           | Effect                          |
-|-----------------|---------------------------------|
+| Class | Effect |
+| --- | --- |
 | `.touch-target` | `min-height: 44px; min-width: 44px` |
-| `.touch-spacing`| `margin: 8px`                   |
-| `.mobile-stack` | `flex-direction: column`        |
-| `.mobile-hide`  | Hidden below `md`, visible above |
-| `.mobile-show`  | Visible below `md`, hidden above |
-
-## Layout Patterns
-
-### Chat App (mobile)
-- Sidebar becomes a slide-out drawer with backdrop
-- Hamburger button in header opens sidebar
-- Swipe-left on sidebar to close
-- Bottom nav for quick actions
-
-### Sandbox/IDE (mobile)
-- Multi-panel layout replaced with tabbed single-panel view
-- Bottom tab bar: Files, Code, Terminal, Preview, Chat
-- Toolbar hides text labels, shows icons only
-- Full-width panels stacked vertically
-
-### Status Bar (mobile)
-- Hides VRAM usage info
-- Reduces padding and font size
-- Shows only connection status
+| `.touch-spacing` | `margin: 8px` |
+| `.mobile-stack` | column layout for mobile |
+| `.mobile-hide` | hidden below `md` |
+| `.mobile-show` | shown below `md` |

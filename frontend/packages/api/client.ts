@@ -8,7 +8,6 @@ import type {
   PasswordChangeRequest,
   PasswordChangeResponse,
   VRAMStats,
-  Resource,
   ResourceStatusResponse,
   PreemptionCheckRequest,
   PreemptionCheckResponse,
@@ -63,10 +62,12 @@ import type {
   AdminUserUpdateRequest,
   AdminUserUpdateResponse,
   UserUnlockResponse,
-  AuditLogEntry,
   AuditLogListResponse,
   AuditLogFilters,
   StreamEvent,
+  StreamToolCallEvent,
+  StreamToolResultEvent,
+  StreamToolApprovalRequiredEvent,
   SandboxChatResponse,
   FileNode,
   FileTreeResponse,
@@ -93,6 +94,8 @@ import type {
   TemplateListResponse,
   GitImportRequest,
   GitImportResponse,
+  WebsiteImportRequest,
+  WebsiteImportResponse,
   ArchiveUploadResponse,
   ImportStatusResponse,
   DetectionResultResponse,
@@ -106,10 +109,20 @@ import type {
   DrupalConnectResponse,
   DrupalSiteInfo,
   DrupalSiteConfig,
+  DrupalContentType,
+  DrupalNodeListResponse,
+  DrupalNode,
+  DrupalNodeCreateRequest,
+  DrupalNodeUpdateRequest,
   DrushCommandRequest,
   DrushCommandResponse,
   SyncStatus,
   SyncResponse,
+  StagingStatus,
+  CloneRequest,
+  CloneResponse,
+  PushRequest,
+  PushResponse,
   OllamaModelListResponse,
   ModelActionResponse,
   ModelPullProgress,
@@ -118,6 +131,22 @@ import type {
   ContextSnippetUpdateRequest,
   ContextSnippetListResponse,
   CompactionStatusResponse,
+  TechnologyInfo,
+  TechnologyListResponse,
+  UIComponentInfo,
+  UIComponentListResponse,
+  UIComponentCreateRequest,
+  UIComponentUpdateRequest,
+  DockerExportRequest,
+  DockerExportResponse,
+  PromptPresetCreate,
+  PromptPresetUpdate,
+  PromptPresetResponse,
+  PromptPresetListResponse,
+  SavedPaletteCreateRequest,
+  SavedPaletteListResponse,
+  SavedPaletteResponse,
+  SavedPaletteUpdateRequest,
 } from "./types";
 
 export class ApiError extends Error {
@@ -160,7 +189,7 @@ export class WorkstationClient {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
 
-    const fetchOpts: RequestInit = { ...options, headers };
+    const fetchOpts: RequestInit = { ...options, headers, credentials: "include" };
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -174,10 +203,18 @@ export class WorkstationClient {
           // On 401, clear token and redirect to login
           // Skip redirect for the login endpoint itself — let the caller handle it
           if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
-            localStorage.removeItem("workstation_token");
             this.token = null;
             window.location.href = "/login";
             throw err;
+          }
+
+          // Emit API error event for toast consumption
+          if (typeof window !== "undefined" && response.status >= 400 && response.status !== 401) {
+            window.dispatchEvent(
+              new CustomEvent("api-error", {
+                detail: { message: `${response.status}: ${response.statusText}`, status: response.status },
+              })
+            );
           }
 
           // Only retry on server errors (5xx), not client errors (4xx)
@@ -234,11 +271,11 @@ export class WorkstationClient {
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers,
+      credentials: "include",
     });
 
     if (!response.ok) {
       if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
-        localStorage.removeItem("workstation_token");
         this.token = null;
         window.location.href = "/login";
       }
@@ -247,6 +284,33 @@ export class WorkstationClient {
     }
 
     return response;
+  }
+
+  // Generic HTTP methods (used by planning hooks etc.)
+  async get<T = any>(path: string): Promise<{ data: T }> {
+    const data = await this.request<T>(path);
+    return { data };
+  }
+
+  async post<T = any>(path: string, body?: unknown): Promise<{ data: T }> {
+    const data = await this.request<T>(path, {
+      method: "POST",
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    return { data };
+  }
+
+  async put<T = any>(path: string, body?: unknown): Promise<{ data: T }> {
+    const data = await this.request<T>(path, {
+      method: "PUT",
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    return { data };
+  }
+
+  async delete<T = any>(path: string): Promise<{ data: T }> {
+    const data = await this.request<T>(path, { method: "DELETE" });
+    return { data };
   }
 
   // Health
@@ -268,6 +332,14 @@ export class WorkstationClient {
       method: "POST",
       body: JSON.stringify({ identifier, password } satisfies LoginRequest),
     });
+  }
+
+  async logout(): Promise<{ message: string }> {
+    const result = await this.request<{ message: string }>("/api/auth/logout", {
+      method: "POST",
+    });
+    this.setToken(null);
+    return result;
   }
 
   async createUser(data: UserCreateRequest): Promise<UserCreateResponse> {
@@ -474,6 +546,10 @@ export class WorkstationClient {
     });
   }
 
+  async updateChatMode(chatId: string, mode: string): Promise<ChatUpdateResponse> {
+    return this.updateChat(chatId, { chat_mode: mode });
+  }
+
   async deleteChat(chatId: string): Promise<void> {
     return this.request(`/api/context/chats/${chatId}`, {
       method: "DELETE",
@@ -571,11 +647,11 @@ export class WorkstationClient {
           method: "POST",
           signal: controller.signal,
           headers,
+          credentials: "include",
           body: JSON.stringify({ model_name: modelName }),
         });
         if (!response.ok || !response.body) {
           if (response.status === 401 && typeof window !== "undefined") {
-            localStorage.removeItem("workstation_token");
             this.token = null;
             window.location.href = "/login";
             return;
@@ -588,7 +664,7 @@ export class WorkstationClient {
         const decoder = new TextDecoder();
         let buffer = "";
 
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -638,6 +714,13 @@ export class WorkstationClient {
 
   async getTokenUsage(chatId: string): Promise<TokenUsageResponse> {
     return this.request(`/api/context/conversations/${chatId}/tokens`);
+  }
+
+  async tokenizeText(text: string): Promise<import("./types").TokenizeResponse> {
+    return this.request("/api/context/tokenize", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
   }
 
   // System Prompts
@@ -694,6 +777,31 @@ export class WorkstationClient {
 
   async deleteSnippet(snippetId: string): Promise<void> {
     return this.request(`/api/context/snippets/${encodeURIComponent(snippetId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Palettes
+  async listPalettes(): Promise<SavedPaletteListResponse> {
+    return this.request("/api/palettes");
+  }
+
+  async createPalette(data: SavedPaletteCreateRequest): Promise<SavedPaletteResponse> {
+    return this.request("/api/palettes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePalette(paletteId: string, data: SavedPaletteUpdateRequest): Promise<SavedPaletteResponse> {
+    return this.request(`/api/palettes/${encodeURIComponent(paletteId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePalette(paletteId: string): Promise<void> {
+    return this.request(`/api/palettes/${encodeURIComponent(paletteId)}`, {
       method: "DELETE",
     });
   }
@@ -768,7 +876,11 @@ export class WorkstationClient {
       chat_title?: string;
     }) => void,
     onError: (error: string) => void,
-    model?: string
+    model?: string,
+    chatMode?: string,
+    onToolCall?: (event: StreamToolCallEvent) => void,
+    onToolResult?: (event: StreamToolResultEvent) => void,
+    onToolApprovalRequired?: (event: StreamToolApprovalRequiredEvent) => void,
   ): () => void {
     const url = `${this.baseUrl}/api/context/conversations/${chatId}/messages/stream`;
 
@@ -784,15 +896,16 @@ export class WorkstationClient {
         }
         const body: Record<string, string> = { content };
         if (model) body.model = model;
+        if (chatMode) body.chat_mode = chatMode;
         const response = await fetch(url, {
           method: "POST",
           signal: controller.signal,
           headers,
+          credentials: "include",
           body: JSON.stringify(body),
         });
         if (!response.ok || !response.body) {
           if (response.status === 401 && typeof window !== "undefined") {
-            localStorage.removeItem("workstation_token");
             this.token = null;
             window.location.href = "/login";
             return;
@@ -805,7 +918,7 @@ export class WorkstationClient {
         const decoder = new TextDecoder();
         let buffer = "";
 
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -832,6 +945,12 @@ export class WorkstationClient {
                 });
               } else if (event.type === "error") {
                 onError(event.message);
+              } else if (event.type === "tool_call" && onToolCall) {
+                onToolCall(event as StreamToolCallEvent);
+              } else if (event.type === "tool_result" && onToolResult) {
+                onToolResult(event as StreamToolResultEvent);
+              } else if (event.type === "tool_approval_required" && onToolApprovalRequired) {
+                onToolApprovalRequired(event as StreamToolApprovalRequiredEvent);
               }
             } catch {
               // skip malformed SSE lines
@@ -845,6 +964,18 @@ export class WorkstationClient {
     })();
 
     return () => controller.abort();
+  }
+
+  // Tool approval
+  async submitToolApproval(callId: string, approved: boolean, modifiedArguments?: Record<string, unknown>): Promise<{ call_id: string; status: string }> {
+    return this.request("/api/tool-approvals", {
+      method: "POST",
+      body: JSON.stringify({
+        call_id: callId,
+        approved,
+        modified_arguments: modifiedArguments,
+      }),
+    });
   }
 
   // Sandbox file operations
@@ -915,7 +1046,7 @@ export class WorkstationClient {
   async createAutomationAction(
     projectId: string,
     actionType: string,
-    actionData?: Record<string, any>
+    actionData?: Record<string, unknown>
   ): Promise<AutomationAction> {
     return this.request("/api/automation/actions", {
       method: "POST",
@@ -941,7 +1072,7 @@ export class WorkstationClient {
 
   async approveAutomationAction(
     actionId: string,
-    modifiedData?: Record<string, any>
+    modifiedData?: Record<string, unknown>
   ): Promise<AutomationAction> {
     return this.request(`/api/automation/actions/${actionId}/approve`, {
       method: "PUT",
@@ -996,6 +1127,7 @@ export class WorkstationClient {
     const payload: ImageGenerationRequest = {
       project_id: data.project_id,
       workflow_type: data.workflow_type,
+      ...(data.system_context ? { system_context: data.system_context } : {}),
       prompt: data.prompt,
       negative_prompt: data.negative_prompt,
       width: data.width,
@@ -1080,9 +1212,83 @@ export class WorkstationClient {
     return this.request(`/api/templates/${encodeURIComponent(templateId)}`);
   }
 
+  // Technologies
+  async getTechnologies(category?: string): Promise<TechnologyListResponse> {
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    const query = params.toString();
+    return this.request(`/api/templates/technologies${query ? `?${query}` : ""}`);
+  }
+
+  async getTechnology(techId: string): Promise<TechnologyInfo> {
+    return this.request(`/api/templates/technologies/${encodeURIComponent(techId)}`);
+  }
+
+  // UI Components
+  async listUIComponents(params?: {
+    category?: string;
+    framework?: string;
+    tags?: string[];
+  }): Promise<UIComponentListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.category) searchParams.set("category", params.category);
+    if (params?.framework) searchParams.set("framework", params.framework);
+    if (params?.tags) searchParams.set("tags", params.tags.join(","));
+    const query = searchParams.toString();
+    return this.request(`/api/ui-components${query ? `?${query}` : ""}`);
+  }
+
+  async getUIComponent(componentId: string): Promise<UIComponentInfo> {
+    return this.request(`/api/ui-components/${encodeURIComponent(componentId)}`);
+  }
+
+  async createUIComponent(data: UIComponentCreateRequest): Promise<UIComponentInfo> {
+    return this.request("/api/ui-components", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUIComponent(componentId: string, data: UIComponentUpdateRequest): Promise<UIComponentInfo> {
+    return this.request(`/api/ui-components/${encodeURIComponent(componentId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUIComponent(componentId: string): Promise<void> {
+    return this.request(`/api/ui-components/${encodeURIComponent(componentId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Docker Export
+  async exportAsDocker(projectId: string, data: DockerExportRequest): Promise<DockerExportResponse> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/export-docker`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async downloadDockerTar(projectId: string, imageId: string): Promise<Blob> {
+    const response = await this.rawFetch(
+      `/api/projects/${encodeURIComponent(projectId)}/export-docker/${encodeURIComponent(imageId)}/download`
+    );
+    return response.blob();
+  }
+
   // Project Import / Export / Snapshots
   async importFromGit(data: GitImportRequest): Promise<GitImportResponse> {
     return this.request("/api/projects/import/git", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async importFromWebsite(
+    data: WebsiteImportRequest
+  ): Promise<WebsiteImportResponse> {
+    return this.request("/api/projects/import/website", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -1224,6 +1430,79 @@ export class WorkstationClient {
     );
   }
 
+  // Drupal Staging (SSH-based clone/push)
+  async getDrupalStagingStatus(projectId: string): Promise<StagingStatus> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/staging-status`
+    );
+  }
+
+  async cloneDrupalProduction(projectId: string, data?: CloneRequest): Promise<CloneResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/clone`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    });
+  }
+
+  async pushDrupalToProduction(projectId: string, data: PushRequest): Promise<PushResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/staging/push`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async startDrupalStaging(projectId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/staging/start`, {
+      method: "POST",
+    });
+  }
+
+  async stopDrupalStaging(projectId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/staging/stop`, {
+      method: "POST",
+    });
+  }
+
+  async getDrupalContentTypes(
+    projectId: string
+  ): Promise<DrupalContentType[]> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/content-types`
+    );
+  }
+
+  async listDrupalContent(
+    projectId: string,
+    bundle: string
+  ): Promise<DrupalNodeListResponse> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}`
+    );
+  }
+
+  async createDrupalNode(
+    projectId: string,
+    bundle: string,
+    data: DrupalNodeCreateRequest
+  ): Promise<DrupalNode> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}`,
+      { method: "POST", body: JSON.stringify(data) }
+    );
+  }
+
+  async updateDrupalNode(
+    projectId: string,
+    bundle: string,
+    nodeUuid: string,
+    data: DrupalNodeUpdateRequest
+  ): Promise<DrupalNode> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}/${encodeURIComponent(nodeUuid)}`,
+      { method: "PATCH", body: JSON.stringify(data) }
+    );
+  }
+
   // Knowledge Base
   async getKBChunks(
     sourceId: string,
@@ -1265,6 +1544,52 @@ export class WorkstationClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  // KB Builder Wizard
+  async bulkUploadKB(files: File[]): Promise<import("./types").KBBulkUploadResponse> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    const response = await this.rawFetch("/api/kb/bulk-upload", {
+      method: "POST",
+      body: formData,
+    });
+    return response.json();
+  }
+
+  async extractPreviewKB(file: File, method?: "ocr" | "vision"): Promise<import("./types").KBExtractPreviewResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const query = method ? `?method=${method}` : "";
+    const response = await this.rawFetch(`/api/kb/extract-preview${query}`, {
+      method: "POST",
+      body: formData,
+    });
+    return response.json();
+  }
+
+  async chunkPreviewKB(data: import("./types").KBChunkPreviewRequest): Promise<import("./types").KBChunkPreviewResponse> {
+    return this.request("/api/kb/chunk-preview", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listEmbeddingModels(): Promise<import("./types").KBEmbeddingModelsResponse> {
+    return this.request("/api/kb/embedding-models");
+  }
+
+  async bulkIngestKB(data: import("./types").KBBulkIngestRequest): Promise<import("./types").KBBulkIngestResponse> {
+    return this.request("/api/kb/bulk-ingest", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getBulkStatus(batchId: string): Promise<import("./types").KBBulkStatusResponse> {
+    return this.request(`/api/kb/bulk-status/${encodeURIComponent(batchId)}`);
   }
 
   // Admin
@@ -1359,14 +1684,196 @@ export class WorkstationClient {
 
   // ---- Help Topics ----
 
-  async listHelpTopics(): Promise<{ topics: any[]; count: number }> {
+  async listHelpTopics(): Promise<import("./types").HelpTopicListResponse> {
     return this.request("/api/help");
   }
 
-  async searchHelpTopics(query: string, topK = 10): Promise<{ results: any[]; query: string; count: number }> {
+  async searchHelpTopics(query: string, topK = 10): Promise<import("./types").HelpSearchResponse> {
     return this.request("/api/help/search", {
       method: "POST",
       body: JSON.stringify({ query, top_k: topK }),
+    });
+  }
+
+  async createHelpTopic(data: import("./types").HelpTopicCreateRequest): Promise<import("./types").HelpTopic> {
+    return this.request("/api/help", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateHelpTopic(topicId: string, data: import("./types").HelpTopicUpdateRequest): Promise<import("./types").HelpTopic> {
+    return this.request(`/api/help/${encodeURIComponent(topicId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteHelpTopic(topicId: string): Promise<void> {
+    await this.request(`/api/help/${encodeURIComponent(topicId)}`, { method: "DELETE" });
+  }
+
+  // ---- Prompt Presets ----
+
+  async listPromptPresets(params?: {
+    category?: string;
+    search?: string;
+    mine_only?: boolean;
+    skip?: number;
+    limit?: number;
+  }): Promise<PromptPresetListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.category) searchParams.set("category", params.category);
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.mine_only) searchParams.set("mine_only", "true");
+    if (params?.skip !== undefined) searchParams.set("skip", String(params.skip));
+    if (params?.limit !== undefined) searchParams.set("limit", String(params.limit));
+    const query = searchParams.toString();
+    return this.request(`/api/prompt-presets${query ? `?${query}` : ""}`);
+  }
+
+  async getPromptPreset(presetId: string): Promise<PromptPresetResponse> {
+    return this.request(`/api/prompt-presets/${encodeURIComponent(presetId)}`);
+  }
+
+  async createPromptPreset(data: PromptPresetCreate): Promise<PromptPresetResponse> {
+    return this.request("/api/prompt-presets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePromptPreset(presetId: string, data: PromptPresetUpdate): Promise<PromptPresetResponse> {
+    return this.request(`/api/prompt-presets/${encodeURIComponent(presetId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePromptPreset(presetId: string): Promise<void> {
+    return this.request(`/api/prompt-presets/${encodeURIComponent(presetId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // ---- Drupal Local Development ----
+
+  async getDrupalLocalFiles(path?: string): Promise<import("./types").DrupalLocalFileTreeResponse> {
+    const params = new URLSearchParams();
+    if (path) params.set("path", path);
+    const query = params.toString();
+    return this.request(`/api/drupal-local/files${query ? `?${query}` : ""}`);
+  }
+
+  async getDrupalLocalFileContent(path: string): Promise<import("./types").DrupalLocalFileContent> {
+    const params = new URLSearchParams({ path });
+    return this.request(`/api/drupal-local/files/content?${params}`);
+  }
+
+  async updateDrupalLocalFile(path: string, content: string): Promise<{ path: string; size: number }> {
+    return this.request("/api/drupal-local/files/content", {
+      method: "PUT",
+      body: JSON.stringify({ path, content }),
+    });
+  }
+
+  async createDrupalLocalFile(path: string, content?: string): Promise<{ path: string; name: string; type: string }> {
+    return this.request("/api/drupal-local/files", {
+      method: "POST",
+      body: JSON.stringify({ path, content: content ?? "" }),
+    });
+  }
+
+  async createDrupalLocalDirectory(path: string): Promise<{ path: string; name: string; type: string }> {
+    return this.request("/api/drupal-local/files/directory", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async deleteDrupalLocalFile(path: string): Promise<void> {
+    const params = new URLSearchParams({ path });
+    return this.request(`/api/drupal-local/files?${params}`, { method: "DELETE" });
+  }
+
+  async renameDrupalLocalFile(oldPath: string, newPath: string): Promise<{ path: string; name: string; type: string }> {
+    return this.request("/api/drupal-local/files/rename", {
+      method: "POST",
+      body: JSON.stringify({ old_path: oldPath, new_path: newPath }),
+    });
+  }
+
+  async runDrupalLocalDrush(command: string): Promise<import("./types").DrupalLocalDrushResponse> {
+    return this.request("/api/drupal-local/drush", {
+      method: "POST",
+      body: JSON.stringify({ command }),
+    });
+  }
+
+  async getDrupalLocalModules(): Promise<{ modules: import("./types").DrupalLocalModuleInfo[] }> {
+    return this.request("/api/drupal-local/modules");
+  }
+
+  async getDrupalLocalThemes(): Promise<{ themes: import("./types").DrupalLocalThemeInfo[] }> {
+    return this.request("/api/drupal-local/themes");
+  }
+
+  async scaffoldDrupalLocalModule(data: import("./types").DrupalLocalModuleScaffoldRequest): Promise<import("./types").DrupalLocalModuleScaffoldResponse> {
+    return this.request("/api/drupal-local/scaffold/module", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDrupalLocalStatus(): Promise<import("./types").DrupalLocalSiteStatus> {
+    return this.request("/api/drupal-local/status");
+  }
+
+  async getDrupalLocalConfigStatus(): Promise<import("./types").DrupalLocalConfigStatus> {
+    return this.request("/api/drupal-local/config/status");
+  }
+
+  async exportDrupalLocalConfig(): Promise<import("./types").DrupalLocalDrushResult> {
+    return this.request("/api/drupal-local/config/export", { method: "POST" });
+  }
+
+  async importDrupalLocalConfig(): Promise<import("./types").DrupalLocalDrushResult> {
+    return this.request("/api/drupal-local/config/import", { method: "POST" });
+  }
+
+  async generatePalette(data: import("./types").PaletteGenerateRequest): Promise<import("./types").PaletteResponse> {
+    return this.request("/api/drupal-local/palette/generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async validatePalette(colors: string[]): Promise<import("./types").PaletteResponse> {
+    return this.request("/api/drupal-local/palette/validate", {
+      method: "POST",
+      body: JSON.stringify({ colors }),
+    });
+  }
+
+  async adjustPalette(colors: string[]): Promise<import("./types").PaletteResponse> {
+    return this.request("/api/drupal-local/palette/adjust", {
+      method: "POST",
+      body: JSON.stringify({ colors }),
+    });
+  }
+
+  // ---- Image Generation Extras ----
+
+  async toggleFavorite(jobId: string): Promise<ImageGenerationResponse> {
+    return this.request(`/api/image/generations/${encodeURIComponent(jobId)}/favorite`, {
+      method: "PATCH",
+    });
+  }
+
+  async upscaleImage(jobId: string, upscaleModel?: string): Promise<ImageGenerationResponse> {
+    return this.request(`/api/image/upscale/${encodeURIComponent(jobId)}`, {
+      method: "POST",
+      body: JSON.stringify({ upscale_model: upscaleModel }),
     });
   }
 }

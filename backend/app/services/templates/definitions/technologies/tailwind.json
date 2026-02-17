@@ -1,0 +1,20 @@
+{
+  "id": "tailwind",
+  "name": "Tailwind CSS",
+  "description": "Utility-first CSS framework with configuration",
+  "category": "styling",
+  "dependencies": ["tailwindcss@^3.4.0", "postcss@^8.4.0", "autoprefixer@^10.4.0"],
+  "_note": "Pinned to Tailwind CSS v3 for broad ecosystem compatibility; v4 uses a new engine and config format that many plugins do not yet support",
+  "install_commands": [],
+  "scaffold_files": {
+    "tailwind.config.js": "/** @type {import('tailwindcss').Config} */\nexport default {\n  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx,vue}'],\n  theme: { extend: {} },\n  plugins: [],\n}\n",
+    "postcss.config.js": "export default {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n}\n",
+    "src/index.css": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n"
+  },
+  "environment": {},
+  "sidecar_services": [],
+  "requires_technologies": ["node"],
+  "conflicts_with": [],
+  "docker_image": null,
+  "exposed_ports": []
+}

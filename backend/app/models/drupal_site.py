@@ -34,7 +34,7 @@ class DrupalSite(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    api_key_encrypted: Mapped[str] = mapped_column(
+    credentials_encrypted: Mapped[str] = mapped_column(
         Text,
         nullable=False,
     )

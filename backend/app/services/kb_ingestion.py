@@ -98,6 +98,92 @@ class KBIngestionService(BaseKernelService):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
 
+    def extract_text_from_html(self, file_path: str) -> str:
+        """Extract text from HTML, stripping script/style/nav/footer tags."""
+        from bs4 import BeautifulSoup
+
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            html = f.read()
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+        # Collapse multiple blank lines
+        import re
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text
+
+    def extract_text_from_csv(self, file_path: str) -> str:
+        """Extract text from CSV, formatting as 'header: value' records."""
+        import csv
+
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        if not rows:
+            return ""
+        headers = rows[0]
+        records = []
+        for row in rows[1:]:
+            parts = []
+            for i, val in enumerate(row):
+                header = headers[i] if i < len(headers) else f"col_{i}"
+                parts.append(f"{header}: {val}")
+            records.append("\n".join(parts))
+        return "\n\n".join(records)
+
+    def extract_text_from_image_ocr(self, file_path: str) -> str:
+        """Extract text from image using pytesseract OCR."""
+        try:
+            import pytesseract
+            from PIL import Image
+
+            image = Image.open(file_path)
+            text = pytesseract.image_to_string(image)
+            return text.strip()
+        except Exception as exc:
+            logger.error("OCR extraction failed for %s: %s", file_path, exc)
+            return ""
+
+    async def extract_text_from_image_vision(
+        self, file_path: str, ollama_url: str = "http://ollama:11434"
+    ) -> str:
+        """Extract text from image using Ollama vision model (llava)."""
+        import base64
+        import httpx
+
+        try:
+            with open(file_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode("utf-8")
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={
+                        "model": "llava",
+                        "prompt": "Describe this image in detail. Extract all visible text, labels, and information.",
+                        "images": [image_data],
+                        "stream": False,
+                    },
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "").strip()
+        except httpx.ConnectError:
+            logger.error("Vision extraction failed for %s: cannot connect to Ollama at %s", file_path, ollama_url)
+            return ""
+        except httpx.TimeoutException:
+            logger.error("Vision extraction timed out for %s (Ollama at %s)", file_path, ollama_url)
+            return ""
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Vision extraction HTTP error for %s: status=%d body=%s",
+                file_path, exc.response.status_code, exc.response.text[:200],
+            )
+            return ""
+        except Exception as exc:
+            logger.error("Vision extraction failed for %s: %s", file_path, exc)
+            return ""
+
     # -- Chunking Logic ------------------------------------------------------
 
     def chunk_text(
@@ -105,6 +191,7 @@ class KBIngestionService(BaseKernelService):
         text: str,
         chunk_size: int = 500,
         chunk_overlap: int = 50,
+        separators: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Split text into ~500-token chunks using a tiktoken-aware splitter.
@@ -113,17 +200,21 @@ class KBIngestionService(BaseKernelService):
             text: Full document text.
             chunk_size: Target chunk size in tokens.
             chunk_overlap: Overlap between consecutive chunks in tokens.
+            separators: Custom separator list. Defaults to paragraph/line/word/char.
 
         Returns:
             List of dicts with content, index, and metadata.
         """
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+        if separators is None:
+            separators = ["\n\n", "\n", " ", ""]
+
         splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             model_name="gpt-3.5-turbo",
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", " ", ""],
+            separators=separators,
         )
 
         documents = splitter.create_documents([text])

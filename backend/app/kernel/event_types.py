@@ -24,6 +24,14 @@ MODEL_PULLING = "model_pulling"
 COMPACTION_STARTED = "compaction_started"
 COMPACTION_COMPLETED = "compaction_completed"
 COMPACTION_FAILED = "compaction_failed"
+PLAN_PHASE_STARTED = "plan_phase_started"
+PLAN_PHASE_COMPLETED = "plan_phase_completed"
+PLAN_TASK_EXECUTED = "plan_task_executed"
+PLAN_VERIFICATION_COMPLETED = "plan_verification_completed"
+IMAGE_GENERATION_STARTED = "image_generation_started"
+IMAGE_GENERATION_PROGRESS = "image_generation_progress"
+IMAGE_GENERATION_COMPLETED = "image_generation_completed"
+IMAGE_GENERATION_FAILED = "image_generation_failed"
 
 # Severity Levels
 INFO = "info"
@@ -51,6 +59,14 @@ ALL_EVENT_TYPES = [
     COMPACTION_STARTED,
     COMPACTION_COMPLETED,
     COMPACTION_FAILED,
+    PLAN_PHASE_STARTED,
+    PLAN_PHASE_COMPLETED,
+    PLAN_TASK_EXECUTED,
+    PLAN_VERIFICATION_COMPLETED,
+    IMAGE_GENERATION_STARTED,
+    IMAGE_GENERATION_PROGRESS,
+    IMAGE_GENERATION_COMPLETED,
+    IMAGE_GENERATION_FAILED,
 ]
 
 # All severity levels for validation
@@ -81,6 +97,14 @@ __all__ = [
     "COMPACTION_STARTED",
     "COMPACTION_COMPLETED",
     "COMPACTION_FAILED",
+    "PLAN_PHASE_STARTED",
+    "PLAN_PHASE_COMPLETED",
+    "PLAN_TASK_EXECUTED",
+    "PLAN_VERIFICATION_COMPLETED",
+    "IMAGE_GENERATION_STARTED",
+    "IMAGE_GENERATION_PROGRESS",
+    "IMAGE_GENERATION_COMPLETED",
+    "IMAGE_GENERATION_FAILED",
     # Severity levels
     "INFO",
     "WARNING",

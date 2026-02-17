@@ -25,6 +25,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { EventCreate, EventSeverity } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 
 const EVENT_TEMPLATES: Record<string, Omit<EventCreate, "source">> = {
   "Model Loaded": {
@@ -211,8 +212,12 @@ export function CreateEventModal({
           <div className="space-y-4">
             {/* Templates */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Template
+                <FieldHelp
+                  slug="events-template"
+                  tip="Choose a starter event payload for common scenarios."
+                />
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(EVENT_TEMPLATES).map((name) => (
@@ -230,8 +235,12 @@ export function CreateEventModal({
 
             {/* Event Type with autocomplete */}
             <div className="relative">
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Event Type <span className="text-red-500">*</span>
+                <FieldHelp
+                  slug="events-type"
+                  tip="Machine-readable event identifier, e.g. model_loaded or system."
+                />
               </label>
               <div className="relative">
                 <Input
@@ -273,8 +282,12 @@ export function CreateEventModal({
 
             {/* Severity */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Severity
+                <FieldHelp
+                  slug="events-severity"
+                  tip="Controls urgency/visibility of the event."
+                />
               </label>
               <div className="flex gap-1.5">
                 {SEVERITY_OPTIONS.map((opt) => (
@@ -296,8 +309,12 @@ export function CreateEventModal({
 
             {/* Source */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Source <span className="text-red-500">*</span>
+                <FieldHelp
+                  slug="events-source"
+                  tip="Component or service emitting this event."
+                />
               </label>
               <Input
                 value={source}
@@ -308,8 +325,12 @@ export function CreateEventModal({
 
             {/* Event Data (JSON Editor) */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <label className="mb-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1">
                 Event Data (JSON)
+                <FieldHelp
+                  slug="events-data"
+                  tip="Structured payload associated with the selected event type."
+                />
               </label>
               <textarea
                 value={eventDataJson}
@@ -332,7 +353,13 @@ export function CreateEventModal({
             {/* Persist Toggle */}
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
-                <p className="text-xs font-medium">Persist to database</p>
+                <p className="text-xs font-medium flex items-center gap-1">
+                  Persist to database
+                  <FieldHelp
+                    slug="events-persist"
+                    tip="Persisted events are stored in the DB; otherwise only broadcast in real-time."
+                  />
+                </p>
                 <p className="text-[11px] text-muted-foreground">
                   {persist
                     ? "Event will be saved and broadcast"
