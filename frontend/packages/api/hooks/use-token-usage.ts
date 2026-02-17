@@ -22,6 +22,13 @@ interface UseTokenUsageReturn {
   }) => void;
 }
 
+/**
+ * Fetches token usage for a chat and optionally polls at a given interval.
+ * Exposes `setFromStream` for optimistic updates from SSE done-event payloads without an extra API round-trip.
+ * @param chatId - The chat to track, or `null` to clear usage state.
+ * @param pollIntervalMs - Optional polling interval in milliseconds (0 disables polling).
+ * @returns Current token usage, loading state, a `refresh` callback, and `setFromStream` for local updates.
+ */
 export function useTokenUsage(
   chatId: string | null,
   pollIntervalMs = 0

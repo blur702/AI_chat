@@ -12,6 +12,13 @@ import {
   DropdownMenuRadioItem,
 } from "./dropdown-menu";
 
+/**
+ * ThemeToggle renders a ghost icon button that opens a dropdown to select the color scheme.
+ * Supports three modes: "light", "dark", and "system" (follows OS preference).
+ * The trigger button carries aria-label="Toggle theme" for screen readers.
+ * Selected theme state is managed via next-themes and persisted across page loads.
+ * Sun and Moon icons transition via CSS to reflect the active theme without layout shift.
+ */
 export function ThemeToggle() {
   const { theme, resolvedTheme, setTheme } = useTheme();
 

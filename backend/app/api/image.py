@@ -39,8 +39,9 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import SECRET_KEY, get_current_user_payload, validate_bearer_token
-from app.api.context_deps import validate_project_access
+from app.auth import SECRET_KEY, validate_bearer_token
+from app.api.context_deps import get_current_user_payload, validate_project_access
+from app.auth import get_user_id
 from app.database import get_db_session
 from app.models.image_generation import ImageGeneration
 from app.models.project import Project
@@ -139,6 +140,10 @@ def _generation_to_response(
     """
     generation_id = str(gen.id)
     base_url = str(request.base_url).rstrip("/")
+    # Respect X-Forwarded-Proto from nginx (SSL termination)
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
+        base_url = "https://" + base_url[len("http://"):]
     download_urls = []
     for fname in gen.result_images or []:
         token = _create_image_token(generation_id, fname)
@@ -322,8 +327,8 @@ async def generate_image(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationResponse:
     """Submit an image generation job to ComfyUI via the background worker."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
-    user_uuid = UUID(user_id)
+    user_id = get_user_id(payload)
+    user_uuid = user_id
 
     project_system_context = ""
     if body.project_id:
@@ -528,7 +533,7 @@ async def get_generation_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationResponse:
     """Get the current status of an image generation job."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(ImageGeneration).where(
@@ -599,7 +604,7 @@ async def get_generation_result(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationResponse:
     """Get the result of a completed image generation job."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(ImageGeneration).where(
@@ -681,7 +686,7 @@ async def download_image(
                 detail="Invalid or expired authorization token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        user_id = payload.get("user_id") or payload.get("sub", "")
+        user_id = get_user_id(payload)
         result = await db.execute(
             select(ImageGeneration).where(
                 ImageGeneration.id == job_id,
@@ -758,7 +763,7 @@ async def toggle_favorite(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationResponse:
     """Toggle the is_favorite flag on an image generation."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(ImageGeneration).where(
@@ -801,8 +806,8 @@ async def upscale_generation(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationResponse:
     """Create an upscale job from an existing completed generation's first image."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
-    user_uuid = UUID(user_id)
+    user_id = get_user_id(payload)
+    user_uuid = user_id
 
     result = await db.execute(
         select(ImageGeneration).where(
@@ -816,7 +821,7 @@ async def upscale_generation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Generation '{job_id}' not found",
         )
-    if str(source.user_id) != str(user_id):
+    if source.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -912,7 +917,7 @@ async def list_generations(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImageGenerationListResponse:
     """List image generation jobs for the current user."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     if status_filter is not None and status_filter not in _ALLOWED_STATUSES:
         raise HTTPException(
@@ -921,7 +926,7 @@ async def list_generations(
         )
 
     filters = [
-        ImageGeneration.user_id == UUID(user_id),
+        ImageGeneration.user_id == user_id,
         ImageGeneration.is_deleted == False,  # noqa: E712
     ]
 
@@ -978,7 +983,7 @@ async def delete_generation(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Soft-delete an image generation job and clean up result files."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(ImageGeneration).where(

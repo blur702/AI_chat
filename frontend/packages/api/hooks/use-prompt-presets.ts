@@ -8,6 +8,7 @@ import type {
   PromptPresetResponse,
   PromptPresetUpdate,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UsePromptPresetsReturn {
   presets: PromptPresetResponse[];
@@ -20,6 +21,11 @@ export interface UsePromptPresetsReturn {
   deletePreset: (id: string) => Promise<void>;
 }
 
+/**
+ * Fetches and manages prompt presets with optional category, search, and ownership filtering.
+ * @param params - Optional filters: `category`, `search` text, and `mineOnly` flag.
+ * @returns Preset list, total count, loading/error state, and create/update/delete functions.
+ */
 export function usePromptPresets(params?: {
   category?: string;
   search?: string;
@@ -42,7 +48,7 @@ export function usePromptPresets(params?: {
       setPresets(result.presets);
       setTotalCount(result.count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load presets");
+      setError(extractErrorMessage(err, "Failed to load presets"));
     } finally {
       setLoading(false);
     }
@@ -60,7 +66,7 @@ export function usePromptPresets(params?: {
         await refresh();
         return created;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create preset");
+        setError(extractErrorMessage(err, "Failed to create preset"));
         return null;
       }
     },
@@ -75,7 +81,7 @@ export function usePromptPresets(params?: {
         await refresh();
         return updated;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update preset");
+        setError(extractErrorMessage(err, "Failed to update preset"));
         return null;
       }
     },
@@ -89,7 +95,7 @@ export function usePromptPresets(params?: {
         await getClient().deletePromptPreset(id);
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete preset");
+        setError(extractErrorMessage(err, "Failed to delete preset"));
       }
     },
     [refresh]

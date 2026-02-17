@@ -9,7 +9,7 @@
    * Hallō Properties Color Palette
    * Hallō-1: #403F3F (0 2% 25%) - Dark Gray
    * Hallō-2: #A4BFBF (180 17% 62%) - Sage Blue
-   * Hallō-3: #8C8880 (37 6% 52%) - Warm Gray
+   * Hallō-3: #6B665F (37 6% 40%) - Warm Gray (darkened for WCAG AA on Hallō-5)
    * Hallō-4: #F2D6BD (30 62% 84%) - Warm Beige
    * Hallō-5: #F2F2F2 (0 0% 95%) - Light Gray
    *
@@ -36,7 +36,7 @@
     --secondary: 37 6% 67%;
     --secondary-foreground: 0 2% 25%;
     --muted: 0 0% 95%;
-    --muted-foreground: 37 6% 52%;
+    --muted-foreground: 37 6% 40%;
     --accent: 30 62% 84%;
     --accent-foreground: 0 2% 25%;
     --destructive: 0 84.2% 60.2%;

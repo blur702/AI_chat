@@ -137,6 +137,7 @@ def make_message(
     content: str = "Hello",
     is_pinned: bool = False,
     is_excluded: bool = False,
+    is_deleted: bool = False,
 ) -> MagicMock:
     """Create a mock Message model."""
     msg = MagicMock()
@@ -146,6 +147,7 @@ def make_message(
     msg.message_metadata = {}
     msg.is_pinned = is_pinned
     msg.is_excluded = is_excluded
+    msg.is_deleted = is_deleted
     msg.created_at = datetime.now(timezone.utc)
     return msg
 

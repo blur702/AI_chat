@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from sqlalchemy import text
@@ -342,9 +343,50 @@ async def _seed_master_user() -> None:
 
 app = FastAPI(
     title="AI Workstation API",
-    description="Backend API for AI Workstation",
+    description=(
+        "Backend API for the AI Workstation platform.\n\n"
+        "## Authentication\n"
+        "All protected endpoints require a **JWT (HS256)** bearer token in the "
+        "`Authorization` header. Access tokens expire after **30 minutes**; "
+        "WebSocket tokens expire after **60 minutes**.\n\n"
+        "## Rate Limiting\n"
+        "- **Global**: 600 requests per 60 seconds per IP/path.\n"
+        "- **Login** (`POST /api/auth/login`): 5 requests per 900 seconds.\n\n"
+        "## WebSocket\n"
+        "Real-time event streaming is available at `GET /api/ws/events?token=<ws_token>`.\n\n"
+        "## Health\n"
+        "- `GET /api/health` -- basic liveness probe.\n"
+        "- `GET /api/health/ready` -- readiness probe (checks DB, Redis, GPU services).\n"
+    ),
     version="0.1.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "auth", "description": "Authentication and token management (login, register, refresh, WebSocket tokens)."},
+        {"name": "users", "description": "User profile and account operations."},
+        {"name": "resources", "description": "CRUD for kernel-managed resources (files, artifacts, outputs)."},
+        {"name": "events", "description": "Server-sent and historical event retrieval."},
+        {"name": "tools", "description": "Tool registry -- list, invoke, and inspect available kernel tools."},
+        {"name": "context", "description": "Conversation context and memory management."},
+        {"name": "projects", "description": "Project lifecycle -- create, list, update, delete, and import projects."},
+        {"name": "websocket", "description": "WebSocket endpoint for real-time bidirectional event streaming."},
+        {"name": "operations", "description": "Long-running operation tracking and status polling."},
+        {"name": "admin", "description": "Administrative endpoints for kernel state, diagnostics, and user management."},
+        {"name": "kb", "description": "Knowledge-base ingestion, search, and document management (pgvector)."},
+        {"name": "image", "description": "Image generation via ComfyUI -- submit prompts, poll status, retrieve outputs."},
+        {"name": "sandbox", "description": "Docker sandbox container management for project execution environments."},
+        {"name": "automation", "description": "Automated workflow and pipeline execution."},
+        {"name": "yolo", "description": "Unattended autonomous execution mode."},
+        {"name": "templates", "description": "Project templates -- list available stacks and scaffold new projects."},
+        {"name": "brevo", "description": "Brevo (Sendinblue) integration -- email, SMS, contacts, campaigns."},
+        {"name": "drupal", "description": "Remote Drupal site management via MCP bridge."},
+        {"name": "models", "description": "LLM model listing and selection (Ollama-backed)."},
+        {"name": "help", "description": "Help topics and onboarding content management."},
+        {"name": "ui-components", "description": "Reusable UI component registry and metadata."},
+        {"name": "planning", "description": "Multi-step plan generation, review, and execution."},
+        {"name": "drupal-local", "description": "Local Drupal development environment operations."},
+        {"name": "palettes", "description": "Color palette generation and theme management."},
+        {"name": "system-prompts", "description": "System prompt CRUD and per-conversation prompt assignment."},
+    ],
 )
 
 # CORS configuration
@@ -353,9 +395,25 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    expose_headers=["X-RateLimit-Remaining", "Retry-After"],
 )
+
+# CSRF protection for cookie-based auth
+from app.middleware.csrf_protection import CSRFProtectionMiddleware  # noqa: E402
+app.add_middleware(CSRFProtectionMiddleware, allowed_origins=cors_origins)
+
+# GZip compression for responses >= 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Request timing (X-Process-Time header + slow request logging)
+from app.middleware.timing import TimingMiddleware  # noqa: E402
+app.add_middleware(TimingMiddleware)
+
+# Security headers (X-Frame-Options, HSTS, etc.)
+from app.middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Rate limiting middleware (global safety net)
 from app.middleware.rate_limit import RateLimitMiddleware  # noqa: E402

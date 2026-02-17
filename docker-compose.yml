@@ -20,6 +20,9 @@ services:
   searxng:
     image: searxng/searxng:latest
     container_name: workstation-searxng
+    environment:
+      SEARX_SECRET_KEY: ${SEARX_SECRET_KEY:-change_me_searxng_secret}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme_strong_redis_password}
     expose:
       - "8080"
     volumes:

@@ -10,33 +10,41 @@ test.describe("Error handling", () => {
     await page.goto("/this-page-does-not-exist");
     // Should show 404 or redirect to a known page
     await page.waitForLoadState("domcontentloaded");
-    const url = page.url();
-    // Either shows 404 content or redirects
     const content = await page.textContent("body");
     expect(content).toBeTruthy();
   });
 
   test("unauthenticated access redirects to login", async ({ page }) => {
-    // Clear auth state
-    await page.goto("/login");
-    await page.evaluate(() => localStorage.clear());
+    // Clear all auth state
+    await page.context().clearCookies();
 
-    // Try to access a protected page
+    // Try to access a protected page — the 401 from getCurrentUser()
+    // triggers window.location.href = "/login"
     await page.goto("/chat");
-    await page.waitForURL("**/login", { timeout: 10_000 });
+    await page.waitForURL("**/login", { timeout: 15_000 });
     expect(page.url()).toContain("/login");
   });
 
-  test("expired token redirects to login", async ({ page }) => {
-    await page.goto("/login");
-    // Set an expired/invalid token
-    await page.evaluate(() => {
-      localStorage.setItem("workstation_token", "invalid.token.value");
-    });
+  test("expired/invalid cookie redirects to login", async ({ page }) => {
+    // Clear cookies and set an invalid auth cookie
+    await page.context().clearCookies();
 
-    await page.goto("/chat");
-    // Should redirect to login when API returns 401
-    await page.waitForURL("**/login", { timeout: 15_000 });
+    // Visit login first to get the domain, then set invalid cookie
+    await page.goto("/login");
+    const baseHost = new URL(page.url()).hostname;
+    await page.context().addCookies([
+      {
+        name: "workstation_token",
+        value: "invalid.token.value",
+        domain: baseHost,
+        path: "/",
+      },
+    ]);
+
+    // Navigate to protected page — backend rejects invalid cookie → 401 → redirect.
+    // The redirect may abort the navigation, so use "commit" wait strategy.
+    await page.goto("/chat", { waitUntil: "commit" }).catch(() => {});
+    await page.waitForURL("**/login**", { timeout: 15_000 });
     expect(page.url()).toContain("/login");
   });
 });

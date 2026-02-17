@@ -5,6 +5,12 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix ScrollArea provides a custom-styled scrollable container with cross-browser consistent scrollbar rendering.
+ * The scrollbar is rendered via ScrollBar and is keyboard and touch accessible.
+ * Use the orientation prop on ScrollBar to render a horizontal ("horizontal") or vertical ("vertical") scrollbar.
+ * The ScrollArea itself has overflow hidden — content scrolling is managed by the inner Viewport.
+ */
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>

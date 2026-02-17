@@ -1,28 +1,28 @@
 import type { Page } from "@playwright/test";
 import { resetLockout, flushRateLimits } from "./db";
-
-const ADMIN_PW = "Admin123!";
+import { ADMIN_ID, ADMIN_PW } from "./credentials";
 
 /**
- * Login as admin and navigate to a page. Reusable across E2E specs.
+ * Login as admin via API and navigate to a page. Uses cookie-based auth
+ * to avoid the redirect loop caused by AuthProvider's getCurrentUser() 401
+ * handler on the login page.
  */
 export async function loginAsAdmin(page: Page, redirectTo = "/chat") {
-  resetLockout("admin");
+  resetLockout(ADMIN_ID);
   flushRateLimits();
 
-  await page.goto("/login");
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForLoadState("domcontentloaded");
+  // Clear any existing cookies/state
+  await page.context().clearCookies();
 
-  await page.getByPlaceholder(/admin@workstation\.local/i).fill("admin");
-  await page.getByPlaceholder(/enter your password/i).fill(ADMIN_PW);
-  await page.getByRole("button", { name: /sign in/i }).click();
-
-  await page.waitForURL("**/chat", { timeout: 15_000 });
-
-  if (redirectTo !== "/chat") {
-    await page.goto(redirectTo);
-    await page.waitForLoadState("domcontentloaded");
+  // Login via API — sets the HttpOnly auth cookie in the browser context
+  const res = await page.request.post("/api/auth/login", {
+    data: { identifier: ADMIN_ID, password: ADMIN_PW },
+  });
+  if (res.status() !== 200) {
+    throw new Error(`loginAsAdmin API login failed: ${res.status()}`);
   }
+
+  // Navigate to target page
+  await page.goto(redirectTo);
+  await page.waitForLoadState("domcontentloaded");
 }

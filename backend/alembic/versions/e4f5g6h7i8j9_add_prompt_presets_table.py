@@ -31,6 +31,8 @@ def upgrade() -> None:
         sa.Column('tags', postgresql.ARRAY(sa.Text()), nullable=True),
         sa.Column('workflow_settings', postgresql.JSONB(), nullable=True),
         sa.Column('is_public', sa.Boolean(), nullable=False, server_default='false'),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
+        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

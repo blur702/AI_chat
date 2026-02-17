@@ -21,6 +21,7 @@ from app.api.context_deps import (
     get_ssh_client,
     validate_project_access,
 )
+from app.auth import get_user_id
 from app.models.drupal_site import DrupalSite
 from app.schemas.drupal import (
     CloneRequest,
@@ -113,7 +114,7 @@ async def connect_site(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Connect a remote Drupal site to a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Test connection first
@@ -171,7 +172,7 @@ async def get_site(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get the connected Drupal site info for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -194,7 +195,7 @@ async def disconnect_site(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Disconnect the Drupal site from a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -210,7 +211,7 @@ async def get_config(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Read remote Drupal site configuration."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -233,7 +234,7 @@ async def list_content_types(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """List all content types (node bundles) from the remote Drupal site."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -254,7 +255,7 @@ async def list_content(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """List nodes for a given content type bundle."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -280,7 +281,7 @@ async def create_content(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Create a new node of the given bundle type."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -319,7 +320,7 @@ async def update_content(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Update an existing node."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -357,7 +358,7 @@ async def run_drush(
     drupal: DrupalMCPService = Depends(get_drupal_mcp),
 ):
     """Execute a Drush command on the remote Drupal site."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     base_command = body.command.strip().split()[0] if body.command.strip() else ""
@@ -392,7 +393,7 @@ async def pull_site(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Pull database and files from remote Drupal into sandbox."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -427,7 +428,7 @@ async def push_config(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Push local config to remote Drupal site."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -454,7 +455,7 @@ async def sync_status(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Check sync status for a connected Drupal site."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     result = await db.execute(
@@ -510,7 +511,7 @@ async def staging_status(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Get the current staging sandbox status for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -547,7 +548,7 @@ async def clone_production(
     ssh: SSHClient = Depends(get_ssh_client),
 ):
     """Clone production Drupal site (DB + files) into a local sandbox."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     site = await _get_drupal_site(project_id, db)
@@ -703,7 +704,7 @@ async def push_to_production(
     ssh: SSHClient = Depends(get_ssh_client),
 ):
     """Push sandbox changes back to production VPS."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     if not body.confirm:
@@ -828,7 +829,7 @@ async def start_staging(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Start or restart the staging sandbox container."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     await _get_drupal_site(project_id, db)
@@ -857,7 +858,7 @@ async def stop_staging(
     sandbox_mgr: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Stop the staging sandbox container."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     try:

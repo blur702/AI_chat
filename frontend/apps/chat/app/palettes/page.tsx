@@ -227,6 +227,7 @@ export default function PalettesPage() {
                       setColors(next);
                     }}
                     className="h-9 w-14 rounded border"
+                    aria-label={`Color ${i + 1} picker`}
                   />
                   <Input
                     value={c.hex}
@@ -236,6 +237,7 @@ export default function PalettesPage() {
                       setColors(next);
                     }}
                     placeholder="#2563eb"
+                    aria-label={`Color ${i + 1} hex value`}
                   />
                   <Input
                     value={c.role ?? ""}
@@ -245,12 +247,14 @@ export default function PalettesPage() {
                       setColors(next);
                     }}
                     placeholder="role (primary, accent...)"
+                    aria-label={`Color ${i + 1} role`}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => setColors((prev) => prev.filter((_, idx) => idx !== i))}
                     disabled={colors.length <= 1}
+                    aria-label={`Remove color ${i + 1}`}
                   >
                     X
                   </Button>

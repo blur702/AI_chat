@@ -43,6 +43,9 @@ class KBSourceListResponse(BaseModel):
 
     sources: List[KBSourceResponse] = Field(default_factory=list)
     count: int = 0
+    total: Optional[int] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
 
 
 class KBChunkResponse(BaseModel):

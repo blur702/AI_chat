@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getClient } from "../client";
 import type { EventCreate, EventResponse, EventBroadcastResponse, EventStatsResponse } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseEventsReturn {
   events: EventResponse[];
@@ -12,6 +13,11 @@ interface UseEventsReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches kernel events with optional filtering by type, severity, source, and pagination.
+ * @param params - Optional filter parameters for the events query.
+ * @returns Event list, total count, loading/error state, and a `refresh` callback.
+ */
 export function useEvents(params?: {
   event_type?: string;
   severity?: string;
@@ -43,7 +49,7 @@ export function useEvents(params?: {
       setEvents(result.events);
       setTotal(result.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch events");
+      setError(extractErrorMessage(err, "Failed to fetch events"));
     } finally {
       setLoading(false);
     }
@@ -63,6 +69,10 @@ interface UseEventTypesReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches the list of distinct event type strings, with a 60-second in-memory cache.
+ * @returns Event type strings, loading/error state, and a `refresh` callback.
+ */
 export function useEventTypes(): UseEventTypesReturn {
   const [eventTypes, setEventTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +94,7 @@ export function useEventTypes(): UseEventTypesReturn {
       cacheRef.current = { types, fetchedAt: Date.now() };
       setEventTypes(types);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch event types");
+      setError(extractErrorMessage(err, "Failed to fetch event types"));
     } finally {
       setLoading(false);
     }
@@ -105,6 +115,10 @@ interface UseCreateEventReturn {
   clearError: () => void;
 }
 
+/**
+ * Provides a `createEvent` function for broadcasting a new kernel event.
+ * @returns `createEvent`, creating state, last result, error state, and `clearError`.
+ */
 export function useCreateEvent(): UseCreateEventReturn {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +132,7 @@ export function useCreateEvent(): UseCreateEventReturn {
       setLastResult(result);
       return result;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create event";
+      const message = extractErrorMessage(err, "Failed to create event");
       setError(message);
       throw err;
     } finally {
@@ -138,6 +152,10 @@ export interface UseEventStatsReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches aggregate event statistics from the kernel, ignoring state updates after unmount.
+ * @returns Event stats object, loading/error state, and a `refresh` callback.
+ */
 export function useEventStats(): UseEventStatsReturn {
   const [stats, setStats] = useState<EventStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +169,7 @@ export function useEventStats(): UseEventStatsReturn {
       const result = await getClient().getEventStats();
       if (!cancelledRef.current) setStats(result);
     } catch (err) {
-      if (!cancelledRef.current) setError(err instanceof Error ? err.message : "Failed to fetch event stats");
+      if (!cancelledRef.current) setError(extractErrorMessage(err, "Failed to fetch event stats"));
     } finally {
       if (!cancelledRef.current) setLoading(false);
     }

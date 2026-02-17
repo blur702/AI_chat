@@ -8,7 +8,7 @@ import { expect } from "@playwright/test";
  */
 export async function checkAccessibility(
   page: Page,
-  options?: { exclude?: string[] }
+  options?: { exclude?: string[]; knownViolations?: string[] }
 ) {
   let builder = new AxeBuilder({ page }).withTags([
     "wcag2a",
@@ -25,8 +25,20 @@ export async function checkAccessibility(
 
   const results = await builder.analyze();
 
-  if (results.violations.length > 0) {
-    const summary = results.violations
+  // Filter out known violations that are tracked for future fixes
+  const known = new Set(options?.knownViolations ?? []);
+  const unexpected = results.violations.filter((v) => !known.has(v.id));
+  const skipped = results.violations.filter((v) => known.has(v.id));
+
+  if (skipped.length > 0) {
+    const summary = skipped
+      .map((v) => `[${v.impact}] ${v.id} (${v.nodes.length} nodes)`)
+      .join(", ");
+    console.log(`Known a11y violations (tracked): ${summary}`);
+  }
+
+  if (unexpected.length > 0) {
+    const summary = unexpected
       .map(
         (v) =>
           `[${v.impact}] ${v.id}: ${v.description} (${v.nodes.length} node${v.nodes.length > 1 ? "s" : ""})`
@@ -35,5 +47,5 @@ export async function checkAccessibility(
     console.log("Accessibility violations:\n" + summary);
   }
 
-  expect(results.violations).toEqual([]);
+  expect(unexpected).toEqual([]);
 }

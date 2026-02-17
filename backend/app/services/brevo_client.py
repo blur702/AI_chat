@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from app.kernel.base import BaseKernelService
+from app.kernel.http_service import HttpKernelService
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,11 @@ def _extract_api_key_from_mcp_token(token: str) -> str:
     return data["api_key"]
 
 
-class BrevoClient(BaseKernelService):
+class BrevoClient(HttpKernelService):
     """Kernel service for Brevo email/SMS marketing via REST API."""
 
     def __init__(self) -> None:
-        self._running = False
-        self._client: Optional[httpx.AsyncClient] = None
+        super().__init__(BASE_URL)
 
         # Try BREVO_API_KEY first, then decode from BREVO_MCP_TOKEN
         self._api_key = os.getenv("BREVO_API_KEY", "")
@@ -49,8 +48,16 @@ class BrevoClient(BaseKernelService):
         return "brevo_client"
 
     @property
-    def is_running(self) -> bool:
-        return self._running
+    def _health_endpoint(self) -> str:
+        return "/account"
+
+    @property
+    def _default_headers(self) -> Dict[str, str]:
+        return {"api-key": self._api_key, "Accept": "application/json"}
+
+    @property
+    def _default_timeout(self) -> httpx.Timeout:
+        return httpx.Timeout(connect=5.0, read=30.0, write=5.0, pool=5.0)
 
     @property
     def is_configured(self) -> bool:
@@ -62,20 +69,7 @@ class BrevoClient(BaseKernelService):
         if not self._api_key:
             logger.warning("BrevoClient: no API key configured, service will be inactive")
             return
-        self._client = httpx.AsyncClient(
-            base_url=BASE_URL,
-            headers={"api-key": self._api_key, "Accept": "application/json"},
-            timeout=30.0,
-        )
-        self._running = True
-        logger.info("BrevoClient started")
-
-    async def shutdown(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._running = False
-        logger.info("BrevoClient stopped")
+        await super().startup()
 
     async def health_check(self) -> Tuple[bool, str]:
         if not self._running:
@@ -83,7 +77,7 @@ class BrevoClient(BaseKernelService):
         if not self._client:
             return True, "no API key configured"
         try:
-            resp = await self._client.get("/account")
+            resp = await self._client.get(self._health_endpoint)
             if resp.status_code == 200:
                 return True, "ok"
             return False, f"Brevo API returned {resp.status_code}"

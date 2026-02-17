@@ -41,6 +41,17 @@ interface UseConversationReturn {
   excludeMessage: (messageId: string, excluded: boolean) => Promise<boolean>;
 }
 
+/**
+ * Manages a full chat conversation including streaming responses, tool calls, and message CRUD.
+ * Supports draft mode (creates a chat on first message when `chatId` is null and `draftOptions` is provided).
+ * @param chatId - The ID of the existing chat to load, or `null` for draft mode.
+ * @param activeModel - Optional model override for message generation.
+ * @param draftOptions - Options used when creating a new chat in draft mode.
+ * @param chatMode - The current agent chat mode (e.g. "agent", "ask", "plan").
+ * @returns Conversation state, message list, streaming controls, and message mutation functions.
+ * @example
+ * const { messages, sendMessage, processing, cancelStream } = useConversation(chatId, activeModel);
+ */
 export function useConversation(
   chatId: string | null,
   activeModel?: string | null,
@@ -71,6 +82,12 @@ export function useConversation(
   // Prevent double-creation in draft mode
   const creatingChatRef = useRef(false);
 
+  // RAF-throttled streaming: buffer tokens, flush at ~60fps
+  const pendingTokensRef = useRef("");
+  const rafRef = useRef<number | null>(null);
+  const streamingIdRef = useRef<string | null>(null);
+  const streamingContentRef = useRef("");
+
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallInfo[]>([]);
   const [pendingApproval, setPendingApproval] = useState<StreamToolApprovalRequiredEvent | null>(null);
 
@@ -95,6 +112,12 @@ export function useConversation(
         clearTimeout(finishTimerRef.current);
         finishTimerRef.current = null;
       }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingTokensRef.current = "";
+      streamingIdRef.current = null;
       abortRef.current?.();
       abortRef.current = null;
     };
@@ -153,6 +176,13 @@ export function useConversation(
     if (!abortRef.current) return;
     abortRef.current();
     abortRef.current = null;
+    // Cancel any pending RAF flush
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingTokensRef.current = "";
+    streamingIdRef.current = null;
     clearProgress();
     setProcessing(false);
     setProgress(0);
@@ -229,31 +259,65 @@ export function useConversation(
 
       startProgress();
 
+      // Reset streaming refs
+      streamingIdRef.current = assistantTempId;
+      streamingContentRef.current = "";
+      pendingTokensRef.current = "";
+
+      const flushTokens = () => {
+        rafRef.current = null;
+        const accumulated = pendingTokensRef.current;
+        if (!accumulated) return;
+        pendingTokensRef.current = "";
+        streamingContentRef.current += accumulated;
+        const fullContent = streamingContentRef.current;
+        const targetId = streamingIdRef.current;
+        setConversation((prev) => {
+          if (!prev) return prev;
+          const idx = prev.messages.findIndex((m) => m.id === targetId);
+          if (idx === -1) return prev;
+          const next = prev.messages.slice();
+          next[idx] = { ...next[idx], content: fullContent };
+          return { ...prev, messages: next };
+        });
+      };
+
       const cancel = getClient().streamMessage(
         effectiveChatId,
         content,
-        // onToken
+        // onToken — buffered, flushed at ~60fps
         (token) => {
-          setConversation((prev) => {
-            if (!prev) return prev;
-            const msgs = prev.messages.map((m) =>
-              m.id === assistantTempId
-                ? { ...m, content: m.content + token }
-                : m
-            );
-            return { ...prev, messages: msgs };
-          });
+          pendingTokensRef.current += token;
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(flushTokens);
+          }
         },
         // onDone
         (data) => {
+          // Flush any remaining buffered tokens before finalizing
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+          if (pendingTokensRef.current) {
+            streamingContentRef.current += pendingTokensRef.current;
+            pendingTokensRef.current = "";
+          }
+          const finalContent = streamingContentRef.current;
+          streamingIdRef.current = null;
           setConversation((prev) => {
             if (!prev) return prev;
-            const msgs = prev.messages.map((m) =>
-              m.id === assistantTempId
-                ? { ...m, id: data.message_id, metadata: { model: data.model }, created_at: data.created_at ?? m.created_at }
-                : m
-            );
-            return { ...prev, messages: msgs };
+            const idx = prev.messages.findIndex((m) => m.id === assistantTempId);
+            if (idx === -1) return prev;
+            const next = prev.messages.slice();
+            next[idx] = {
+              ...next[idx],
+              id: data.message_id,
+              content: finalContent,
+              metadata: { model: data.model },
+              created_at: data.created_at ?? next[idx].created_at,
+            };
+            return { ...prev, messages: next };
           });
           setFromStreamRef.current(data);
           finishProgress();

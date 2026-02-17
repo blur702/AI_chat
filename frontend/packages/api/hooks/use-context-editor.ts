@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { getClient } from "../client";
 import type { AssembledContextResponse } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface ContextSearchResult {
   layerIndex: number;
@@ -25,6 +26,11 @@ export interface UseContextEditorReturn {
   clearSearch: () => void;
 }
 
+/**
+ * Loads the assembled context layers for a chat and exposes editing and in-memory search.
+ * @param chatId - The chat whose assembled context to fetch and edit.
+ * @returns Assembled context, search state, and functions to fetch, update compactions, update instructions, and search.
+ */
 export function useContextEditor(chatId: string): UseContextEditorReturn {
   const [assembledContext, setAssembledContext] = useState<AssembledContextResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +49,7 @@ export function useContextEditor(chatId: string): UseContextEditorReturn {
       const ctx = await getClient().getAssembledContext(chatId, model ?? modelRef.current);
       setAssembledContext(ctx);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch context");
+      setError(extractErrorMessage(err, "Failed to fetch context"));
     } finally {
       setLoading(false);
     }
@@ -57,7 +63,7 @@ export function useContextEditor(chatId: string): UseContextEditorReturn {
       await getClient().updateCompactionSummary(chatId, compactionId, summary);
       await fetchContext();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update compaction");
+      setError(extractErrorMessage(err, "Failed to update compaction"));
     } finally {
       setSaving(false);
     }
@@ -71,7 +77,7 @@ export function useContextEditor(chatId: string): UseContextEditorReturn {
       await getClient().updateChatInstructions(chatId, instructions);
       await fetchContext();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update instructions");
+      setError(extractErrorMessage(err, "Failed to update instructions"));
     } finally {
       setSaving(false);
     }

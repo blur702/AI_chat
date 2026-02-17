@@ -1,6 +1,7 @@
 """Shared test fixtures for the kernel test suite."""
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,7 +9,14 @@ import pytest
 import pytest_asyncio
 import fakeredis.aioredis
 
+# Set SECRET_KEY before any app imports that use it
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters-long-for-tests")
+
+from app.auth import get_jwt_secret_key
 from app.kernel import WorkstationKernel
+
+# Clear lru_cache in case it was populated before env var was set
+get_jwt_secret_key.cache_clear()
 
 
 # ---------------------------------------------------------------------------

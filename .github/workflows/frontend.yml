@@ -32,13 +32,23 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Prettier check
+        run: pnpm format:check
       - name: Lint
         run: pnpm lint
       - name: Type check
         run: pnpm type-check
       - name: Test (frontend)
-        run: pnpm test
+        run: pnpm test -- --coverage
       - name: Test (consolidated)
-        run: npx vitest run --config ../tests/frontend/vitest.config.ts
+        run: npx vitest run --config ../tests/frontend/vitest.config.ts --coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
       - name: Build
         run: pnpm build
+      - name: npm audit
+        run: pnpm audit --audit-level=high || true

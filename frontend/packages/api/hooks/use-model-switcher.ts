@@ -8,6 +8,7 @@ import type {
   RemoteModelInfo,
   ModelPullProgress,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export const ACTIVE_MODEL_KEY = "workstation_active_model";
 export const ACTIVE_MODEL_CHANGE_EVENT = "active-model-change";
@@ -31,6 +32,11 @@ export interface UseModelSwitcherReturn {
   getModelVramMb: (name: string) => number | null;
 }
 
+/**
+ * Manages Ollama model state including listing local/running/remote models, loading, unloading, pulling, and deletion.
+ * Persists the active model selection to `localStorage` and broadcasts changes via a custom DOM event.
+ * @returns Model lists, active model, pull progress, action loading state, and model management functions.
+ */
 export function useModelSwitcher(): UseModelSwitcherReturn {
   const [models, setModels] = useState<OllamaModelInfo[]>([]);
   const [runningModels, setRunningModels] = useState<RunningModelInfo[]>([]);
@@ -61,7 +67,7 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       setRunningModels(data.running);
       setRemoteModels(data.remote);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch models");
+      setError(extractErrorMessage(err, "Failed to fetch models"));
     } finally {
       setLoading(false);
     }
@@ -101,7 +107,7 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       await refresh();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load model");
+      setError(extractErrorMessage(err, "Failed to load model"));
       return false;
     } finally {
       setActionLoading(null);
@@ -116,7 +122,7 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       await refresh();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unload model");
+      setError(extractErrorMessage(err, "Failed to unload model"));
       return false;
     } finally {
       setActionLoading(null);
@@ -182,7 +188,7 @@ export function useModelSwitcher(): UseModelSwitcherReturn {
       await refresh();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete model");
+      setError(extractErrorMessage(err, "Failed to delete model"));
       return false;
     } finally {
       setActionLoading(null);

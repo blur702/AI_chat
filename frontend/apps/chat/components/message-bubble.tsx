@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo, useMemo } from "react";
 import { cn, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@workstation/ui";
 import { User, Bot, Pin, PinOff, EyeOff, Eye, Pencil, Trash2, Check, X } from "lucide-react";
 import { CodeBlock } from "./code-block";
@@ -9,7 +9,7 @@ interface MessageBubbleProps {
   id: string;
   role: string;
   content: string;
-  timestamp?: string;
+  createdAt?: string;
   isPinned?: boolean;
   isExcluded?: boolean;
   onPin?: (id: string, pinned: boolean) => void;
@@ -45,11 +45,11 @@ function parseCodeBlocks(
   return parts.length > 0 ? parts : [{ type: "text", content }];
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   id,
   role,
   content,
-  timestamp,
+  createdAt,
   isPinned = false,
   isExcluded = false,
   onPin,
@@ -60,7 +60,11 @@ export function MessageBubble({
   const isUser = role === "user";
   const isTemp = id.startsWith("temp-");
   const hasActions = !isTemp && (onPin || onExclude || onEdit || onDelete);
-  const parts = parseCodeBlocks(content);
+  const parts = useMemo(() => parseCodeBlocks(content), [content]);
+  const timestamp = useMemo(
+    () => createdAt ? new Date(createdAt).toLocaleTimeString() : undefined,
+    [createdAt]
+  );
 
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -284,4 +288,4 @@ export function MessageBubble({
       )}
     </div>
   );
-}
+});

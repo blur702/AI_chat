@@ -156,6 +156,27 @@ def get_user_id_from_token(token: str) -> Optional[UUID]:
         return None
 
 
+def get_user_id(payload: dict) -> UUID:
+    """Extract and validate ``user_id`` from a decoded JWT payload.
+
+    Raises:
+        HTTPException 401: If ``user_id`` is missing or malformed.
+    """
+    raw = payload.get("user_id")
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user_id",
+        )
+    try:
+        return UUID(raw)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: malformed user_id",
+        )
+
+
 def create_websocket_token(user_id: UUID, expires_minutes: int = 60) -> str:
     """
     Create a JWT token specifically for WebSocket connections.
@@ -232,6 +253,17 @@ def get_current_user_payload(
         HTTPException 401: If token is missing or invalid.
     """
     return validate_bearer_token(authorization, request)
+
+
+def get_optional_user_payload(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+) -> Optional[dict]:
+    """Like get_current_user_payload but returns None instead of raising 401."""
+    try:
+        return validate_bearer_token(authorization, request)
+    except HTTPException:
+        return None
 
 
 def require_admin(

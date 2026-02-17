@@ -15,6 +15,7 @@ from app.api.context_deps import (
     validate_chat_access,
     validate_project_access,
 )
+from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.models.chat import Chat
 from app.models.system_prompt import SystemPrompt
@@ -44,7 +45,7 @@ async def _validate_system_prompt_ownership(
     result = await db.execute(
         select(SystemPrompt).where(
             SystemPrompt.id == system_prompt_id,
-            SystemPrompt.user_id == UUID(user_id),
+            SystemPrompt.user_id == user_id,
             SystemPrompt.is_deleted == False,  # noqa: E712
         )
     )
@@ -63,7 +64,7 @@ async def create_chat(
     db: AsyncSession = Depends(get_db_session),
 ) -> ChatCreateResponse:
     """Create a new chat within a project."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(body.project_id, user_id, db)
     await _validate_system_prompt_ownership(body.system_prompt_id, user_id, db)
 
@@ -100,7 +101,7 @@ async def update_chat(
     db: AsyncSession = Depends(get_db_session),
 ) -> ChatUpdateResponse:
     """Update a chat's title, pin, or archive status."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     result = await db.execute(
@@ -150,7 +151,7 @@ async def delete_chat(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Soft-delete a chat."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     result = await db.execute(
@@ -184,7 +185,7 @@ async def get_or_create_default_chat(
     cm: ContextManager = Depends(get_context_manager),
 ) -> dict:
     """Get or create the default sandbox chat for a project."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     result = await db.execute(
@@ -238,7 +239,7 @@ async def get_project_context(
     db: AsyncSession = Depends(get_db_session),
 ) -> ProjectContextResponse:
     """Retrieve project-level context including metadata and chat list."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     context = await cm.get_project_context(project_id)
@@ -259,7 +260,7 @@ async def get_project_chats(
     db: AsyncSession = Depends(get_db_session),
 ) -> ChatListResponse:
     """List all non-deleted chats belonging to a project."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     chats = await cm.get_all_chats_in_project(project_id)

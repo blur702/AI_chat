@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { getClient } from "../client";
 import type { KBChunk } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 const PAGE_SIZE = 50;
 
@@ -14,6 +15,10 @@ export interface UseKnowledgeBaseReturn {
   getChunks: (sourceId: string, skip?: number, limit?: number) => Promise<void>;
 }
 
+/**
+ * Fetches paginated chunks for a KB source, estimating total count from the returned page size.
+ * @returns Chunk list, total estimate, loading/error state, and a `getChunks` function.
+ */
 export function useKnowledgeBase(): UseKnowledgeBaseReturn {
   const [chunks, setChunks] = useState<KBChunk[]>([]);
   const [chunksLoading, setChunksLoading] = useState(false);
@@ -36,7 +41,7 @@ export function useKnowledgeBase(): UseKnowledgeBaseReturn {
         );
       } catch (err) {
         setChunksError(
-          err instanceof Error ? err.message : "Failed to load chunks"
+          extractErrorMessage(err, "Failed to load chunks")
         );
         setChunks([]);
         setTotalChunks(0);

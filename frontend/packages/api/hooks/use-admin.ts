@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getClient } from "../client";
 import type { KernelMetrics, KernelDebugInfo, ServiceDebugInfo } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseAdminReturn {
   metrics: KernelMetrics | null;
@@ -21,6 +22,10 @@ interface UseAdminReturn {
   lastUpdated: Date | null;
 }
 
+/**
+ * Fetches kernel metrics and debug info for the admin panel, with optional auto-refresh.
+ * @returns Metrics, debug info, loading/error state, refresh callbacks, and auto-refresh controls.
+ */
 export function useAdmin(): UseAdminReturn {
   const [metrics, setMetrics] = useState<KernelMetrics | null>(null);
   const [debugInfo, setDebugInfo] = useState<KernelDebugInfo | null>(null);
@@ -43,7 +48,7 @@ export function useAdmin(): UseAdminReturn {
       setMetrics(data);
       setLastUpdated(new Date());
     } catch (err) {
-      setMetricsError(err instanceof Error ? err.message : "Failed to load metrics");
+      setMetricsError(extractErrorMessage(err, "Failed to load metrics"));
     } finally {
       setMetricsLoading(false);
     }
@@ -57,7 +62,7 @@ export function useAdmin(): UseAdminReturn {
       setDebugInfo(data);
       setLastUpdated(new Date());
     } catch (err) {
-      setDebugError(err instanceof Error ? err.message : "Failed to load debug info");
+      setDebugError(extractErrorMessage(err, "Failed to load debug info"));
     } finally {
       setDebugLoading(false);
     }

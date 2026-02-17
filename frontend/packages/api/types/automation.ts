@@ -2,7 +2,7 @@ export interface AutomationAction {
   id: string;
   project_id: string;
   action_type: string;
-  action_data?: Record<string, any>;
+  action_data?: Record<string, unknown>;
   user_approved: boolean;
   executed_at?: string;
   created_at: string;
@@ -17,6 +17,6 @@ export interface AutomationActionListResponse {
 export interface AutomationActionExecuteResponse {
   id: string;
   status: string;
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
   executed_at?: string;
 }

@@ -105,16 +105,23 @@ class ImageGenerationRequest(BaseModel):
         description="Source generation to upscale from",
     )
 
+    # ~28 MB base64 ≈ 20 MB decoded
+    _MAX_BASE64_LENGTH = 28 * 1024 * 1024
+
     @field_validator(
         "input_image", "mask_image", "target_image", "reference_image", "controlnet_image",
         mode="before",
     )
     @classmethod
     def validate_image_source(cls, v: str | None) -> str | None:
-        """Reject path traversal in image filenames (base64 data URLs pass through)."""
+        """Reject path traversal in image filenames and oversized base64 data URLs."""
         if v is None:
             return v
         if v.startswith("data:"):
+            if len(v) > cls._MAX_BASE64_LENGTH:
+                raise ValueError(
+                    "Base64 image data URL exceeds maximum size (~20 MB decoded)"
+                )
             return v
         if ".." in v or "/" in v or "\\" in v:
             raise ValueError("Image filename must not contain path separators or '..'")

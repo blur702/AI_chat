@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { ChatSummary, ChatUpdateRequest } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseChatsReturn {
   chats: ChatSummary[];
@@ -14,6 +15,14 @@ interface UseChatsReturn {
   deleteChat: (chatId: string) => Promise<boolean>;
 }
 
+/**
+ * Manages the list of chats within a project, including creation, update, and deletion.
+ * Re-fetches automatically when `projectId` changes.
+ * @param projectId - The ID of the project whose chats to manage, or `null` to clear state.
+ * @returns Chat list, loading/error state, and functions to create, update, and delete chats.
+ * @example
+ * const { chats, createChat, deleteChat } = useChats(projectId);
+ */
 export function useChats(projectId: string | null): UseChatsReturn {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,7 +36,7 @@ export function useChats(projectId: string | null): UseChatsReturn {
       const res = await getClient().getProjectChats(projectId);
       setChats(res.chats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch chats");
+      setError(extractErrorMessage(err, "Failed to fetch chats"));
     } finally {
       setLoading(false);
     }
@@ -50,7 +59,7 @@ export function useChats(projectId: string | null): UseChatsReturn {
         await refresh();
         return res.id;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create chat");
+        setError(extractErrorMessage(err, "Failed to create chat"));
         return null;
       }
     },
@@ -77,7 +86,7 @@ export function useChats(projectId: string | null): UseChatsReturn {
         );
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update chat");
+        setError(extractErrorMessage(err, "Failed to update chat"));
         return false;
       }
     },
@@ -92,7 +101,7 @@ export function useChats(projectId: string | null): UseChatsReturn {
         setChats((prev) => prev.filter((c) => c.id !== chatId));
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete chat");
+        setError(extractErrorMessage(err, "Failed to delete chat"));
         return false;
       }
     },

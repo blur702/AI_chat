@@ -13,7 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
+from app.auth import get_current_user_payload, get_user_id
 from app.api.context_deps import get_sandbox_manager, validate_project_access_with_template
 from app.database import get_db_session
 from app.models.yolo_edit import YoloEdit
@@ -152,17 +152,6 @@ def _build_tree(flat_items: list[dict]) -> list[FileNodeResponse]:
     return roots
 
 
-def _extract_user_id(payload: dict) -> str:
-    """Extract and validate user_id from JWT payload. Raises 401 if missing."""
-    user_id = payload.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: missing user_id",
-        )
-    return user_id
-
-
 # -------------------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------------------
@@ -176,8 +165,8 @@ async def stop_sandbox(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ) -> SandboxStopResponse:
     """Stop and remove the sandbox container for a project."""
-    user_id = _extract_user_id(payload)
-    await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    await validate_project_access_with_template(project_id, str(user_id), db)
 
     if not sm.is_running:
         raise HTTPException(
@@ -197,8 +186,8 @@ async def list_files(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """List the file tree for a project sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     container_id = await sm.get_or_create_container(project_id, template_id=template_id)
     flat_items = await sm.list_directory_recursive(container_id)
@@ -216,8 +205,8 @@ async def get_file_content(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Read the content of a file in the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     clean_path = _sanitize_path(path)
     abs_path = f"/workspace/{clean_path}"
@@ -245,8 +234,8 @@ async def create_file(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Create a new file in the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     clean_path = _sanitize_path(body.path)
     abs_path = f"/workspace/{clean_path}"
@@ -275,8 +264,8 @@ async def create_directory(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Create a new directory in the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     clean_path = _sanitize_path(body.path)
     abs_path = f"/workspace/{clean_path}"
@@ -297,8 +286,8 @@ async def update_file(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Update the content of a file in the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     clean_path = _sanitize_path(body.path)
     abs_path = f"/workspace/{clean_path}"
@@ -366,8 +355,8 @@ async def rename_file(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Rename or move a file/directory in the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     old_clean = _sanitize_path(body.old_path)
     new_clean = _sanitize_path(body.new_path)
@@ -405,8 +394,8 @@ async def delete_file(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Delete a file or directory from the sandbox."""
-    user_id = _extract_user_id(payload)
-    template_id = await validate_project_access_with_template(project_id, user_id, db)
+    user_id = get_user_id(payload)
+    template_id = await validate_project_access_with_template(project_id, str(user_id), db)
 
     clean_path = _sanitize_path(path)
     abs_path = f"/workspace/{clean_path}"

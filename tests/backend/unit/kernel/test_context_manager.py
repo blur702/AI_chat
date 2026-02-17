@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.kernel.context_manager import ContextManager
-from tests.backend.unit.kernel.test_helpers import (
+from .test_helpers import (
     assert_redis_key_exists,
     assert_redis_key_absent,
     assert_redis_key_ttl,

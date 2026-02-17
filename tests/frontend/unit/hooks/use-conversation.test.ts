@@ -123,15 +123,9 @@ describe('useConversation', () => {
     };
 
     mockClient.getConversationState.mockResolvedValue(mockConversation);
-    mockClient.streamMessage.mockImplementation((chatId, content, onToken, onDone) => {
-      // Simulate successful stream
-      setTimeout(() => {
-        onDone({
-          message_id: 'msg-2',
-          role: 'assistant',
-          content: 'Response',
-        });
-      }, 50);
+    let capturedOnDone: any;
+    mockClient.streamMessage.mockImplementation((_chatId: any, _content: any, _onToken: any, onDone: any) => {
+      capturedOnDone = onDone;
       return vi.fn(); // cancel function
     });
 
@@ -158,6 +152,15 @@ describe('useConversation', () => {
       expect.any(Function),
       expect.any(Function),
     );
+
+    // Complete the stream explicitly instead of relying on setTimeout
+    await act(async () => {
+      capturedOnDone({
+        message_id: 'msg-2',
+        role: 'assistant',
+        content: 'Response',
+      });
+    });
 
     await waitFor(() => {
       expect(result.current.processing).toBe(false);
@@ -350,5 +353,111 @@ describe('useConversation', () => {
     expect(mockClient.updateMessage).toHaveBeenCalledWith('chat-1', 'msg-1', {
       is_excluded: true,
     });
+  });
+
+  // --- Draft mode tests ---
+
+  it('sendMessage in draft mode creates a chat first', async () => {
+    const onChatCreated = vi.fn();
+    mockClient.createChat.mockResolvedValue({ id: 'new-chat-1' });
+    let capturedOnDone: any;
+    mockClient.streamMessage.mockImplementation((_chatId: any, _content: any, _onToken: any, onDone: any) => {
+      capturedOnDone = onDone;
+      return vi.fn();
+    });
+
+    const draftOptions = { projectId: 'proj-1', onChatCreated };
+    const { result } = renderHook(() => useConversation(null, undefined, draftOptions));
+
+    let sendResult: boolean = false;
+    await act(async () => {
+      sendResult = await result.current.sendMessage('First message');
+    });
+
+    expect(sendResult).toBe(true);
+    expect(mockClient.createChat).toHaveBeenCalledWith('proj-1', 'New Chat');
+    expect(onChatCreated).toHaveBeenCalledWith('new-chat-1');
+    expect(mockClient.streamMessage).toHaveBeenCalledWith(
+      'new-chat-1',
+      'First message',
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+      undefined,
+      undefined,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
+
+    // Complete stream
+    await act(async () => {
+      capturedOnDone({ message_id: 'msg-1', role: 'assistant', content: 'Hi' });
+    });
+  });
+
+  it('sendMessage in draft mode handles create failure', async () => {
+    mockClient.createChat.mockRejectedValue(new Error('Create failed'));
+
+    const draftOptions = { projectId: 'proj-1' };
+    const { result } = renderHook(() => useConversation(null, undefined, draftOptions));
+
+    let sendResult: boolean = true;
+    await act(async () => {
+      sendResult = await result.current.sendMessage('Hello');
+    });
+
+    expect(sendResult).toBe(false);
+    expect(result.current.error).toBe('Create failed');
+  });
+
+  // --- Tool approval tests ---
+
+  it('approveToolCall calls submitToolApproval and clears pending', async () => {
+    mockClient.submitToolApproval.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useConversation('chat-1'));
+
+    await act(async () => {
+      await result.current.approveToolCall('call-1', { param: 'value' });
+    });
+
+    expect(mockClient.submitToolApproval).toHaveBeenCalledWith('call-1', true, { param: 'value' });
+  });
+
+  it('denyToolCall calls submitToolApproval with false', async () => {
+    mockClient.submitToolApproval.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useConversation('chat-1'));
+
+    await act(async () => {
+      await result.current.denyToolCall('call-1');
+    });
+
+    expect(mockClient.submitToolApproval).toHaveBeenCalledWith('call-1', false);
+  });
+
+  it('approveToolCall sets error on failure', async () => {
+    mockClient.submitToolApproval.mockRejectedValue(new Error('Network'));
+
+    const { result } = renderHook(() => useConversation('chat-1'));
+
+    await act(async () => {
+      await result.current.approveToolCall('call-1');
+    });
+
+    expect(result.current.error).toBe('Failed to submit tool approval');
+  });
+
+  it('denyToolCall sets error on failure', async () => {
+    mockClient.submitToolApproval.mockRejectedValue(new Error('Network'));
+
+    const { result } = renderHook(() => useConversation('chat-1'));
+
+    await act(async () => {
+      await result.current.denyToolCall('call-1');
+    });
+
+    expect(result.current.error).toBe('Failed to submit tool denial');
   });
 });

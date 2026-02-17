@@ -8,13 +8,17 @@
     "lint": "pnpm -r lint",
     "type-check": "pnpm -r type-check",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "vitest": "^4.0.0",
-    "@testing-library/react": "^16.1.0",
     "@testing-library/jest-dom": "^6.6.0",
-    "jsdom": "^28.0.0"
+    "@testing-library/react": "^16.1.0",
+    "jsdom": "^28.0.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "vitest": "^4.0.0"
   },
   "engines": {
     "node": ">=20.19",
@@ -24,5 +28,8 @@
     "overrides": {
       "dompurify": "^3.2.4"
     }
+  },
+  "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.12"
   }
 }

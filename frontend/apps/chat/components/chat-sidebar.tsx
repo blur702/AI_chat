@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, memo, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -26,7 +26,7 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette, ImageIcon } from "lucide-react";
 import { useHelp } from "./help/help-provider";
 import { t } from "@/lib/i18n";
 
@@ -146,6 +146,15 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
     [updateChat]
   );
 
+  const handleOpenRename = useCallback((id: string, title: string) => {
+    setRenameTarget({ id, title });
+    setRenameValue(title);
+  }, []);
+
+  const handleOpenDelete = useCallback((id: string, title: string) => {
+    setDeleteTarget({ id, title });
+  }, []);
+
   const sidebarContent = (
     <SidebarContent
       projectId={projectId}
@@ -157,11 +166,8 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
       onChatSelect={handleChatSelect}
       onNewChat={handleNewChat}
       onLogout={handleLogout}
-      onRename={(id, title) => {
-        setRenameTarget({ id, title });
-        setRenameValue(title);
-      }}
-      onDelete={(id, title) => setDeleteTarget({ id, title })}
+      onRename={handleOpenRename}
+      onDelete={handleOpenDelete}
       onTogglePin={handleTogglePin}
       onToggleArchive={handleToggleArchive}
       onHelp={openHelp}
@@ -278,7 +284,7 @@ interface SidebarContentProps {
   onToggleArchive: (id: string, currentlyArchived: boolean) => void;
 }
 
-function SidebarContent({
+const SidebarContent = memo(function SidebarContent({
   projectId,
   chats,
   pathname,
@@ -294,9 +300,9 @@ function SidebarContent({
   onTogglePin,
   onToggleArchive,
 }: SidebarContentProps) {
-  const pinnedChats = chats.filter((c) => c.is_pinned && !c.is_archived);
-  const regularChats = chats.filter((c) => !c.is_pinned && !c.is_archived);
-  const archivedChats = chats.filter((c) => c.is_archived);
+  const pinnedChats = useMemo(() => chats.filter((c) => c.is_pinned && !c.is_archived), [chats]);
+  const regularChats = useMemo(() => chats.filter((c) => !c.is_pinned && !c.is_archived), [chats]);
+  const archivedChats = useMemo(() => chats.filter((c) => c.is_archived), [chats]);
 
   return (
     <>
@@ -478,6 +484,21 @@ function SidebarContent({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
+              <Link
+                href={`/workspace/${typeof window !== "undefined" ? localStorage.getItem("workstation_chat_project_id") ?? "" : ""}/image-gen`}
+                onClick={onChatSelect}
+                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">{t("Images")}</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Generate and browse AI images</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
                 onClick={() => onHelp()}
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -511,9 +532,9 @@ function SidebarContent({
       </TooltipProvider>
     </>
   );
-}
+});
 
-function ChatItem({
+const ChatItem = memo(function ChatItem({
   chat,
   isActive,
   onSelect,
@@ -622,4 +643,4 @@ function ChatItem({
       </ContextMenuContent>
     </ContextMenu>
   );
-}
+});

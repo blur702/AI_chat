@@ -6,6 +6,14 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix DropdownMenu provides a button-triggered overlay menu with full keyboard navigation.
+ * The trigger receives aria-haspopup="menu" and aria-expanded automatically.
+ * Arrow keys navigate items; Escape closes the menu and returns focus to the trigger.
+ * DropdownMenuItem accepts a shortcut prop forwarded to aria-keyshortcuts.
+ * Keyboard shortcuts displayed via DropdownMenuShortcut are visual-only (aria-hidden="true").
+ * All interactive items meet the 44px minimum touch target height.
+ */
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
 const DropdownMenuTrigger = React.forwardRef<

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.api.context_deps import get_current_user_payload
+from app.auth import get_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ async def submit_tool_approval(
     message = json.dumps({
         "approved": body.approved,
         "modified_arguments": body.modified_arguments,
-        "user_id": payload.get("user_id", ""),
+        "user_id": str(get_user_id(payload)),
     })
 
     try:

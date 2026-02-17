@@ -21,8 +21,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
-from app.api.context_deps import get_sandbox_manager, validate_project_access, validate_project_access_with_template
+from app.api.context_deps import (
+    get_current_user_payload,
+    get_sandbox_manager,
+    validate_project_access,
+    validate_project_access_with_template,
+)
+from app.auth import get_user_id
 from app.database import get_db_session
 from app.models.project import Project
 from app.models.project_import import ProjectImport
@@ -69,13 +74,13 @@ async def import_from_git(
     db: AsyncSession = Depends(get_db_session),
 ) -> GitImportResponse:
     """Start an async git clone import."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     # Create project
     project = Project(
         name=data.name,
         path=data.path or data.name.lower().replace(" ", "-"),
-        user_id=UUID(user_id),
+        user_id=user_id,
         type="importing",
     )
     db.add(project)
@@ -83,7 +88,7 @@ async def import_from_git(
 
     # Create import record
     import_record = ProjectImport(
-        user_id=UUID(user_id),
+        user_id=user_id,
         project_id=project.id,
         import_type="git",
         source_url=data.git_url,
@@ -141,7 +146,7 @@ async def import_from_archive(
     db: AsyncSession = Depends(get_db_session),
 ) -> ArchiveUploadResponse:
     """Upload an archive and start async import."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     # Validate filename
     filename = file.filename or ""
@@ -188,7 +193,7 @@ async def import_from_archive(
     project = Project(
         name=name,
         path=path or name.lower().replace(" ", "-"),
-        user_id=UUID(user_id),
+        user_id=user_id,
         type="importing",
     )
     db.add(project)
@@ -196,7 +201,7 @@ async def import_from_archive(
 
     # Create import record
     import_record = ProjectImport(
-        user_id=UUID(user_id),
+        user_id=user_id,
         project_id=project.id,
         import_type="upload",
         source_url=filename,
@@ -257,19 +262,19 @@ async def import_from_website(
     db: AsyncSession = Depends(get_db_session),
 ) -> WebsiteImportResponse:
     """Mirror a website into a new project using an async worker job."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     project = Project(
         name=data.name,
         path=data.path or data.name.lower().replace(" ", "-"),
-        user_id=UUID(user_id),
+        user_id=user_id,
         type="importing",
     )
     db.add(project)
     await db.flush()
 
     import_record = ProjectImport(
-        user_id=UUID(user_id),
+        user_id=user_id,
         project_id=project.id,
         import_type="website",
         source_url=data.website_url,
@@ -326,7 +331,7 @@ async def get_import_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImportStatusResponse:
     """Poll the status of an import job."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(ProjectImport).where(ProjectImport.id == import_id)
@@ -377,7 +382,7 @@ async def detect_project_type(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> DetectionResultResponse:
     """Detect the project type from container files."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     template_id = await validate_project_access_with_template(project_id, user_id, db)
 
     container_id = await sandbox.get_or_create_container(project_id, template_id=template_id)
@@ -404,7 +409,7 @@ async def export_project(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ):
     """Stream the workspace as a tar download."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     template_id = await validate_project_access_with_template(project_id, user_id, db)
 
     # Ensure container is running
@@ -437,7 +442,7 @@ async def clone_project(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> CloneProjectResponse:
     """Clone a project with its workspace data."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Load source project for type info
@@ -450,7 +455,7 @@ async def clone_project(
     new_project = Project(
         name=data.name,
         path=data.path or data.name.lower().replace(" ", "-"),
-        user_id=UUID(user_id),
+        user_id=user_id,
         type=src_project.type,
     )
     db.add(new_project)
@@ -485,7 +490,7 @@ async def create_snapshot(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> SnapshotInfo:
     """Create a named snapshot of the project container."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     image_id = await sandbox.create_snapshot(project_id, data.name)
@@ -507,7 +512,7 @@ async def list_snapshots(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> SnapshotListResponse:
     """List all snapshots for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     snapshots = await sandbox.list_snapshots(project_id)
@@ -530,7 +535,7 @@ async def restore_snapshot(
 ) -> SnapshotRestoreResponse:
     """Restore a container from a named snapshot."""
     import re as _re
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Sanitize snapshot_name to prevent Docker image name injection
@@ -567,7 +572,7 @@ async def delete_snapshot(
 ) -> None:
     """Delete a named snapshot."""
     import re as _re
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Sanitize snapshot_name to prevent Docker image name injection
@@ -614,7 +619,7 @@ async def export_as_docker_image(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> DockerExportResponse:
     """Export a project as a portable Docker image with optional compose file."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     template_id = await validate_project_access_with_template(
         project_id, user_id, db
     )
@@ -646,7 +651,7 @@ async def download_docker_tar(
 ):
     """Download a Docker image as a tar archive."""
     import re
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Validate image_id format strictly as sha256 digest

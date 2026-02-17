@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.kernel.tool_registry import ToolRegistry
-from tests.backend.unit.kernel.test_helpers import (
+from .test_helpers import (
     FailingTool,
     MockTool,
     assert_redis_key_exists,

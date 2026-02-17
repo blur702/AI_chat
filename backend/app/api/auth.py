@@ -25,10 +25,12 @@ from app.auth import (
 )
 from app.database import get_db_session
 from app.middleware.rate_limit import (
+    rate_limit,
     rate_limit_login,
     rate_limit_password_change,
     rate_limit_password_reset,
     rate_limit_user_creation,
+    get_user_identifier,
 )
 from app.models.user import User, is_master_user
 from app.models.utils import hash_password, validate_password_strength, verify_password
@@ -176,6 +178,62 @@ async def logout(request: Request, response: Response) -> dict:
     """Clear browser authentication cookie."""
     clear_auth_cookie(response, request)
     return {"message": "Logged out"}
+
+
+rate_limit_token_refresh = rate_limit(
+    max_requests=20,
+    window_seconds=3600,
+    key_func=get_user_identifier,
+)
+
+
+@router.post("/refresh")
+@rate_limit_token_refresh
+async def refresh_token(
+    request: Request,
+    response: Response,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Issue a fresh access token using the current valid token."""
+    meta = extract_request_metadata(request)
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user_id",
+        )
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_active == True)  # noqa: E712
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+
+    access_token = create_access_token(
+        data={
+            "user_id": str(user.id),
+            "role": user.role,
+            "username": user.username,
+        }
+    )
+    set_auth_cookie(response, access_token, request)
+
+    await log_security_event(
+        db, action="token_refresh", event_status="success",
+        user_id=user.id,
+        ip_address=meta["ip_address"], user_agent=meta["user_agent"],
+    )
+    await db.commit()
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post(
@@ -407,6 +465,7 @@ async def update_user_profile_alias(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
+    """Backward-compatible alias for updating a user profile at /api/auth/users/{user_id}."""
     return await _update_user_profile_handler(user_id, body, request, payload, db)
 
 

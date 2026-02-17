@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { UIComponentInfo } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseUIComponentsReturn {
   components: UIComponentInfo[];
@@ -12,6 +13,11 @@ export interface UseUIComponentsReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches UI component definitions with optional filtering by category, framework, and tags.
+ * @param params - Optional filter parameters for category, framework, and tag strings.
+ * @returns Component list, category list, loading/error state, and a `refresh` callback.
+ */
 export function useUIComponents(params?: {
   category?: string;
   framework?: string;
@@ -38,7 +44,7 @@ export function useUIComponents(params?: {
       setComponents(res.components);
       setCategories(res.categories);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load UI components");
+      setError(extractErrorMessage(err, "Failed to load UI components"));
     } finally {
       setLoading(false);
     }

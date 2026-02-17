@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
+from app.auth import get_current_user_payload, get_user_id
 from app.api.context_deps import get_sandbox_manager, validate_project_access, validate_project_access_with_template
 from app.database import get_db_session
 from app.models.yolo_edit import YoloEdit
@@ -114,7 +114,7 @@ async def create_edit(
     db: AsyncSession = Depends(get_db_session),
 ) -> YoloEditResponse:
     """Record a new file edit for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     project_id = UUID(body.project_id)
     await validate_project_access(project_id, user_id, db)
 
@@ -150,7 +150,7 @@ async def list_edits(
     db: AsyncSession = Depends(get_db_session),
 ) -> YoloEditListResponse:
     """List edit history for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     base = select(YoloEdit).where(YoloEdit.project_id == project_id)
@@ -190,7 +190,7 @@ async def get_edit_detail(
     db: AsyncSession = Depends(get_db_session),
 ) -> YoloEditResponse:
     """Get details for a single edit including undo data."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     edit = await _get_edit_with_access(edit_id, user_id, db)
     return _edit_to_response(edit, include_undo_data=True)
 
@@ -211,7 +211,7 @@ async def undo_edit(
     sm: SandboxManager = Depends(get_sandbox_manager),
 ) -> YoloEditUndoResponse:
     """Revert file changes by restoring previous content."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     edit = await _get_edit_with_access(edit_id, user_id, db)
 
     if edit.undo_performed:

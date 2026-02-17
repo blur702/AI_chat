@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
+import { extractErrorMessage } from "../utils/error";
 import type {
   DrupalConnectRequest,
   DrupalSiteInfo,
@@ -63,6 +64,12 @@ export interface UseDrupalReturn {
   refreshStaging: () => Promise<void>;
 }
 
+/**
+ * Manages the Drupal site connection for a project, including sync, Drush, content CRUD, and staging operations.
+ * Resets and re-fetches all state when `projectId` changes.
+ * @param projectId - The project associated with the Drupal site.
+ * @returns Site info, config, sync/staging state, and functions for connect, disconnect, pull, push, Drush, and content management.
+ */
 export function useDrupal(projectId: string): UseDrupalReturn {
   const [site, setSite] = useState<DrupalSiteInfo | null>(null);
   const [siteLoading, setSiteLoading] = useState(true);
@@ -142,7 +149,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         await getClient().connectDrupalSite(projectId, data);
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Connection failed");
+        setError(extractErrorMessage(err, "Connection failed"));
         throw err;
       } finally {
         setConnecting(false);
@@ -163,7 +170,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       setNodes([]);
       setSelectedBundle(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Disconnect failed");
+      setError(extractErrorMessage(err, "Disconnect failed"));
     } finally {
       setDisconnecting(false);
     }
@@ -176,7 +183,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       const data = await getClient().getDrupalConfig(projectId);
       setConfig(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load config");
+      setError(extractErrorMessage(err, "Failed to load config"));
     } finally {
       setConfigLoading(false);
     }
@@ -198,7 +205,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         const result = await getClient().runDrush(projectId, command);
         setDrushOutput(result);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Drush command failed");
+        setError(extractErrorMessage(err, "Drush command failed"));
       } finally {
         setDrushRunning(false);
       }
@@ -213,7 +220,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       await getClient().pullDrupalSite(projectId);
       await fetchSyncStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Pull failed");
+      setError(extractErrorMessage(err, "Pull failed"));
     } finally {
       setPulling(false);
     }
@@ -226,7 +233,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       await getClient().pushDrupalConfig(projectId);
       await fetchSyncStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Push failed");
+      setError(extractErrorMessage(err, "Push failed"));
     } finally {
       setPushing(false);
     }
@@ -241,7 +248,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       const data = await getClient().getDrupalContentTypes(projectId);
       setContentTypes(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load content types");
+      setError(extractErrorMessage(err, "Failed to load content types"));
     } finally {
       setContentTypesLoading(false);
     }
@@ -255,7 +262,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         const data = await getClient().listDrupalContent(projectId, bundle);
         setNodes(data.nodes);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load content");
+        setError(extractErrorMessage(err, "Failed to load content"));
       } finally {
         setNodesLoading(false);
       }
@@ -272,7 +279,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         await fetchNodes(bundle);
         return node;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create node");
+        setError(extractErrorMessage(err, "Failed to create node"));
         throw err;
       }
     },
@@ -288,7 +295,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         await fetchNodes(bundle);
         return node;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update node");
+        setError(extractErrorMessage(err, "Failed to update node"));
         throw err;
       }
     },
@@ -336,7 +343,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         await fetchStagingStatus();
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Clone failed");
+        setError(extractErrorMessage(err, "Clone failed"));
         return null;
       } finally {
         setCloning(false);
@@ -354,7 +361,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         await Promise.all([fetchSyncStatus(), fetchStagingStatus()]);
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Push failed");
+        setError(extractErrorMessage(err, "Push failed"));
         return null;
       } finally {
         setPushing(false);
@@ -370,7 +377,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       await getClient().startDrupalStaging(projectId);
       await fetchStagingStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start staging");
+      setError(extractErrorMessage(err, "Failed to start staging"));
     } finally {
       setStagingStarting(false);
     }
@@ -383,7 +390,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       await getClient().stopDrupalStaging(projectId);
       await fetchStagingStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to stop staging");
+      setError(extractErrorMessage(err, "Failed to stop staging"));
     } finally {
       setStagingStopping(false);
     }

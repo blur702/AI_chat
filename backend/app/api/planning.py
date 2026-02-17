@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import get_current_user_payload
+from app.auth import get_current_user_payload, get_user_id
 from app.api.context_deps import validate_project_access
 from app.database import get_db_session as get_session
 from app.models.plan_phase import PlanPhase
@@ -195,7 +195,7 @@ async def create_session(
     payload: dict = Depends(get_current_user_payload),
 ) -> PlanningSessionDetailResponse:
     """Create a new planning session."""
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     project_id = _parse_uuid(data.project_id, "project_id")
     await validate_project_access(project_id, str(user_id), db)
     chat_id = _parse_uuid(data.chat_id, "chat_id") if data.chat_id else None
@@ -227,7 +227,7 @@ async def list_sessions(
 ) -> list[PlanningSessionResponse]:
     """List planning sessions for a project."""
     pid = _parse_uuid(project_id, "project_id")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     await validate_project_access(pid, str(user_id), db)
     query = (
         select(PlanningSession)
@@ -260,7 +260,7 @@ async def get_session_detail(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     await validate_project_access(session.project_id, str(user_id), db)
     return _session_to_detail(session)
 
@@ -274,7 +274,7 @@ async def update_session(
 ) -> PlanningSessionDetailResponse:
     """Update a planning session."""
     sid = _parse_uuid(session_id, "session_id")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -306,7 +306,7 @@ async def archive_session(
 ) -> None:
     """Archive (soft-delete) a planning session."""
     sid = _parse_uuid(session_id, "session_id")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession).where(PlanningSession.id == sid)
     )
@@ -333,7 +333,7 @@ async def start_session(
 ) -> PlanningSessionDetailResponse:
     """Start executing a planning session. Sets the first phase as current."""
     sid = _parse_uuid(session_id, "session_id")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -372,7 +372,7 @@ async def advance_to_next_phase(
 ) -> PlanningSessionDetailResponse:
     """Mark current phase as completed and advance to the next one."""
     sid = _parse_uuid(session_id, "session_id")
-    user_id = _parse_uuid(payload["user_id"], "user_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -784,13 +784,17 @@ async def export_to_ui_builder(
         for task in (phase.tasks or []):
             if task.task_type in ("ui_component", "ui_layout", "ui_style"):
                 data = task.task_data or {}
-                node_id = (
-                    data.get("id")
-                    or str(task.id)
-                    or data.get("component_id")
-                )
+                data_id = data.get("id")
+                if isinstance(data_id, str):
+                    data_id = data_id.strip()
+                if data_id:
+                    node_id = data_id
+                elif task.id is not None:
+                    node_id = str(task.id)
+                else:
+                    node_id = data.get("component_id")
                 node = {
-                    "id": str(node_id),
+                    "id": str(node_id) if node_id is not None else "",
                     "componentId": data.get("component_id", ""),
                     "componentName": data.get("name", task.title),
                     "props": data.get("props", {}),

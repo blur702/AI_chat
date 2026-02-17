@@ -14,6 +14,7 @@ import type {
   PreferenceResponse,
   OffloadPreference,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export type ResourceSortField = "resource_id" | "status" | "vram_mb" | "priority" | "last_used_at";
 export type ResourceSortOrder = "asc" | "desc";
@@ -85,6 +86,12 @@ function sortResources(
   });
 }
 
+/**
+ * Fetches GPU resource status, VRAM stats, and loaded resource list with optional auto-refresh.
+ * Supports offload/reload actions, preemption checks, user preferences, and sortable/filterable resource views.
+ * @param autoRefreshMs - Optional interval in milliseconds for polling the resource status endpoint.
+ * @returns VRAM/system stats, resource list, offload/reload actions, preference state, and sort/filter controls.
+ */
 export function useResources(autoRefreshMs?: number): UseResourcesReturn {
   const [vramStats, setVramStats] = useState<VRAMStats | null>(null);
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
@@ -112,7 +119,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
       setSystemStats(status.system_stats);
       setResources(status.loaded_resources);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch resources");
+      setError(extractErrorMessage(err, "Failed to fetch resources"));
     } finally {
       setLoading(false);
     }
@@ -145,7 +152,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
         await refresh();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Offload failed";
+        const msg = extractErrorMessage(err, "Offload failed");
         setError(msg);
         throw err;
       } finally {
@@ -174,7 +181,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
         await refresh();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Reload failed";
+        const msg = extractErrorMessage(err, "Reload failed");
         setError(msg);
         throw err;
       } finally {
@@ -190,7 +197,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
       try {
         return await getClient().checkPreemption({ required_vram_mb: requiredVramMb });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Preemption check failed";
+        const msg = extractErrorMessage(err, "Preemption check failed");
         setError(msg);
         throw err;
       }
@@ -225,7 +232,7 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
         });
       } catch (err) {
         setPreferenceState("ask_each_time");
-        const msg = err instanceof Error ? err.message : "Failed to save preference";
+        const msg = extractErrorMessage(err, "Failed to save preference");
         setError(msg);
         throw err;
       } finally {

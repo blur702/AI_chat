@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef } from "react";
 import {
   cn,
   ContextMenu,
@@ -37,7 +37,7 @@ interface FileTreeItemProps {
   onRunToolOnFile?: (path: string) => void;
 }
 
-export function FileTreeItem({
+export const FileTreeItem = memo(function FileTreeItem({
   node,
   depth,
   selectedFile,
@@ -271,4 +271,4 @@ export function FileTreeItem({
       <ContextMenuContent>{contextMenuItems}</ContextMenuContent>
     </ContextMenu>
   );
-}
+});

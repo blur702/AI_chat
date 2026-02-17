@@ -241,6 +241,7 @@ export function ImageViewer({
                 <img
                   src={currentImage}
                   alt={generation.prompt}
+                  loading="lazy"
                   className={zoom === "fit" ? "max-h-full max-w-full object-contain" : "object-contain"}
                   style={{
                     transform:

@@ -5,8 +5,8 @@ import os
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import (
@@ -17,6 +17,7 @@ from app.api.context_deps import (
     get_sandbox_manager,
     validate_project_access,
 )
+from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.models.project import Project
 from app.models.system_prompt import SystemPrompt
@@ -94,14 +95,7 @@ async def _create_project_handler(
     db: AsyncSession,
     sandbox_manager: Optional[SandboxManager] = None,
 ) -> ProjectCreateResponse:
-    user_id = payload.get("user_id", "")
-    try:
-        user_uuid = UUID(user_id)
-    except (ValueError, TypeError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user_id in token",
-        ) from exc
+    user_uuid = get_user_id(payload)
 
     normalized_path = _normalize_project_path(body.path)
 
@@ -205,20 +199,24 @@ async def _create_project_handler(
 async def _list_projects_handler(
     payload: dict,
     db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
 ) -> ProjectListResponse:
-    user_id = payload.get("user_id", "")
-    try:
-        user_uuid = UUID(user_id) if user_id else None
-    except (ValueError, TypeError):
-        return ProjectListResponse(projects=[], count=0)
+    user_uuid = get_user_id(payload)
 
-    if user_uuid is None:
-        return ProjectListResponse(projects=[], count=0)
+    base_query = select(Project).where(
+        Project.user_id == user_uuid, Project.is_deleted == False  # noqa: E712
+    )
 
+    # Total count
+    count_result = await db.execute(
+        select(func.count()).select_from(base_query.subquery())
+    )
+    total = count_result.scalar() or 0
+
+    # Paginated results
     result = await db.execute(
-        select(Project)
-        .where(Project.user_id == user_uuid, Project.is_deleted == False)  # noqa: E712
-        .order_by(Project.created_at.desc())
+        base_query.order_by(Project.created_at.desc()).offset(offset).limit(limit)
     )
     projects = result.scalars().all()
 
@@ -236,7 +234,9 @@ async def _list_projects_handler(
         for p in projects
     ]
 
-    return ProjectListResponse(projects=summaries, count=len(summaries))
+    return ProjectListResponse(
+        projects=summaries, count=len(summaries), total=total, limit=limit, offset=offset
+    )
 
 
 async def _update_project_handler(
@@ -246,7 +246,7 @@ async def _update_project_handler(
     payload: dict,
     db: AsyncSession,
 ) -> ProjectUpdateResponse:
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     result = await db.execute(
@@ -303,7 +303,7 @@ async def _update_project_handler(
         sp_result = await db.execute(
             select(SystemPrompt).where(
                 SystemPrompt.id == update_data["system_prompt_id"],
-                SystemPrompt.user_id == UUID(user_id),
+                SystemPrompt.user_id == user_id,
                 SystemPrompt.is_deleted == False,  # noqa: E712
             )
         )
@@ -349,7 +349,7 @@ async def _delete_project_handler(
     db: AsyncSession,
     sandbox_manager: Optional[SandboxManager] = None,
 ) -> None:
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     result = await db.execute(
@@ -393,11 +393,13 @@ async def create_project(
 
 @router.get("", response_model=ProjectListResponse)
 async def list_projects(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> ProjectListResponse:
-    """List all non-deleted projects for the authenticated user."""
-    return await _list_projects_handler(payload, db)
+    """List non-deleted projects for the authenticated user with pagination."""
+    return await _list_projects_handler(payload, db, limit=limit, offset=offset)
 
 
 @router.put("/{project_id}", response_model=ProjectUpdateResponse)
@@ -436,15 +438,19 @@ async def create_project_alias(
     db: AsyncSession = Depends(get_db_session),
     sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> ProjectCreateResponse:
+    """Backward-compatible alias for creating a project at /api/context/projects."""
     return await _create_project_handler(body, payload, db, sandbox_manager)
 
 
 @context_projects_router.get("/projects", response_model=ProjectListResponse, include_in_schema=False)
 async def list_projects_alias(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> ProjectListResponse:
-    return await _list_projects_handler(payload, db)
+    """Backward-compatible alias for listing projects at /api/context/projects."""
+    return await _list_projects_handler(payload, db, limit=limit, offset=offset)
 
 
 @context_projects_router.put("/projects/{project_id}", response_model=ProjectUpdateResponse, include_in_schema=False)
@@ -455,6 +461,7 @@ async def update_project_alias(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> ProjectUpdateResponse:
+    """Backward-compatible alias for updating a project at /api/context/projects/{project_id}."""
     return await _update_project_handler(project_id, body, cm, payload, db)
 
 
@@ -466,4 +473,5 @@ async def delete_project_alias(
     db: AsyncSession = Depends(get_db_session),
     sandbox_manager: SandboxManager = Depends(get_sandbox_manager),
 ) -> None:
+    """Backward-compatible alias for deleting a project at /api/context/projects/{project_id}."""
     return await _delete_project_handler(project_id, cm, payload, db, sandbox_manager)

@@ -6,6 +6,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.services.sandbox.portability import Portability
+from app.services.templates import TemplateRegistry
+
 
 # ---------------------------------------------------------------------------
 # Compose file generation
@@ -13,29 +16,34 @@ import pytest
 
 
 class TestComposeFileGeneration:
-    """Test the _generate_compose_file helper in SandboxManager."""
+    """Test the _generate_compose_file helper in Portability."""
 
-    def _make_sandbox_manager(self, container_attrs=None):
-        """Create a SandboxManager with mocked Docker client."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-        sm._creation_locks = {}
-        sm._creation_failures = {}
-
+    def _make_portability(self, container_attrs=None):
+        """Create a Portability instance with mocked Docker client."""
         mock_client = MagicMock()
         mock_container = MagicMock()
         mock_container.attrs = container_attrs or {}
+        mock_container.labels = (container_attrs or {}).get("Config", {}).get("Labels", {})
         mock_client.containers.get.return_value = mock_container
-        sm._client = mock_client
 
-        return sm
+        registry = TemplateRegistry()
+        containers = {}
+        exported_images = {}
+
+        port = Portability(
+            client=mock_client,
+            containers=containers,
+            registry=registry,
+            exported_images=exported_images,
+            get_or_create_fn=AsyncMock(),
+            stop_fn=AsyncMock(),
+        )
+        return port
 
     @pytest.mark.unit
-    def test_basic_compose_generation(self):
+    async def test_basic_compose_generation(self):
         """Generate a compose file for a simple container."""
-        sm = self._make_sandbox_manager({
+        port = self._make_portability({
             "Config": {
                 "Image": "python:3.12-slim",
                 "Env": ["PATH=/usr/local/bin:/usr/bin", "HOME=/root"],
@@ -44,7 +52,7 @@ class TestComposeFileGeneration:
             },
         })
 
-        compose = sm._generate_compose_file(
+        compose = await port._generate_compose_file(
             project_id="proj-123",
             image_name="my-app",
             tag="latest",
@@ -57,9 +65,9 @@ class TestComposeFileGeneration:
         assert "services:" in compose
 
     @pytest.mark.unit
-    def test_compose_with_env_vars(self):
+    async def test_compose_with_env_vars(self):
         """Environment variables are included in compose output (PATH is filtered)."""
-        sm = self._make_sandbox_manager({
+        port = self._make_portability({
             "Config": {
                 "Image": "node:20-slim",
                 "Env": [
@@ -72,7 +80,7 @@ class TestComposeFileGeneration:
             },
         })
 
-        compose = sm._generate_compose_file(
+        compose = await port._generate_compose_file(
             project_id="proj-456",
             image_name="my-node-app",
             tag="latest",
@@ -86,9 +94,9 @@ class TestComposeFileGeneration:
         assert "PATH=" not in compose
 
     @pytest.mark.unit
-    def test_compose_no_exposed_ports_defaults_3000(self):
+    async def test_compose_no_exposed_ports_defaults_3000(self):
         """When there are no exposed ports, defaults to 3000."""
-        sm = self._make_sandbox_manager({
+        port = self._make_portability({
             "Config": {
                 "Image": "alpine:latest",
                 "Env": [],
@@ -97,7 +105,7 @@ class TestComposeFileGeneration:
             },
         })
 
-        compose = sm._generate_compose_file(
+        compose = await port._generate_compose_file(
             project_id="proj-789",
             image_name="worker-app",
             tag="latest",
@@ -109,20 +117,22 @@ class TestComposeFileGeneration:
         assert "3000:3000" in compose  # default port
 
     @pytest.mark.unit
-    def test_compose_handles_docker_error(self):
+    async def test_compose_handles_docker_error(self):
         """Compose generation handles container inspect failures gracefully."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-        sm._creation_locks = {}
-        sm._creation_failures = {}
-
         mock_client = MagicMock()
         mock_client.containers.get.side_effect = Exception("container not found")
-        sm._client = mock_client
 
-        compose = sm._generate_compose_file(
+        registry = TemplateRegistry()
+        port = Portability(
+            client=mock_client,
+            containers={},
+            registry=registry,
+            exported_images={},
+            get_or_create_fn=AsyncMock(),
+            stop_fn=AsyncMock(),
+        )
+
+        compose = await port._generate_compose_file(
             project_id="proj-err",
             image_name="err-app",
             tag="v1",
@@ -199,22 +209,36 @@ class TestDockerExportSchemas:
 class TestExportAsDockerImage:
     """Test the export_as_docker_image method with mocked Docker client."""
 
+    def _make_portability(self, containers=None, exported_images=None):
+        """Create a Portability instance with mocked Docker client."""
+        mock_client = MagicMock()
+        mock_container = MagicMock()
+        mock_container.attrs = {"Config": {}}
+        mock_client.containers.get.return_value = mock_container
+
+        registry = TemplateRegistry()
+        containers = containers or {}
+        exported_images = exported_images or {}
+
+        port = Portability(
+            client=mock_client,
+            containers=containers,
+            registry=registry,
+            exported_images=exported_images,
+            get_or_create_fn=AsyncMock(),
+            stop_fn=AsyncMock(),
+        )
+        return port, mock_client
+
     @pytest.mark.unit
     async def test_export_creates_image(self):
         """export_as_docker_image commits container and returns metadata."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-        sm._creation_locks = {}
-        sm._creation_failures = {}
-
         project_id = uuid4()
         container_id = "container-abc123"
-        sm._containers[str(project_id)] = container_id
+        containers = {str(project_id): container_id}
+        exported_images = {}
 
-        # Mock sync Docker client
-        mock_client = MagicMock()
+        port, mock_client = self._make_portability(containers, exported_images)
         mock_client.api.commit.return_value = {"Id": "sha256:newimage123"}
         mock_container = MagicMock()
         mock_container.attrs = {
@@ -226,9 +250,8 @@ class TestExportAsDockerImage:
             },
         }
         mock_client.containers.get.return_value = mock_container
-        sm._client = mock_client
 
-        result = await sm.export_as_docker_image(
+        result = await port.export_as_docker_image(
             project_id,
             image_name="test-export",
             include_compose=True,
@@ -244,58 +267,43 @@ class TestExportAsDockerImage:
     @pytest.mark.unit
     async def test_export_no_container_raises(self):
         """export_as_docker_image raises when no container exists."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-
+        port, _ = self._make_portability()
         project_id = uuid4()
 
         with pytest.raises(RuntimeError, match="No container"):
-            await sm.export_as_docker_image(project_id)
+            await port.export_as_docker_image(project_id)
 
     @pytest.mark.unit
     async def test_export_default_image_name(self):
         """When no image_name is provided, generates one from project_id."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-
         project_id = uuid4()
-        container_id = "container-xyz"
-        sm._containers[str(project_id)] = container_id
+        containers = {str(project_id): "container-xyz"}
+        exported_images = {}
 
-        mock_client = MagicMock()
+        port, mock_client = self._make_portability(containers, exported_images)
         mock_client.api.commit.return_value = {"Id": "sha256:img456"}
         mock_container = MagicMock()
         mock_container.attrs = {"Config": {"Image": "node:20-slim"}}
         mock_client.containers.get.return_value = mock_container
-        sm._client = mock_client
 
-        result = await sm.export_as_docker_image(project_id)
+        result = await port.export_as_docker_image(project_id)
 
         assert "workstation-export-" in result["image_name"]
 
     @pytest.mark.unit
     async def test_export_with_tar_includes_download_url(self):
         """When include_tar=True, response includes tar_download_url."""
-        from app.services.sandbox_manager import SandboxManager
-
-        sm = SandboxManager.__new__(SandboxManager)
-        sm._containers = {}
-
         project_id = uuid4()
-        sm._containers[str(project_id)] = "ctr-tar-test"
+        containers = {str(project_id): "ctr-tar-test"}
+        exported_images = {}
 
-        mock_client = MagicMock()
+        port, mock_client = self._make_portability(containers, exported_images)
         mock_client.api.commit.return_value = {"Id": "sha256:tarimg"}
         mock_container = MagicMock()
         mock_container.attrs = {"Config": {}}
         mock_client.containers.get.return_value = mock_container
-        sm._client = mock_client
 
-        result = await sm.export_as_docker_image(
+        result = await port.export_as_docker_image(
             project_id,
             include_tar=True,
             include_compose=False,

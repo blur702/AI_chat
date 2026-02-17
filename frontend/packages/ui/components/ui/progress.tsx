@@ -4,6 +4,12 @@ import * as React from "react";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix Progress renders an accessible progress bar with role="progressbar".
+ * The value prop (0–100) drives both the visual fill width and the aria-valuenow attribute.
+ * aria-valuemin and aria-valuemax default to 0 and 100 respectively.
+ * For indeterminate loading states, omit the value prop and set an aria-label describing the operation.
+ */
 const Progress = React.forwardRef<
   React.ElementRef<typeof ProgressPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAutomationActions } from "@workstation/api/hooks";
 import type { AutomationAction } from "@workstation/api/types";
+import { useToast } from "../toast-provider";
 
 interface AutomationActionsPanelProps {
   projectId: string;
@@ -90,7 +91,7 @@ function ActionCard({
   const isPending = !action.user_approved && !action.executed_at;
   const isApproved = action.user_approved && !action.executed_at;
   const isExecuted = !!action.executed_at;
-  const executionResult = action.action_data?._execution_result;
+  const executionResult = action.action_data?._execution_result as { success: boolean; error?: string } | undefined;
 
   return (
     <div className="rounded-md border bg-card p-3 space-y-2">
@@ -175,6 +176,7 @@ export function AutomationActionsPanel({
 }: AutomationActionsPanelProps) {
   const { actions, loading, error, approve, execute, reject } =
     useAutomationActions(projectId);
+  const { toast } = useToast();
   const [showExecuted, setShowExecuted] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
@@ -207,8 +209,11 @@ export function AutomationActionsPanel({
     if (!approveAction || jsonError) return;
     try {
       await approve(approveAction.id, editedData);
-    } catch {
-      // error state handled by hook
+    } catch (err) {
+      toast(
+        `Failed to approve action: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error"
+      );
     }
     setApproveAction(null);
     setEditedData({});
@@ -222,8 +227,11 @@ export function AutomationActionsPanel({
     if (confirmId) {
       try {
         await reject(confirmId);
-      } catch {
-        // error state handled by hook
+      } catch (err) {
+        toast(
+          `Failed to reject action: ${err instanceof Error ? err.message : "Unknown error"}`,
+          "error"
+        );
       }
       setConfirmId(null);
     }
@@ -232,8 +240,11 @@ export function AutomationActionsPanel({
   const handleExecute = async (id: string) => {
     try {
       await execute(id);
-    } catch {
-      // error state handled by hook
+    } catch (err) {
+      toast(
+        `Failed to execute action: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error"
+      );
     }
   };
 

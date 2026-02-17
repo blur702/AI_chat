@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { TemplateInfo } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseTemplatesReturn {
   templates: TemplateInfo[];
@@ -12,6 +13,11 @@ export interface UseTemplatesReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches sandbox project template definitions with optional category filtering.
+ * @param category - Optional category name to filter the template list.
+ * @returns Template list, category list, loading/error state, and a `refresh` callback.
+ */
 export function useTemplates(category?: string): UseTemplatesReturn {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -26,7 +32,7 @@ export function useTemplates(category?: string): UseTemplatesReturn {
       setTemplates(res.templates);
       setCategories(res.categories);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load templates");
+      setError(extractErrorMessage(err, "Failed to load templates"));
     } finally {
       setLoading(false);
     }

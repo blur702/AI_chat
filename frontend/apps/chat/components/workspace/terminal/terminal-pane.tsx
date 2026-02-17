@@ -39,12 +39,14 @@ const STATUS_COLORS: Record<TerminalStatus, string> = {
   connected: "text-green-400",
   connecting: "text-yellow-400",
   disconnected: "text-red-400",
+  exhausted: "text-red-500",
 };
 
 const STATUS_LABELS: Record<TerminalStatus, string> = {
   connected: "Connected",
   connecting: "Connecting...",
   disconnected: "Disconnected",
+  exhausted: "Connection lost",
 };
 
 export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPaneProps) {
@@ -237,10 +239,11 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
         <div className="ml-auto flex items-center gap-1.5 px-3 text-xs">
           <Circle className={cn("h-2 w-2 fill-current", STATUS_COLORS[status])} />
           <span className="text-muted-foreground">{STATUS_LABELS[status]}</span>
-          {status === "disconnected" && (
+          {(status === "disconnected" || status === "exhausted") && (
             <button
               onClick={connect}
               className="ml-1 text-blue-400 hover:text-blue-300 underline"
+              aria-label="Reconnect terminal"
             >
               Reconnect
             </button>
@@ -251,6 +254,17 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
       {/* Terminal output */}
       {currentTab && (
         <div className="flex-1 overflow-auto p-2 font-mono text-xs text-green-400">
+          {status === "exhausted" && (
+            <div className="mb-2 flex items-center gap-2 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-400">
+              <span>Connection lost after multiple retries.</span>
+              <button
+                onClick={connect}
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                Reconnect
+              </button>
+            </div>
+          )}
           {currentTab.lines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap">
               {i === currentTab.lines.length - 1 ? (
@@ -269,6 +283,7 @@ export function TerminalPane({ projectId, onCommand, handleRef }: TerminalPanePr
                     className="bg-transparent outline-none text-green-400 caret-green-400"
                     autoFocus
                     disabled={status !== "connected"}
+                    aria-label="Terminal command input"
                   />
                 </span>
               ) : (

@@ -28,11 +28,11 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
-from app.api.context_deps import validate_project_access
+from app.api.context_deps import get_current_user_payload, validate_project_access
+from app.auth import get_user_id
 from app.database import get_db_session
 from app.models.kb_chunk import KBChunk
 from app.models.kb_source import KBSource
@@ -73,6 +73,23 @@ EXT_TO_TYPE = {
 }
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
+# Magic byte signatures for content-type validation
+MAGIC_BYTES = {
+    ".pdf": [b"%PDF"],
+    ".png": [b"\x89PNG"],
+    ".jpg": [b"\xff\xd8\xff"],
+    ".jpeg": [b"\xff\xd8\xff"],
+    ".zip": [b"PK\x03\x04", b"PK\x05\x06"],
+}
+
+
+def _validate_magic_bytes(file_bytes: bytes, ext: str) -> bool:
+    """Validate file content matches its extension via magic bytes."""
+    signatures = MAGIC_BYTES.get(ext)
+    if signatures is None:
+        return True  # No signature check for text-based formats
+    return any(file_bytes.startswith(sig) for sig in signatures)
+
 
 # -------------------------------------------------------------------------
 # Upload and Ingest
@@ -91,7 +108,7 @@ async def upload_source(
     db: AsyncSession = Depends(get_db_session),
 ) -> KBSourceResponse:
     """Upload a document and enqueue it for ingestion."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     # Validate file extension
@@ -109,6 +126,13 @@ async def upload_source(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
+        )
+
+    # Validate magic bytes to prevent extension spoofing
+    if not _validate_magic_bytes(file_bytes, ext):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File content does not match extension '{ext}'",
         )
 
     # Create KBSource record (commit deferred until file write succeeds)
@@ -188,17 +212,26 @@ async def upload_source(
 )
 async def list_sources(
     project_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> KBSourceListResponse:
-    """List all KB sources for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    """List KB sources for a project with pagination."""
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
+    base_query = select(KBSource).where(KBSource.project_id == project_id)
+
+    # Total count
+    count_result = await db.execute(
+        select(func.count()).select_from(base_query.subquery())
+    )
+    total = count_result.scalar() or 0
+
+    # Paginated results
     result = await db.execute(
-        select(KBSource)
-        .where(KBSource.project_id == project_id)
-        .order_by(KBSource.created_at.desc())
+        base_query.order_by(KBSource.created_at.desc()).offset(offset).limit(limit)
     )
     sources = result.scalars().all()
 
@@ -217,6 +250,9 @@ async def list_sources(
             for s in sources
         ],
         count=len(sources),
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -235,7 +271,7 @@ async def get_source_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> KBSourceResponse:
     """Get ingestion status for a specific source."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(KBSource).where(KBSource.id == source_id)
@@ -276,7 +312,7 @@ async def delete_source(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Delete a KB source and its chunks (cascaded)."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(KBSource).where(KBSource.id == source_id)
@@ -354,7 +390,7 @@ async def search_kb(
     embedding_svc: EmbeddingService = Depends(_get_embedding_service),
 ) -> KBSearchResponse:
     """Semantic search across KB chunks for a project using cosine similarity."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(body.project_id, user_id, db)
 
     # Generate query embedding
@@ -411,7 +447,7 @@ async def get_chunks(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[KBChunkResponse]:
     """Retrieve paginated chunks for a specific KB source."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     # Validate source exists
     src_result = await db.execute(
@@ -477,6 +513,12 @@ async def bulk_upload(
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File '{filename}' too large. Max {MAX_FILE_SIZE // (1024 * 1024)}MB.",
+            )
+
+        if not _validate_magic_bytes(file_bytes, ext):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File '{filename}' content does not match extension '{ext}'",
             )
 
         file_id = str(_uuid_mod.uuid4())
@@ -666,7 +708,7 @@ async def bulk_ingest(
     """Start batch ingestion with custom parameters."""
     import redis.asyncio as aioredis
 
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
 
     # Validate project access if project-scoped
     if body.scope == "project" and body.project_id:

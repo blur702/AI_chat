@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.kernel.mode_prompts import MODE_PROMPT_MODIFIERS
 
@@ -59,6 +59,15 @@ class ConversationStateUpdateRequest(BaseModel):
     updates: Dict[str, Any] = Field(
         ..., description="Key-value pairs to merge into the conversation state"
     )
+
+    @model_validator(mode="after")
+    def cap_updates_size(self) -> "ConversationStateUpdateRequest":
+        import json as _json
+
+        raw = _json.dumps(self.updates, default=str)
+        if len(raw) > 100_000:
+            raise ValueError("Serialized updates must not exceed 100 KB")
+        return self
 
 
 # -------------------------------------------------------------------------
@@ -201,9 +210,26 @@ class UserPreferencesResponse(BaseModel):
 class UserPreferencesUpdateRequest(BaseModel):
     """Request body for updating user preferences."""
 
-    custom_system_prompt: Optional[str] = None
+    custom_system_prompt: Optional[str] = Field(default=None, max_length=50_000)
     coding_principles: Optional[List[Any]] = None
     response_style: Optional[Dict[str, Any]] = None
+
+    @field_validator("coding_principles")
+    @classmethod
+    def cap_coding_principles(cls, v: Optional[List[Any]]) -> Optional[List[Any]]:
+        if v is not None and len(v) > 50:
+            raise ValueError("At most 50 coding principles are allowed")
+        return v
+
+    @field_validator("response_style")
+    @classmethod
+    def cap_response_style(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if v is not None:
+            import json as _json
+
+            if len(_json.dumps(v, default=str)) > 10_000:
+                raise ValueError("Serialized response_style must not exceed 10 KB")
+        return v
     default_model: Optional[str] = Field(default=None, max_length=100)
     default_temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     default_num_ctx: Optional[int] = Field(default=None, ge=512, le=131072)
@@ -324,15 +350,26 @@ class ProjectCreateRequest(BaseModel):
     """Request body for creating a new project."""
 
     name: str = Field(..., max_length=255, description="Project name")
-    path: str = Field(..., description="Project filesystem path")
+    path: str = Field(..., max_length=1000, description="Project filesystem path")
     type: Optional[str] = Field(None, max_length=50, description="Project type")
     template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
     selected_technologies: Optional[List[str]] = Field(
         None, max_length=20, description="List of technology IDs to combine for project setup"
     )
     settings: Optional[Dict[str, Any]] = None
-    custom_context: Optional[str] = None
+    custom_context: Optional[str] = Field(default=None, max_length=100_000)
     important_files: Optional[List[str]] = None
+
+    @field_validator("important_files")
+    @classmethod
+    def cap_important_files_create(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None:
+            if len(v) > 100:
+                raise ValueError("At most 100 important files are allowed")
+            for item in v:
+                if len(item) > 500:
+                    raise ValueError("Each important file path must be at most 500 characters")
+        return v
 
 
 class ProjectCreateResponse(BaseModel):
@@ -351,7 +388,7 @@ class ProjectUpdateRequest(BaseModel):
     """Request body for updating a project."""
 
     name: Optional[str] = Field(None, max_length=255)
-    path: Optional[str] = None
+    path: Optional[str] = Field(default=None, max_length=1000)
     type: Optional[str] = Field(None, max_length=50)
     template_id: Optional[str] = Field(None, max_length=100, description="Template ID for sandbox provisioning")
     selected_technologies: Optional[List[str]] = Field(
@@ -359,8 +396,19 @@ class ProjectUpdateRequest(BaseModel):
     )
     system_prompt_id: Optional[UUID] = None
     settings: Optional[Dict[str, Any]] = None
-    custom_context: Optional[str] = None
+    custom_context: Optional[str] = Field(default=None, max_length=100_000)
     important_files: Optional[List[str]] = None
+
+    @field_validator("important_files")
+    @classmethod
+    def cap_important_files_update(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None:
+            if len(v) > 100:
+                raise ValueError("At most 100 important files are allowed")
+            for item in v:
+                if len(item) > 500:
+                    raise ValueError("Each important file path must be at most 500 characters")
+        return v
 
 
 class ProjectUpdateResponse(BaseModel):
@@ -398,6 +446,9 @@ class ProjectListResponse(BaseModel):
 
     projects: List["ProjectSummary"] = Field(default_factory=list)
     count: int = 0
+    total: Optional[int] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
 
 
 # -------------------------------------------------------------------------
@@ -440,6 +491,9 @@ class SystemPromptListResponse(BaseModel):
 
     prompts: List[SystemPromptResponse] = Field(default_factory=list)
     count: int = 0
+    total: Optional[int] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
 
 
 # -------------------------------------------------------------------------

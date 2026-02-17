@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckSquare,
@@ -34,6 +34,49 @@ import type {
 } from "@workstation/api/types";
 import { ImageCard } from "./image-card";
 import { ImageViewer } from "./image-viewer";
+
+/** Wrapper that creates stable callbacks per-generation, preventing re-render of all cards */
+const ImageCardWrapper = memo(function ImageCardWrapper({
+  generation,
+  setSelectedGeneration,
+  setDeleteTarget,
+  downloadImage,
+  toggleFavorite,
+  bulkMode,
+  selected,
+  onSelect,
+}: {
+  generation: ImageGenerationResponse;
+  setSelectedGeneration: (g: ImageGenerationResponse) => void;
+  setDeleteTarget: (g: ImageGenerationResponse) => void;
+  downloadImage: (id: string, filename: string) => Promise<void>;
+  toggleFavorite: (id: string) => Promise<void>;
+  bulkMode: boolean;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const handleView = useCallback(() => setSelectedGeneration(generation), [generation, setSelectedGeneration]);
+  const handleDelete = useCallback(() => setDeleteTarget(generation), [generation, setDeleteTarget]);
+  const handleDownload = useCallback(() => {
+    const image = generation.result_images[0];
+    if (!image) return;
+    downloadImage(generation.id, getFilenameFromUrl(image));
+  }, [generation, downloadImage]);
+  const handleToggleFavorite = useCallback(() => toggleFavorite(generation.id), [generation.id, toggleFavorite]);
+
+  return (
+    <ImageCard
+      generation={generation}
+      onView={handleView}
+      onDelete={handleDelete}
+      onDownload={handleDownload}
+      onToggleFavorite={handleToggleFavorite}
+      bulkMode={bulkMode}
+      selected={selected}
+      onSelect={onSelect}
+    />
+  );
+});
 
 interface ImageGalleryProps {
   projectId: string;
@@ -374,17 +417,13 @@ export function ImageGallery({ projectId, hookState, onRegenerate }: ImageGaller
         {sortedGenerations.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
             {sortedGenerations.map((generation) => (
-              <ImageCard
+              <ImageCardWrapper
                 key={generation.id}
                 generation={generation}
-                onView={() => setSelectedGeneration(generation)}
-                onDelete={() => setDeleteTarget(generation)}
-                onDownload={() => {
-                  const image = generation.result_images[0];
-                  if (!image) return;
-                  downloadImage(generation.id, getFilenameFromUrl(image));
-                }}
-                onToggleFavorite={() => toggleFavorite(generation.id)}
+                setSelectedGeneration={setSelectedGeneration}
+                setDeleteTarget={setDeleteTarget}
+                downloadImage={downloadImage}
+                toggleFavorite={toggleFavorite}
                 bulkMode={bulkMode}
                 selected={selectedIds.has(generation.id)}
                 onSelect={toggleSelect}

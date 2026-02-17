@@ -315,11 +315,13 @@ class RunCommandTool(BaseTool):
                             await terminate(container_id, exec_info["exec_id"])
                         except Exception:
                             logger.warning("Failed to terminate timed-out exec %s", exec_info["exec_id"])
+                timeout_note = f"Command timed out after {RUN_COMMAND_TIMEOUT_SECONDS} seconds"
+                combined_stderr = f"{stderr}\n{timeout_note}" if stderr else timeout_note
                 return {
                     "command": command,
                     "exit_code": -1,
                     "stdout": stdout,
-                    "stderr": f"Command timed out after {RUN_COMMAND_TIMEOUT_SECONDS} seconds",
+                    "stderr": combined_stderr,
                 }
 
             # Truncate long outputs

@@ -267,6 +267,7 @@ class TestIsMasterUser:
         # The function checks against the frozenset.
         from app.models.user import MASTER_USERNAMES
 
+        assert MASTER_USERNAMES, "MASTER_USERNAMES must be non-empty for this test"
         for name in MASTER_USERNAMES:
             assert is_master_user(name) is True
 

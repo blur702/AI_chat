@@ -10,8 +10,8 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    identifier: str = Field(..., description="Username or email")
-    password: str = Field(..., min_length=1)
+    identifier: str = Field(..., max_length=255, description="Username or email")
+    password: str = Field(..., min_length=1, max_length=1000)
 
 
 class LoginResponse(BaseModel):
@@ -56,8 +56,8 @@ class UserResponse(BaseModel):
 
 
 class PasswordChangeRequest(BaseModel):
-    current_password: str = Field(..., min_length=1)
-    new_password: str = Field(..., min_length=8)
+    current_password: str = Field(..., min_length=1, max_length=1000)
+    new_password: str = Field(..., min_length=8, max_length=1000)
 
 
 class PasswordChangeResponse(BaseModel):
@@ -74,8 +74,8 @@ class PasswordResetResponse(BaseModel):
 
 
 class PasswordResetConfirmRequest(BaseModel):
-    token: str = Field(..., min_length=1)
-    new_password: str = Field(..., min_length=8)
+    token: str = Field(..., min_length=1, max_length=256)
+    new_password: str = Field(..., min_length=8, max_length=1000)
 
 
 class PasswordResetConfirmResponse(BaseModel):

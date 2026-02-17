@@ -71,11 +71,6 @@ class TestDetectFileType:
 
     def test_fallback_pdf(self):
         svc = KBIngestionService()
-        # When python-magic is not available or fails, falls back to extension
-        with patch("app.services.kb_ingestion.KBIngestionService.detect_file_type") as mock_detect:
-            # Test the extension-based fallback directly
-            pass
-
         # Test extension-based detection by creating temp files
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(b"not a real pdf")
@@ -150,12 +145,12 @@ class TestTextExtraction:
         mock_reader = MagicMock()
         mock_reader.pages = [mock_page1, mock_page2]
 
-        with patch("app.services.kb_ingestion.KBIngestionService.extract_text_from_pdf") as mock_method:
-            mock_method.return_value = "Page one content.\n\nPage two content."
+        with patch("pypdf.PdfReader", return_value=mock_reader):
             result = svc.extract_text_from_pdf("fake.pdf")
 
         assert "Page one content." in result
         assert "Page two content." in result
+        assert "\n\n" in result
 
 
 # ---------------------------------------------------------------------------

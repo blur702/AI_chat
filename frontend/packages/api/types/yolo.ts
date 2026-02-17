@@ -6,7 +6,7 @@ export interface YoloEdit {
   undo_performed: boolean;
   created_at?: string;
   updated_at?: string;
-  undo_data?: Record<string, any>;
+  undo_data?: Record<string, unknown>;
 }
 
 export interface YoloEditListResponse {

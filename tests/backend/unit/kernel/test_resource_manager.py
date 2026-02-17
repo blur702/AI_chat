@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.kernel.resource_manager import ResourceManager, VRAMTracker
-from tests.backend.unit.kernel.test_helpers import (
+from .test_helpers import (
     assert_redis_key_exists,
     assert_redis_key_ttl,
     make_resource,

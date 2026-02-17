@@ -1,5 +1,7 @@
 """Async SSH client for VPS operations (clone/push Drupal staging)."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -7,9 +9,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-import asyncssh
+try:
+    import asyncssh
+except ImportError:
+    asyncssh = None  # type: ignore[assignment]
 
-from app.kernel import KernelService
+from app.kernel import BaseKernelService as KernelService
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +22,9 @@ logger = logging.getLogger(__name__)
 class SSHClient(KernelService):
     """Async SSH client for executing commands and transferring files on the VPS."""
 
-    service_name = "ssh_client"
-
     def __init__(self):
         super().__init__()
+        self._running = False
         self._host = os.getenv("DRUPAL_VPS_HOST", "")
         self._user = os.getenv("DRUPAL_VPS_USER", "root")
         self._password = os.getenv("DRUPAL_VPS_PASSWORD", "")
@@ -31,22 +35,41 @@ class SSHClient(KernelService):
         self._conn: Optional[asyncssh.SSHClientConnection] = None
 
     @property
+    def name(self) -> str:
+        return "ssh_client"
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    @property
     def is_configured(self) -> bool:
+        """Return True if a host and at least one credential (password or key) are set."""
         return bool(self._host and (self._password or self._key_path))
 
     async def startup(self) -> None:
+        """Validate configuration and log service readiness (no connection is opened yet)."""
+        if asyncssh is None:
+            logger.warning("SSHClient unavailable: asyncssh not installed")
+            self._running = True
+            return
         if not self.is_configured:
             logger.info("SSHClient not configured (no DRUPAL_VPS_HOST or credentials)")
+            self._running = True
             return
         logger.info("SSHClient configured for %s@%s:%d", self._user, self._host, self._port)
+        self._running = True
 
     async def shutdown(self) -> None:
+        """Close the active SSH connection if one is open."""
         if self._conn:
             self._conn.close()
             self._conn = None
             logger.info("SSHClient connection closed")
+        self._running = False
 
     async def health_check(self) -> tuple[bool, str]:
+        """Open a connection and run 'echo ok' to verify the VPS is reachable."""
         if not self.is_configured:
             return False, "SSH not configured (missing DRUPAL_VPS_HOST or credentials)"
         try:
@@ -75,8 +98,18 @@ class SSHClient(KernelService):
             "username": self._user,
         }
         if self._trust_all_host_keys:
+            logger.warning(
+                "SSH host key verification is disabled for %s@%s:%d (SSH_TRUST_ALL_HOST_KEYS=true).",
+                self._user,
+                self._host,
+                self._port,
+            )
             connect_kwargs["known_hosts"] = None
         elif self._known_hosts_path:
+            if not Path(self._known_hosts_path).exists():
+                msg = f"SSH known_hosts file does not exist: {self._known_hosts_path}"
+                logger.error(msg)
+                raise FileNotFoundError(msg)
             connect_kwargs["known_hosts"] = self._known_hosts_path
         if self._key_path and os.path.isfile(self._key_path):
             connect_kwargs["client_keys"] = [self._key_path]

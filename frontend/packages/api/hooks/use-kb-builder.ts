@@ -59,6 +59,10 @@ export interface UseKBBuilderReturn {
   reset: () => void;
 }
 
+/**
+ * Orchestrates the multi-step knowledge base build wizard: file upload, extraction, chunking, embedding model selection, and batch ingestion.
+ * @returns Per-step state and functions, batch build status, polling controls, and a full `reset` function.
+ */
 export function useKBBuilder(): UseKBBuilderReturn {
   // Step 1
   const [files, setFiles] = useState<KBBulkUploadFileInfo[]>([]);

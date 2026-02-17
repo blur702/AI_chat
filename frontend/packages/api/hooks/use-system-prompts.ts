@@ -7,6 +7,7 @@ import type {
   SystemPromptCreateRequest,
   SystemPromptUpdateRequest,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseSystemPromptsReturn {
   prompts: SystemPrompt[];
@@ -19,6 +20,10 @@ export interface UseSystemPromptsReturn {
   setDefault: (id: string) => Promise<boolean>;
 }
 
+/**
+ * Fetches and manages system prompts including create, update, delete, and set-as-default operations.
+ * @returns Prompt list, loading/error state, and CRUD plus `setDefault` functions.
+ */
 export function useSystemPrompts(): UseSystemPromptsReturn {
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +36,7 @@ export function useSystemPrompts(): UseSystemPromptsReturn {
       const response = await getClient().listSystemPrompts();
       setPrompts(response.prompts);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch prompts");
+      setError(extractErrorMessage(err, "Failed to fetch prompts"));
     } finally {
       setLoading(false);
     }
@@ -49,7 +54,7 @@ export function useSystemPrompts(): UseSystemPromptsReturn {
         await refresh();
         return prompt;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create prompt");
+        setError(extractErrorMessage(err, "Failed to create prompt"));
         return null;
       }
     },
@@ -64,7 +69,7 @@ export function useSystemPrompts(): UseSystemPromptsReturn {
         await refresh();
         return prompt;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update prompt");
+        setError(extractErrorMessage(err, "Failed to update prompt"));
         return null;
       }
     },
@@ -79,7 +84,7 @@ export function useSystemPrompts(): UseSystemPromptsReturn {
         await refresh();
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete prompt");
+        setError(extractErrorMessage(err, "Failed to delete prompt"));
         return false;
       }
     },
@@ -94,7 +99,7 @@ export function useSystemPrompts(): UseSystemPromptsReturn {
         await refresh();
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to set default");
+        setError(extractErrorMessage(err, "Failed to set default"));
         return false;
       }
     },

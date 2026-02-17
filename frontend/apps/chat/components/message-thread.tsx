@@ -150,11 +150,7 @@ export function MessageThread({
             content={msg.content}
             isPinned={msg.is_pinned}
             isExcluded={msg.is_excluded}
-            timestamp={
-              msg.created_at
-                ? new Date(msg.created_at).toLocaleTimeString()
-                : undefined
-            }
+            createdAt={msg.created_at}
             onPin={onPin}
             onExclude={onExclude}
             onEdit={onEdit}

@@ -7,6 +7,7 @@ import type {
   SavedPaletteResponse,
   SavedPaletteUpdateRequest,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UsePalettesReturn {
   palettes: SavedPaletteResponse[];
@@ -18,6 +19,10 @@ export interface UsePalettesReturn {
   deletePalette: (id: string) => Promise<boolean>;
 }
 
+/**
+ * Fetches and manages saved color palettes, including create, update, and delete operations.
+ * @returns Palette list, loading/error state, and CRUD functions for saved palettes.
+ */
 export function usePalettes(): UsePalettesReturn {
   const [palettes, setPalettes] = useState<SavedPaletteResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +35,7 @@ export function usePalettes(): UsePalettesReturn {
       const res = await getClient().listPalettes();
       setPalettes(res.palettes);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load palettes");
+      setError(extractErrorMessage(err, "Failed to load palettes"));
     } finally {
       setLoading(false);
     }
@@ -47,7 +52,7 @@ export function usePalettes(): UsePalettesReturn {
       await refresh();
       return created;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create palette");
+      setError(extractErrorMessage(err, "Failed to create palette"));
       return null;
     }
   }, [refresh]);
@@ -59,7 +64,7 @@ export function usePalettes(): UsePalettesReturn {
       await refresh();
       return updated;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update palette");
+      setError(extractErrorMessage(err, "Failed to update palette"));
       return null;
     }
   }, [refresh]);
@@ -71,7 +76,7 @@ export function usePalettes(): UsePalettesReturn {
       await refresh();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete palette");
+      setError(extractErrorMessage(err, "Failed to delete palette"));
       return false;
     }
   }, [refresh]);

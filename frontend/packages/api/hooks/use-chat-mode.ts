@@ -27,6 +27,13 @@ function isChatMode(value: unknown): value is ChatMode {
   return typeof value === "string" && VALID_KEYS.has(value);
 }
 
+/**
+ * Manages the active chat mode for a chat session, persisting changes to the backend.
+ * Optimistically reverts to the previous mode if the API call fails.
+ * @param chatId - The chat to update when mode changes, or `null` for local-only state.
+ * @param initialMode - Optional mode to initialize from (e.g. from a loaded conversation).
+ * @returns Current mode, `setChatMode` async setter, `syncFromServer` for server-driven updates, and the modes list.
+ */
 export function useChatMode(
   chatId: string | null,
   initialMode?: string,

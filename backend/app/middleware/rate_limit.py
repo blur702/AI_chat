@@ -42,9 +42,10 @@ class _InMemoryRateLimiter:
 
         with self._lock:
             timestamps = self._windows[key]
-            # Prune expired entries
+            # Sliding window: discard timestamps older than `window_seconds` ago
             self._windows[key] = timestamps = [t for t in timestamps if t > cutoff]
             if len(timestamps) >= max_requests:
+                # Retry-after = time until the oldest request in the window expires
                 retry_after = int(window_seconds - (now - timestamps[0])) + 1
                 return False, 0, max(retry_after, 1)
             timestamps.append(now)
@@ -174,10 +175,12 @@ local window_start = tonumber(ARGV[2])
 local max_requests = tonumber(ARGV[3])
 local window_seconds = tonumber(ARGV[4])
 
+-- Sliding window: remove all entries older than window_start (score = unix timestamp)
 redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
 local count = redis.call('ZCARD', key)
 
 if count >= max_requests then
+    -- Fetch the oldest remaining entry to calculate how long until a slot opens
     local earliest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
     local retry_after = window_seconds
     if #earliest >= 2 then
@@ -187,6 +190,8 @@ if count >= max_requests then
     return {0, 0, retry_after}
 end
 
+-- Use now as both score and member; tostring prevents collision if two requests
+-- arrive within the same millisecond (Redis members must be unique strings).
 redis.call('ZADD', key, now, tostring(now))
 redis.call('EXPIRE', key, window_seconds)
 return {1, max_requests - count - 1, 0}
@@ -230,10 +235,12 @@ async def _run_lua_script(
     """
     if _state.use_evalsha:
         try:
+            # EVALSHA sends only the SHA instead of the full script text each call
             sha = await _state.get_script_sha(redis_client)
             return await redis_client.evalsha(sha, *args)
         except aioredis.ResponseError as e:
             if "NOSCRIPT" in str(e):
+                # Redis flushed its script cache (e.g. after SCRIPT FLUSH or restart) — reload
                 try:
                     await _state.reload_script(redis_client)
                     sha = await _state.get_script_sha(redis_client)
@@ -241,6 +248,7 @@ async def _run_lua_script(
                 except Exception:
                     _state.use_evalsha = False
             elif "not supported" in str(e).lower():
+                # Some managed Redis providers (e.g. ElastiCache in cluster mode) disable EVALSHA
                 _state.use_evalsha = False
             else:
                 raise
@@ -281,6 +289,7 @@ def rate_limit(
 
             identifier = key_func(request)
             endpoint = request.url.path
+            # Key format: "rate_limit:{ip|user:id}:{/api/path}" — scoped per-identifier per-endpoint
             key = f"rate_limit:{identifier}:{endpoint}"
 
             redis_client = await get_rate_limit_redis()
@@ -316,7 +325,7 @@ def rate_limit(
 # Predefined rate limit decorators for sensitive endpoints
 rate_limit_login = rate_limit(
     max_requests=5,
-    window_seconds=60,
+    window_seconds=900,
     key_func=get_client_ip,
 )
 

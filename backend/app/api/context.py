@@ -19,6 +19,7 @@ from app.api.context_deps import (
     get_ollama_client,
     validate_chat_access,
 )
+from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.kernel.prompt_builder import PromptBuilder
 from app.kernel.token_counter import TokenCounter
@@ -61,7 +62,7 @@ async def get_user_preferences(
     payload: dict = Depends(get_current_user_payload),
 ) -> UserPreferencesResponse:
     """Retrieve cached user preferences."""
-    requesting_user = payload.get("user_id", "")
+    requesting_user = get_user_id(payload)
     if str(user_id) != str(requesting_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -81,7 +82,7 @@ async def update_user_preferences(
     db: AsyncSession = Depends(get_db_session),
 ) -> UserPreferencesResponse:
     """Update user preferences for AI behaviour customization."""
-    requesting_user = payload.get("user_id", "")
+    requesting_user = get_user_id(payload)
     if str(user_id) != str(requesting_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -171,7 +172,7 @@ async def track_token_usage(
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenUsageResponse:
     """Track token usage and trigger compaction if threshold is exceeded."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     needs_compaction = await cm.track_token_usage(
@@ -205,7 +206,7 @@ async def get_token_usage(
     Computes live from the same ``compute_token_breakdown()`` logic used by
     the Context Dashboard so both surfaces show identical numbers.
     """
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     state = await cm.get_conversation_state(chat_id)
@@ -263,8 +264,8 @@ async def tokenize_text(
     spans: list[TokenSpan] = []
     for _tid, token_bytes, byte_start, byte_end in _token_counter.tokenize_with_spans(text):
         token_text = token_bytes.decode("utf-8", errors="replace")
-        char_start = len(text_bytes[:byte_start].decode("utf-8", errors="ignore"))
-        char_end = len(text_bytes[:byte_end].decode("utf-8", errors="ignore"))
+        char_start = len(text_bytes[:byte_start].decode("utf-8", errors="replace"))
+        char_end = len(text_bytes[:byte_end].decode("utf-8", errors="replace"))
         spans.append(TokenSpan(text=token_text, start=char_start, end=char_end))
 
     total = len(spans)

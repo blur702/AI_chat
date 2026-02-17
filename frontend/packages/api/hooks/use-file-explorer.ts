@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getClient } from "../client";
 import type { FileNode } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseFileExplorerReturn {
   fileTree: FileNode[] | null;
@@ -15,6 +16,11 @@ interface UseFileExplorerReturn {
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
 }
 
+/**
+ * Loads and manages the file tree for a sandbox project, including create, delete, and rename operations.
+ * @param projectId - The project whose file tree to manage, or `null` to skip fetching.
+ * @returns File tree, loading/error state, and functions to create, delete, and rename files and directories.
+ */
 export function useFileExplorer(projectId: string | null): UseFileExplorerReturn {
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,7 +34,7 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
       const response = await getClient().getFileTree(projectId);
       setFileTree(response.files);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load file tree";
+      const msg = extractErrorMessage(err, "Failed to load file tree");
       setError(msg);
     } finally {
       setLoading(false);
@@ -48,7 +54,7 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
         await getClient().createFile(projectId, path, content);
         await refreshTree();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to create file";
+        const msg = extractErrorMessage(err, "Failed to create file");
         setError(msg);
       }
     },
@@ -62,7 +68,7 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
         await getClient().createDirectory(projectId, path);
         await refreshTree();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to create directory";
+        const msg = extractErrorMessage(err, "Failed to create directory");
         setError(msg);
       }
     },
@@ -76,7 +82,7 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
         await getClient().deleteFile(projectId, path);
         await refreshTree();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to delete";
+        const msg = extractErrorMessage(err, "Failed to delete");
         setError(msg);
       }
     },
@@ -90,7 +96,7 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
         await getClient().renameFile(projectId, oldPath, newPath);
         await refreshTree();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to rename";
+        const msg = extractErrorMessage(err, "Failed to rename");
         setError(msg);
       }
     },

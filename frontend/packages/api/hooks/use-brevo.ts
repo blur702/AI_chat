@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { getClient } from "../client";
+import { extractErrorMessage } from "../utils/error";
 import type {
   BrevoAccount,
   BrevoContact,
@@ -48,6 +49,11 @@ export interface UseBrevoReturn {
   error: string | null;
 }
 
+/**
+ * Provides lazy-loaded access to all Brevo (email/SMS) API operations.
+ * State is only fetched when the corresponding `fetch*` function is called.
+ * @returns Account info, contacts, templates, campaigns, and send functions for email and SMS.
+ */
 export function useBrevo(): UseBrevoReturn {
   const [account, setAccount] = useState<BrevoAccount | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
@@ -71,7 +77,7 @@ export function useBrevo(): UseBrevoReturn {
       const { data } = await getClient().get<BrevoAccount>("/brevo/account");
       setAccount(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch account");
+      setError(extractErrorMessage(err, "Failed to fetch account"));
     } finally {
       setAccountLoading(false);
     }
@@ -87,7 +93,7 @@ export function useBrevo(): UseBrevoReturn {
       setContacts(data.contacts);
       setContactsCount(data.count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch contacts");
+      setError(extractErrorMessage(err, "Failed to fetch contacts"));
     } finally {
       setContactsLoading(false);
     }
@@ -102,7 +108,7 @@ export function useBrevo(): UseBrevoReturn {
         await fetchContacts();
         return data;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create contact");
+        setError(extractErrorMessage(err, "Failed to create contact"));
         throw err;
       } finally {
         setCreatingContact(false);
@@ -119,7 +125,7 @@ export function useBrevo(): UseBrevoReturn {
         const { data } = await getClient().post<BrevoSendEmailResponse>("/brevo/email/send", req);
         return data;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to send email");
+        setError(extractErrorMessage(err, "Failed to send email"));
         throw err;
       } finally {
         setSendingEmail(false);
@@ -135,7 +141,7 @@ export function useBrevo(): UseBrevoReturn {
       const { data } = await getClient().get<BrevoTemplateListResponse>("/brevo/templates");
       setTemplates(data.templates);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch templates");
+      setError(extractErrorMessage(err, "Failed to fetch templates"));
     } finally {
       setTemplatesLoading(false);
     }
@@ -149,7 +155,7 @@ export function useBrevo(): UseBrevoReturn {
         const { data } = await getClient().post<BrevoSendSMSResponse>("/brevo/sms/send", req);
         return data;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to send SMS");
+        setError(extractErrorMessage(err, "Failed to send SMS"));
         throw err;
       } finally {
         setSendingSMS(false);
@@ -168,7 +174,7 @@ export function useBrevo(): UseBrevoReturn {
       setCampaigns(data.campaigns);
       setCampaignsCount(data.count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch campaigns");
+      setError(extractErrorMessage(err, "Failed to fetch campaigns"));
     } finally {
       setCampaignsLoading(false);
     }

@@ -12,6 +12,7 @@ import type {
   PlanPhaseCreateRequest,
   PlanTaskCreateRequest,
 } from "../types/planning";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UsePlanningReturn {
   sessions: PlanningSession[];
@@ -47,6 +48,11 @@ export interface UsePlanningReturn {
   importFromUIBuilder: (sessionId: string, uiTree: Record<string, unknown>[]) => Promise<void>;
 }
 
+/**
+ * Manages planning sessions, phases, and tasks for a project, including UI builder import/export.
+ * @param projectId - The project whose planning sessions to manage.
+ * @returns Session/phase/task CRUD functions, selected session with progress, and loading/error state.
+ */
 export function usePlanning(projectId: string): UsePlanningReturn {
   const [sessions, setSessions] = useState<PlanningSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<PlanningSessionDetail | null>(null);
@@ -61,9 +67,9 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       setLoading(true);
       setError(null);
       const res = await client.get(`/planning/sessions?project_id=${projectId}`);
-      setSessions(res.data);
+      setSessions(res.data as PlanningSession[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load planning sessions");
+      setError(extractErrorMessage(err, "Failed to load planning sessions"));
     } finally {
       setLoading(false);
     }
@@ -74,12 +80,12 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       setLoading(true);
       setError(null);
       const res = await client.get(`/planning/sessions/${sessionId}`);
-      setSelectedSession(res.data);
+      setSelectedSession(res.data as PlanningSessionDetail);
       // Also load progress
       const progressRes = await client.get(`/planning/sessions/${sessionId}/progress`);
-      setProgress(progressRes.data);
+      setProgress(progressRes.data as PlanProgress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load session");
+      setError(extractErrorMessage(err, "Failed to load session"));
     } finally {
       setLoading(false);
     }
@@ -94,7 +100,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       setSelectedSession(session);
       return session;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create session");
+      setError(extractErrorMessage(err, "Failed to create session"));
       return null;
     }
   }, [loadSessions]);
@@ -103,10 +109,10 @@ export function usePlanning(projectId: string): UsePlanningReturn {
     try {
       setError(null);
       const res = await client.put(`/planning/sessions/${sessionId}`, data);
-      setSelectedSession(res.data);
+      setSelectedSession(res.data as PlanningSessionDetail);
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update session");
+      setError(extractErrorMessage(err, "Failed to update session"));
     }
   }, [loadSessions]);
 
@@ -117,7 +123,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       setSelectedSession(null);
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to archive session");
+      setError(extractErrorMessage(err, "Failed to archive session"));
     }
   }, [loadSessions]);
 
@@ -125,10 +131,10 @@ export function usePlanning(projectId: string): UsePlanningReturn {
     try {
       setError(null);
       const res = await client.post(`/planning/sessions/${sessionId}/start`);
-      setSelectedSession(res.data);
+      setSelectedSession(res.data as PlanningSessionDetail);
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start session");
+      setError(extractErrorMessage(err, "Failed to start session"));
     }
   }, [loadSessions]);
 
@@ -136,10 +142,10 @@ export function usePlanning(projectId: string): UsePlanningReturn {
     try {
       setError(null);
       const res = await client.post(`/planning/sessions/${sessionId}/next-phase`);
-      setSelectedSession(res.data);
+      setSelectedSession(res.data as PlanningSessionDetail);
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to advance to next phase");
+      setError(extractErrorMessage(err, "Failed to advance to next phase"));
     }
   }, [loadSessions]);
 
@@ -150,7 +156,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/sessions/${sessionId}/phases`, data);
       await loadSession(sessionId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create phase");
+      setError(extractErrorMessage(err, "Failed to create phase"));
     }
   }, [loadSession]);
 
@@ -160,7 +166,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.put(`/planning/phases/${phaseId}`, data);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update phase");
+      setError(extractErrorMessage(err, "Failed to update phase"));
     }
   }, [selectedSession, loadSession]);
 
@@ -170,7 +176,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/phases/${phaseId}/approve`);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to approve phase");
+      setError(extractErrorMessage(err, "Failed to approve phase"));
     }
   }, [selectedSession, loadSession]);
 
@@ -180,7 +186,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/phases/${phaseId}/verify`);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify phase");
+      setError(extractErrorMessage(err, "Failed to verify phase"));
     }
   }, [selectedSession, loadSession]);
 
@@ -190,7 +196,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.delete(`/planning/phases/${phaseId}`);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete phase");
+      setError(extractErrorMessage(err, "Failed to delete phase"));
     }
   }, [selectedSession, loadSession]);
 
@@ -201,7 +207,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/phases/${phaseId}/tasks`, data);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create task");
+      setError(extractErrorMessage(err, "Failed to create task"));
     }
   }, [selectedSession, loadSession]);
 
@@ -211,7 +217,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.put(`/planning/tasks/${taskId}`, data);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update task");
+      setError(extractErrorMessage(err, "Failed to update task"));
     }
   }, [selectedSession, loadSession]);
 
@@ -221,7 +227,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/tasks/${taskId}/execute`);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to execute task");
+      setError(extractErrorMessage(err, "Failed to execute task"));
     }
   }, [selectedSession, loadSession]);
 
@@ -231,7 +237,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.delete(`/planning/tasks/${taskId}`);
       if (selectedSession) await loadSession(selectedSession.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete task");
+      setError(extractErrorMessage(err, "Failed to delete task"));
     }
   }, [selectedSession, loadSession]);
 
@@ -240,9 +246,9 @@ export function usePlanning(projectId: string): UsePlanningReturn {
     try {
       setError(null);
       const res = await client.post(`/planning/sessions/${sessionId}/export-to-ui-builder`);
-      return res.data.ui_tree;
+      return (res.data as { ui_tree: Record<string, unknown>[] }).ui_tree;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export to UI builder");
+      setError(extractErrorMessage(err, "Failed to export to UI builder"));
       return null;
     }
   }, []);
@@ -253,7 +259,7 @@ export function usePlanning(projectId: string): UsePlanningReturn {
       await client.post(`/planning/sessions/${sessionId}/import-from-ui-builder`, { ui_tree: uiTree });
       await loadSession(sessionId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import from UI builder");
+      setError(extractErrorMessage(err, "Failed to import from UI builder"));
     }
   }, [loadSession]);
 

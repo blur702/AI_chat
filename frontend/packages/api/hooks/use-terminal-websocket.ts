@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TerminalMessage } from "../types";
 
-export type TerminalStatus = "disconnected" | "connecting" | "connected";
+export type TerminalStatus = "disconnected" | "connecting" | "connected" | "exhausted";
 
 interface UseTerminalWebSocketOptions {
   projectId: string;
@@ -29,6 +29,12 @@ function getWsBaseUrl(): string {
   return "";
 }
 
+/**
+ * Manages a WebSocket connection to the sandbox terminal, with up to 3 auto-reconnect attempts.
+ * Dispatches output, exit, error, and connected events via stable callback refs.
+ * @param options - Terminal WebSocket options including `projectId`, `token`, and event callbacks.
+ * @returns Connection status, `sendCommand`, and manual `connect`/`disconnect` controls.
+ */
 export function useTerminalWebSocket({
   projectId,
   token,
@@ -111,15 +117,17 @@ export function useTerminalWebSocket({
     };
 
     ws.onclose = () => {
-      setStatus("disconnected");
       wsRef.current = null;
 
       // Auto-reconnect
       if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+        setStatus("disconnected");
         reconnectAttempts.current += 1;
         reconnectTimer.current = setTimeout(() => {
           connect();
         }, RECONNECT_DELAY_MS * reconnectAttempts.current);
+      } else {
+        setStatus("exhausted");
       }
     };
 

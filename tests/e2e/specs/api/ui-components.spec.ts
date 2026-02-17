@@ -1,40 +1,43 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { resetLockout, flushRateLimits } from "../../helpers/db";
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost";
-const ADMIN_ID = "admin";
-const ADMIN_PW = "Admin123!";
+const BASE = process.env.API_BASE_URL ?? process.env.BASE_URL ?? "http://localhost";
+import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
 
 let api: APIRequestContext;
+let anonApi: APIRequestContext;
 let adminToken: string;
 let createdComponentId: string;
 
 test.beforeAll(async ({ playwright }) => {
-  resetLockout("admin");
+  resetLockout(ADMIN_ID);
   flushRateLimits();
 
-  api = await playwright.request.newContext({ baseURL: BASE });
-  const res = await api.post("/api/auth/login", {
+  const loginCtx = await playwright.request.newContext({ baseURL: BASE });
+  const res = await loginCtx.post("/api/auth/login", {
     data: { identifier: ADMIN_ID, password: ADMIN_PW },
   });
   expect(res.status()).toBe(200);
   const body = await res.json();
   adminToken = body.access_token;
+  await loginCtx.dispose();
+
+  api = await playwright.request.newContext({
+    baseURL: BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${adminToken}` },
+  });
+
+  anonApi = await playwright.request.newContext({ baseURL: BASE });
 });
 
 test.afterAll(async () => {
   // Clean up created test component
   if (createdComponentId) {
-    await api.delete(`/api/ui-components/${createdComponentId}`, {
-      headers: authHeaders(),
-    });
+    await api.delete(`/api/ui-components/${createdComponentId}`);
   }
   await api.dispose();
+  await anonApi.dispose();
 });
-
-function authHeaders() {
-  return { Authorization: `Bearer ${adminToken}` };
-}
 
 // ---------------------------------------------------------------------------
 // UI Components CRUD
@@ -43,7 +46,6 @@ function authHeaders() {
 test.describe("UI Components CRUD", () => {
   test("POST /api/ui-components creates a component", async () => {
     const res = await api.post("/api/ui-components", {
-      headers: authHeaders(),
       data: {
         name: "E2E Test Button",
         category: "basic",
@@ -71,9 +73,7 @@ test.describe("UI Components CRUD", () => {
   });
 
   test("GET /api/ui-components lists components", async () => {
-    const res = await api.get("/api/ui-components", {
-      headers: authHeaders(),
-    });
+    const res = await api.get("/api/ui-components");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -85,9 +85,7 @@ test.describe("UI Components CRUD", () => {
   });
 
   test("GET /api/ui-components?category=basic filters by category", async () => {
-    const res = await api.get("/api/ui-components?category=basic", {
-      headers: authHeaders(),
-    });
+    const res = await api.get("/api/ui-components?category=basic");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -97,9 +95,7 @@ test.describe("UI Components CRUD", () => {
   });
 
   test("GET /api/ui-components?tags=e2e filters by tags", async () => {
-    const res = await api.get("/api/ui-components?tags=e2e", {
-      headers: authHeaders(),
-    });
+    const res = await api.get("/api/ui-components?tags=e2e");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -110,9 +106,7 @@ test.describe("UI Components CRUD", () => {
   });
 
   test("GET /api/ui-components/:id returns a specific component", async () => {
-    const res = await api.get(`/api/ui-components/${createdComponentId}`, {
-      headers: authHeaders(),
-    });
+    const res = await api.get(`/api/ui-components/${createdComponentId}`);
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -124,7 +118,6 @@ test.describe("UI Components CRUD", () => {
 
   test("PUT /api/ui-components/:id updates a component", async () => {
     const res = await api.put(`/api/ui-components/${createdComponentId}`, {
-      headers: authHeaders(),
       data: {
         name: "E2E Test Button Updated",
         description: "Updated description",
@@ -141,22 +134,19 @@ test.describe("UI Components CRUD", () => {
   });
 
   test("GET /api/ui-components/:id with invalid ID returns 400", async () => {
-    const res = await api.get("/api/ui-components/not-a-uuid", {
-      headers: authHeaders(),
-    });
+    const res = await api.get("/api/ui-components/not-a-uuid");
     expect(res.status()).toBe(400);
   });
 
   test("GET /api/ui-components/:id with nonexistent ID returns 404", async () => {
     const res = await api.get(
-      "/api/ui-components/00000000-0000-0000-0000-000000000000",
-      { headers: authHeaders() }
+      "/api/ui-components/00000000-0000-0000-0000-000000000000"
     );
     expect(res.status()).toBe(404);
   });
 
   test("returns 401 without auth", async () => {
-    const res = await api.get("/api/ui-components");
+    const res = await anonApi.get("/api/ui-components");
     expect(res.status()).toBe(401);
   });
 });
@@ -168,7 +158,6 @@ test.describe("UI Components CRUD", () => {
 test.describe("UI Component validation", () => {
   test("POST rejects empty name", async () => {
     const res = await api.post("/api/ui-components", {
-      headers: authHeaders(),
       data: {
         name: "",
         category: "basic",
@@ -180,7 +169,6 @@ test.describe("UI Component validation", () => {
 
   test("POST rejects empty html_template", async () => {
     const res = await api.post("/api/ui-components", {
-      headers: authHeaders(),
       data: {
         name: "Test",
         category: "basic",
@@ -192,7 +180,6 @@ test.describe("UI Component validation", () => {
 
   test("POST rejects missing required fields", async () => {
     const res = await api.post("/api/ui-components", {
-      headers: authHeaders(),
       data: { name: "Test" },
     });
     expect(res.status()).toBe(422);
@@ -208,7 +195,6 @@ test.describe("UI Component deletion", () => {
 
   test("create a component for deletion", async () => {
     const res = await api.post("/api/ui-components", {
-      headers: authHeaders(),
       data: {
         name: "E2E Delete Target",
         category: "basic",
@@ -220,23 +206,18 @@ test.describe("UI Component deletion", () => {
   });
 
   test("DELETE /api/ui-components/:id removes component", async () => {
-    const res = await api.delete(`/api/ui-components/${deleteTargetId}`, {
-      headers: authHeaders(),
-    });
+    const res = await api.delete(`/api/ui-components/${deleteTargetId}`);
     expect(res.status()).toBe(204);
   });
 
   test("deleted component returns 404", async () => {
-    const res = await api.get(`/api/ui-components/${deleteTargetId}`, {
-      headers: authHeaders(),
-    });
+    const res = await api.get(`/api/ui-components/${deleteTargetId}`);
     expect(res.status()).toBe(404);
   });
 
   test("DELETE nonexistent returns 404", async () => {
     const res = await api.delete(
-      "/api/ui-components/00000000-0000-0000-0000-000000000000",
-      { headers: authHeaders() }
+      "/api/ui-components/00000000-0000-0000-0000-000000000000"
     );
     expect(res.status()).toBe(404);
   });

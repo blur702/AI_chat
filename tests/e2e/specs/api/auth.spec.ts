@@ -1,20 +1,24 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { resetLockout, deleteTestUsers, flushRateLimits } from "../../helpers/db";
+import { ADMIN_ID, ADMIN_PW, ADMIN_EMAIL } from "../../helpers/credentials";
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost";
-const ADMIN_ID = "admin";
-const ADMIN_PW = "Admin123!";
+const BASE = process.env.API_BASE_URL ?? process.env.BASE_URL ?? "http://localhost";
 
-let api: APIRequestContext;
+// Separate contexts: loginApi for login tests (needs cookies cleared between tests),
+// anonApi for no-auth tests, authApi for authenticated requests
+let loginApi: APIRequestContext;
+let anonApi: APIRequestContext;
 
 test.beforeAll(async ({ playwright }) => {
   flushRateLimits();
-  resetLockout("admin");
-  api = await playwright.request.newContext({ baseURL: BASE });
+  resetLockout(ADMIN_ID);
+  loginApi = await playwright.request.newContext({ baseURL: BASE });
+  anonApi = await playwright.request.newContext({ baseURL: BASE });
 });
 
 test.afterAll(async () => {
-  await api.dispose();
+  await loginApi.dispose();
+  await anonApi.dispose();
 });
 
 // ---------------------------------------------------------------------------
@@ -22,13 +26,15 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 async function login(identifier: string, password: string) {
-  return api.post("/api/auth/login", {
+  return loginApi.post("/api/auth/login", {
+    headers: { Origin: BASE },
     data: { identifier, password },
   });
 }
 
 async function getAdminToken(): Promise<string> {
   flushRateLimits();
+  resetLockout(ADMIN_ID);
   const res = await login(ADMIN_ID, ADMIN_PW);
   const body = await res.json();
   return body.access_token;
@@ -41,10 +47,11 @@ async function getAdminToken(): Promise<string> {
 test.describe("POST /api/auth/login", () => {
   test.beforeAll(async () => {
     flushRateLimits();
-    resetLockout("admin");
+    resetLockout(ADMIN_ID);
   });
 
   test("returns token for valid credentials", async () => {
+    flushRateLimits();
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
 
@@ -52,12 +59,13 @@ test.describe("POST /api/auth/login", () => {
     expect(body).toHaveProperty("access_token");
     expect(body.token_type).toBe("bearer");
     expect(body.role).toBe("admin");
-    expect(body.username).toBe("admin");
+    expect(body.username).toBe(ADMIN_ID);
     expect(body.user_id).toBeTruthy();
     expect(body.screen_name).toBeTruthy();
   });
 
   test("returns 401 for wrong password", async () => {
+    flushRateLimits();
     const res = await login(ADMIN_ID, "wrong");
     expect(res.status()).toBe(401);
 
@@ -66,25 +74,30 @@ test.describe("POST /api/auth/login", () => {
   });
 
   test("returns 401 for non-existent user", async () => {
+    flushRateLimits();
     const res = await login("nobody_here", "anything");
     expect(res.status()).toBe(401);
   });
 
   test("accepts email as identifier", async () => {
     flushRateLimits();
-    const res = await login("admin@workstation.local", ADMIN_PW);
+    resetLockout(ADMIN_ID);
+    const res = await login(ADMIN_EMAIL, ADMIN_PW);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.username).toBe("admin");
+    expect(body.username).toBe(ADMIN_ID);
   });
 
   test("rejects empty identifier", async () => {
+    flushRateLimits();
     const res = await login("", ADMIN_PW);
     expect(res.status()).toBe(401);
   });
 
   test("rejects empty password", async () => {
-    const res = await api.post("/api/auth/login", {
+    flushRateLimits();
+    const res = await loginApi.post("/api/auth/login", {
+      headers: { Origin: BASE },
       data: { identifier: ADMIN_ID, password: "" },
     });
     // pydantic validation, 401, or rate-limited
@@ -99,20 +112,17 @@ test.describe("POST /api/auth/login", () => {
 test.describe("Account lockout", () => {
   test.beforeAll(async () => {
     flushRateLimits();
-    resetLockout("admin");
-  });
-
-  test.beforeEach(() => {
-    flushRateLimits();
+    resetLockout(ADMIN_ID);
   });
 
   test.afterAll(async () => {
-    resetLockout("admin");
+    resetLockout(ADMIN_ID);
+    flushRateLimits();
   });
 
   test("locks account after 5 failed attempts", async () => {
     flushRateLimits();
-    resetLockout("admin");
+    resetLockout(ADMIN_ID);
 
     // 5 wrong attempts — flush before each to avoid login rate limit (5/900s)
     for (let i = 0; i < 5; i++) {
@@ -134,26 +144,28 @@ test.describe("Account lockout", () => {
 
   test("login succeeds after lockout is cleared", async () => {
     flushRateLimits();
-    resetLockout("admin");
+    resetLockout(ADMIN_ID);
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
   });
 
   test("successful login resets failed counter", async () => {
     flushRateLimits();
-    resetLockout("admin");
+    resetLockout(ADMIN_ID);
 
-    // Make 3 failed attempts (below threshold)
-    for (let i = 0; i < 3; i++) {
+    // Make 2 failed attempts (well below 5 threshold)
+    for (let i = 0; i < 2; i++) {
+      flushRateLimits();
       await login(ADMIN_ID, "bad_password");
     }
-    // Succeed
+    // Succeed — resets counter
     flushRateLimits();
     const res = await login(ADMIN_ID, ADMIN_PW);
     expect(res.status()).toBe(200);
 
-    // 3 more failures should NOT lock (counter was reset)
-    for (let i = 0; i < 3; i++) {
+    // 2 more failures should NOT lock (counter was reset by success above)
+    for (let i = 0; i < 2; i++) {
+      flushRateLimits();
       await login(ADMIN_ID, "bad_password");
     }
     flushRateLimits();
@@ -170,16 +182,16 @@ test.describe("GET /api/auth/me", () => {
   test("returns user info with valid token", async () => {
     const token = await getAdminToken();
 
-    const res = await api.get("/api/auth/me", {
+    const res = await anonApi.get("/api/auth/me", {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status()).toBe(200);
 
     const body = await res.json();
-    expect(body.username).toBe("admin");
+    expect(body.username).toBe(ADMIN_ID);
     expect(body.role).toBe("admin");
     expect(body.is_active).toBe(true);
-    expect(body.email).toBe("admin@workstation.local");
+    expect(body.email).toBe(ADMIN_EMAIL);
     expect(body).toHaveProperty("id");
     expect(body).toHaveProperty("first_name");
     expect(body).toHaveProperty("last_name");
@@ -187,19 +199,19 @@ test.describe("GET /api/auth/me", () => {
   });
 
   test("returns 401 without token", async () => {
-    const res = await api.get("/api/auth/me");
+    const res = await anonApi.get("/api/auth/me");
     expect(res.status()).toBe(401);
   });
 
   test("returns 401 with invalid token", async () => {
-    const res = await api.get("/api/auth/me", {
+    const res = await anonApi.get("/api/auth/me", {
       headers: { Authorization: "Bearer invalidtoken123" },
     });
     expect(res.status()).toBe(401);
   });
 
   test("returns 401 with malformed Authorization header", async () => {
-    const res = await api.get("/api/auth/me", {
+    const res = await anonApi.get("/api/auth/me", {
       headers: { Authorization: "NotBearer token" },
     });
     expect(res.status()).toBe(401);
@@ -228,7 +240,7 @@ test.describe("POST /api/auth/users", () => {
     deleteTestUsers(); // Ensure clean state even on retry
     const token = await getAdminToken();
 
-    const res = await api.post("/api/auth/users", {
+    const res = await anonApi.post("/api/auth/users", {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         username: "e2e_newuser",
@@ -255,6 +267,7 @@ test.describe("POST /api/auth/users", () => {
 
   test("newly created user can login", async () => {
     flushRateLimits();
+    resetLockout("e2e_newuser");
     const res = await login("e2e_newuser", "StrongPass1!");
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -263,7 +276,7 @@ test.describe("POST /api/auth/users", () => {
 
   test("rejects duplicate username", async () => {
     const token = await getAdminToken();
-    const res = await api.post("/api/auth/users", {
+    const res = await anonApi.post("/api/auth/users", {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         username: "e2e_newuser",
@@ -276,7 +289,7 @@ test.describe("POST /api/auth/users", () => {
 
   test("rejects duplicate email", async () => {
     const token = await getAdminToken();
-    const res = await api.post("/api/auth/users", {
+    const res = await anonApi.post("/api/auth/users", {
       headers: { Authorization: `Bearer ${token}` },
       data: {
         username: "e2e_another",
@@ -290,10 +303,12 @@ test.describe("POST /api/auth/users", () => {
 
   test("non-admin cannot create users", async () => {
     flushRateLimits();
+    resetLockout("e2e_newuser");
     const loginRes = await login("e2e_newuser", "StrongPass1!");
+    expect(loginRes.status()).toBe(200);
     const body = await loginRes.json();
 
-    const res = await api.post("/api/auth/users", {
+    const res = await anonApi.post("/api/auth/users", {
       headers: { Authorization: `Bearer ${body.access_token}` },
       data: {
         username: "e2e_hacker",
@@ -305,7 +320,8 @@ test.describe("POST /api/auth/users", () => {
   });
 
   test("rejects request without auth", async () => {
-    const res = await api.post("/api/auth/users", {
+    const res = await anonApi.post("/api/auth/users", {
+      headers: { Origin: BASE },
       data: {
         username: "e2e_noauth",
         password: "NoAuth1234!",

@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { usePromptPresets } from "@workstation/api/hooks";
 import type { PromptPresetResponse } from "@workstation/api/types";
+import { useToast } from "../../toast-provider";
 import {
   Button,
   DropdownMenu,
@@ -45,6 +46,7 @@ export function PromptPresets({
   currentWorkflowSettings,
 }: PromptPresetsProps) {
   const { presets, createPreset, deletePreset } = usePromptPresets();
+  const { toast } = useToast();
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveCategory, setSaveCategory] = useState("general");
@@ -64,8 +66,10 @@ export function PromptPresets({
       setSaveDialogOpen(false);
       setSaveName("");
     } catch (err) {
-      console.error("Failed to save preset:", err);
-      alert("Failed to save preset. Please try again.");
+      toast(
+        `Failed to save preset: ${err instanceof Error ? err.message : "Please try again."}`,
+        "error"
+      );
     } finally {
       setSaving(false);
     }
@@ -111,7 +115,12 @@ export function PromptPresets({
                           try {
                             await deletePreset(preset.id);
                           } catch (err) {
-                            console.error("Failed to delete preset", err);
+                            toast(
+                              `Failed to delete preset "${preset.name}": ${
+                                err instanceof Error ? err.message : "Unknown error"
+                              }`,
+                              "error"
+                            );
                           }
                         }
                       }}

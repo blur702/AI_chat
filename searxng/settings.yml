@@ -19,6 +19,9 @@ server:
   limiter: true
   image_proxy: true
 
+valkey:
+  url: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+
 ui:
   static_use_hash: true
 

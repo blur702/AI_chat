@@ -2,16 +2,16 @@
 
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
 
-from app.kernel.base import BaseKernelService
+from app.kernel.http_service import HttpKernelService
 
 logger = logging.getLogger(__name__)
 
 
-class OllamaClient(BaseKernelService):
+class OllamaClient(HttpKernelService):
     """
     Kernel service wrapping the Ollama HTTP API.
 
@@ -20,64 +20,66 @@ class OllamaClient(BaseKernelService):
     """
 
     def __init__(self, base_url: str = "http://ollama:11434") -> None:
-        self._base_url = base_url.rstrip("/")
-        self._running = False
-        self._client: Optional[httpx.AsyncClient] = None
-
-    # -- BaseKernelService lifecycle -----------------------------------------
+        super().__init__(base_url)
 
     @property
     def name(self) -> str:
         return "ollama_client"
 
     @property
-    def is_running(self) -> bool:
-        return self._running
+    def _health_endpoint(self) -> str:
+        return "/api/tags"
 
-    async def startup(self) -> None:
-        if self._running:
-            return
-        self._client = httpx.AsyncClient(
-            base_url=self._base_url,
-            timeout=httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0),
-        )
-        self._running = True
-        logger.info("OllamaClient started (base_url=%s)", self._base_url)
-
-    async def shutdown(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._running = False
-        logger.info("OllamaClient stopped")
-
-    async def health_check(self) -> Tuple[bool, str]:
-        if not self._running or not self._client:
-            return False, "service not running"
-        try:
-            resp = await self._client.get("/api/tags", timeout=5.0)
-            resp.raise_for_status()
-            return True, "ok"
-        except Exception as exc:
-            return False, f"ollama unreachable: {exc}"
+    @property
+    def _default_timeout(self) -> httpx.Timeout:
+        return httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
 
     # -- Public API ----------------------------------------------------------
 
     async def list_models(self) -> List[Dict[str, Any]]:
         """Return the list of locally available Ollama models."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         resp = await self._client.get("/api/tags", timeout=10.0)
         resp.raise_for_status()
         data = resp.json()
         return data.get("models", [])
 
     async def get_default_model(self) -> str:
-        """Return the first available model name, or a sensible fallback."""
+        """Return the best available chat model, preferring uncensored coding models.
+
+        Priority: abliterated/uncensored coding models > other coding models > any chat model.
+        Skips embedding-only models (e.g. nomic-embed-text, snowflake-arctic-embed).
+        """
         try:
             models = await self.list_models()
-            if models:
-                return models[0].get("name", "llama3.2")
+            # Filter out embedding models
+            chat_models = [
+                m for m in models
+                if "embed" not in m.get("name", "").lower()
+            ]
+            if not chat_models:
+                return "llama3.2"
+
+            # Prefer uncensored/abliterated coding models
+            def _score(m: dict) -> int:
+                name = m.get("name", "").lower()
+                s = 0
+                if "abliterat" in name or "uncensor" in name or "dolphin" in name:
+                    s += 20
+                if "code" in name or "coder" in name or "roocode" in name or "deepcoder" in name:
+                    s += 10
+                # Prefer larger models (rough heuristic from size)
+                size = m.get("size", 0)
+                if size > 8_000_000_000:
+                    s += 5
+                elif size > 4_000_000_000:
+                    s += 2
+                return s
+
+            chat_models.sort(key=_score, reverse=True)
+            chosen = chat_models[0].get("name", "llama3.2")
+            logger.info("Default model selected: %s", chosen)
+            return chosen
         except Exception:
             logger.warning("Failed to list Ollama models, using fallback")
         return "llama3.2"
@@ -111,8 +113,7 @@ class OllamaClient(BaseKernelService):
             httpx.TimeoutException: On request timeout.
             httpx.HTTPStatusError: On non-2xx response from Ollama.
         """
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
 
         payload: Dict[str, Any] = {
             "model": model,
@@ -165,8 +166,7 @@ class OllamaClient(BaseKernelService):
             httpx.HTTPStatusError: On non-2xx response from Ollama.
             httpx.ConnectError: When Ollama is unreachable.
         """
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
 
         payload: Dict[str, Any] = {
             "model": model,
@@ -183,7 +183,11 @@ class OllamaClient(BaseKernelService):
         if tools:
             payload["tools"] = tools
 
+        logger.info("Ollama chat request: model=%s messages=%d", payload["model"], len(messages))
         async with self._client.stream("POST", "/api/chat", json=payload) as resp:
+            if resp.status_code != 200:
+                body = await resp.aread()
+                logger.error("Ollama chat error %d: %s", resp.status_code, body[:500])
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line:
@@ -208,8 +212,7 @@ class OllamaClient(BaseKernelService):
 
     async def list_running_models(self) -> List[Dict[str, Any]]:
         """Return models currently loaded in VRAM via Ollama's /api/ps."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         resp = await self._client.get("/api/ps", timeout=10.0)
         resp.raise_for_status()
         data = resp.json()
@@ -217,8 +220,7 @@ class OllamaClient(BaseKernelService):
 
     async def load_model(self, name: str, keep_alive: str = "5m") -> Dict[str, Any]:
         """Load a model into VRAM by sending a blank generate request with keep_alive."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         resp = await self._client.post(
             "/api/generate",
             json={"model": name, "keep_alive": keep_alive},
@@ -229,8 +231,7 @@ class OllamaClient(BaseKernelService):
 
     async def unload_model(self, name: str) -> Dict[str, Any]:
         """Unload a model from VRAM by setting keep_alive to 0."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         resp = await self._client.post(
             "/api/generate",
             json={"model": name, "keep_alive": 0},
@@ -241,8 +242,7 @@ class OllamaClient(BaseKernelService):
 
     async def pull_model(self, name: str) -> AsyncGenerator[Dict[str, Any], None]:
         """Pull/download a model from Ollama registry, streaming progress."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         async with self._client.stream(
             "POST",
             "/api/pull",
@@ -262,8 +262,7 @@ class OllamaClient(BaseKernelService):
 
     async def delete_model(self, name: str) -> None:
         """Delete a local model."""
-        if self._client is None:
-            raise RuntimeError("OllamaClient not started")
+        self._require_client()
         resp = await self._client.request(
             "DELETE",
             "/api/delete",

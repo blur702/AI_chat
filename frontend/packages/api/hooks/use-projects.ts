@@ -9,7 +9,14 @@ import type {
   ProjectUpdateRequest,
   ProjectUpdateResponse,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
+/**
+ * Fetches and manages the full list of projects for the authenticated user.
+ * @returns Project list, loading/error state, and CRUD functions for creating, updating, and deleting projects.
+ * @example
+ * const { projects, createProject, deleteProject } = useProjects();
+ */
 export function useProjects() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +29,7 @@ export function useProjects() {
       const res = await getClient().listProjects();
       setProjects(res.projects);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects");
+      setError(extractErrorMessage(err, "Failed to load projects"));
     } finally {
       setLoading(false);
     }
@@ -40,7 +47,7 @@ export function useProjects() {
         await refresh();
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create project");
+        setError(extractErrorMessage(err, "Failed to create project"));
         throw err;
       }
     },
@@ -55,7 +62,7 @@ export function useProjects() {
         await refresh();
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update project");
+        setError(extractErrorMessage(err, "Failed to update project"));
         throw err;
       }
     },
@@ -69,7 +76,7 @@ export function useProjects() {
         await getClient().deleteProject(id);
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete project");
+        setError(extractErrorMessage(err, "Failed to delete project"));
         throw err;
       }
     },

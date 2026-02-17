@@ -76,6 +76,10 @@ const emptyState: AuthState = {
   isAuthenticated: false,
 };
 
+/**
+ * Provides authentication context to the component tree, restoring session state on mount.
+ * @returns A React context provider element wrapping `children`.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(emptyState);
 
@@ -139,6 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Accesses the authentication context providing user identity and auth actions.
+ * Must be called inside an `AuthProvider`. Throws if used outside one.
+ * @returns Auth state with `user`, `isAuthenticated`, `login`, `loginWithCredentials`, and `logout`.
+ * @example
+ * const { isAuthenticated, loginWithCredentials, logout } = useAuth();
+ */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {

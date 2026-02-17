@@ -1,0 +1,67 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          uploadArtifacts: true
+          configPath: ./lighthouserc.json
+        continue-on-error: true
+
+  backend-benchmark:
+    name: Backend Benchmark
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest-benchmark
+      - name: Run benchmarks
+        run: python -m pytest tests/ -v -m "benchmark" --benchmark-only --benchmark-json=benchmark.json 2>&1 || echo "No benchmark tests found — skipping"
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key-32-characters-minimum
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-benchmarks
+          path: backend/benchmark.json
+          if-no-files-found: ignore

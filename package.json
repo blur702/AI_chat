@@ -4,7 +4,43 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@types/node": "^25.2.3"
+    "@types/node": "^25.2.3",
+    "eslint": "^10.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2"
   },
-  "scripts": {}
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "frontend/**/*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix --no-warn-ignored"
+    ],
+    "backend/**/*.py": [
+      "ruff check --fix",
+      "ruff format"
+    ]
+  },
+  "name": "aichat",
+  "version": "1.0.0",
+  "description": "Containerized AI development environment with: - FastAPI backend - Next.js chat frontend - PostgreSQL + pgvector - Redis + ARQ worker - Ollama + ComfyUI (GPU services) - Nginx reverse proxy (HTTP/HTTPS)",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blur702/AI_chat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/blur702/AI_chat/issues"
+  },
+  "homepage": "https://github.com/blur702/AI_chat#readme"
 }

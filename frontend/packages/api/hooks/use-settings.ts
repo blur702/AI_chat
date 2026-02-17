@@ -38,6 +38,11 @@ interface UseSettingsReturn {
   refreshModels: () => Promise<void>;
 }
 
+/**
+ * Manages user profile, password, preferences, and available model list for the settings page.
+ * @param userId - The authenticated user's ID; pass `null` to skip initial fetches.
+ * @returns User data, preferences, model list, saving flags, and update/change-password functions.
+ */
 export function useSettings(userId: string | null): UseSettingsReturn {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [userLoading, setUserLoading] = useState(!!userId);

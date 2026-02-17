@@ -53,7 +53,7 @@ export function flushRateLimits() {
       process.env.REDIS_PASSWORD ?? "changeme_strong_redis_password",
       "--no-auth-warning",
       "EVAL",
-      "local keys = redis.call('KEYS','rate_limit:*') for _,k in ipairs(keys) do redis.call('DEL',k) end return #keys",
+      "local keys = redis.call('KEYS','rate_limit:*') for _,k in ipairs(keys) do redis.call('DEL',k) end local keys2 = redis.call('KEYS','lockout:*') for _,k in ipairs(keys2) do redis.call('DEL',k) end return #keys + #keys2",
       "0",
     ]);
   } catch (err) {

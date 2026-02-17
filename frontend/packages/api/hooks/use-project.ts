@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { ProjectContext, ChatSummary, ProjectUpdateRequest } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseProjectReturn {
   project: ProjectContext | null;
@@ -13,6 +14,11 @@ interface UseProjectReturn {
   updateProject: (data: ProjectUpdateRequest) => Promise<boolean>;
 }
 
+/**
+ * Fetches the full project context (including its chats) for a single project.
+ * @param projectId - The project to load, or `null` to clear state.
+ * @returns Project context, chat list derived from it, loading/error state, and an `updateProject` function.
+ */
 export function useProject(projectId: string | null): UseProjectReturn {
   const [project, setProject] = useState<ProjectContext | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,7 +32,7 @@ export function useProject(projectId: string | null): UseProjectReturn {
       const ctx = await getClient().getProjectContext(projectId);
       setProject(ctx);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch project");
+      setError(extractErrorMessage(err, "Failed to fetch project"));
     } finally {
       setLoading(false);
     }
@@ -49,7 +55,7 @@ export function useProject(projectId: string | null): UseProjectReturn {
         await refresh();
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update project");
+        setError(extractErrorMessage(err, "Failed to update project"));
         return false;
       }
     },

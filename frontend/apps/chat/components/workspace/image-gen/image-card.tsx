@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { Badge, Button, Skeleton, cn } from "@workstation/ui";
 import {
   AlertCircle,
@@ -11,6 +12,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import Image from "next/image";
 import type {
   ImageGenerationResponse,
   ImageGenerationStatus,
@@ -53,7 +55,7 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function ImageCard({
+export const ImageCard = memo(function ImageCard({
   generation,
   onView,
   onDelete,
@@ -74,9 +76,10 @@ export function ImageCard({
     generation.status === "pending" || generation.status === "processing";
   const isCompleted =
     generation.status === "completed" && generation.result_images.length > 0;
-  const createdAt = generation.created_at
-    ? new Date(generation.created_at).toLocaleString()
-    : null;
+  const createdAt = useMemo(
+    () => generation.created_at ? new Date(generation.created_at).toLocaleString() : null,
+    [generation.created_at]
+  );
 
   return (
     <div
@@ -108,10 +111,12 @@ export function ImageCard({
 
         {isCompleted && (
           <>
-            <img
+            <Image
               src={generation.result_images[0]}
               alt={generation.prompt}
-              className="h-full w-full object-cover"
+              fill
+              unoptimized
+              className="object-cover"
             />
             {generation.is_favorite && (
               <div className="absolute top-2 right-2 z-10">
@@ -200,4 +205,4 @@ export function ImageCard({
       </div>
     </div>
   );
-}
+});

@@ -3,14 +3,16 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import (
     get_current_user_payload,
     get_db_session,
 )
+from app.auth import get_user_id
+from app.utils.cache import cached_response, invalidate_cache
 from app.models.chat import Chat
 from app.models.project import Project
 from app.models.system_prompt import SystemPrompt
@@ -26,22 +28,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/context/system-prompts", tags=["context"])
 
 
-def _get_user_id(payload: dict) -> UUID:
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing required user_id in auth payload",
-        )
-    try:
-        return UUID(str(raw_user_id))
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_id format in auth payload",
-        ) from None
-
-
 def _prompt_to_response(p: SystemPrompt) -> SystemPromptResponse:
     return SystemPromptResponse(
         id=str(p.id),
@@ -55,26 +41,42 @@ def _prompt_to_response(p: SystemPrompt) -> SystemPromptResponse:
 
 
 @router.get("", response_model=SystemPromptListResponse)
+@cached_response(ttl=120, key_prefix="rc")
 async def list_system_prompts(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> SystemPromptListResponse:
-    """List all non-deleted system prompts for the current user."""
-    user_id = _get_user_id(payload)
+    """List non-deleted system prompts for the current user with pagination."""
+    user_id = get_user_id(payload)
 
+    base_query = select(SystemPrompt).where(
+        SystemPrompt.user_id == user_id,
+        SystemPrompt.is_deleted == False,  # noqa: E712
+    )
+
+    # Total count
+    count_result = await db.execute(
+        select(func.count()).select_from(base_query.subquery())
+    )
+    total = count_result.scalar() or 0
+
+    # Paginated results
     result = await db.execute(
-        select(SystemPrompt)
-        .where(
-            SystemPrompt.user_id == user_id,
-            SystemPrompt.is_deleted == False,  # noqa: E712
-        )
+        base_query
         .order_by(SystemPrompt.is_default.desc(), SystemPrompt.updated_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
     prompts = result.scalars().all()
 
     return SystemPromptListResponse(
         prompts=[_prompt_to_response(p) for p in prompts],
         count=len(prompts),
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -89,7 +91,7 @@ async def create_system_prompt(
     db: AsyncSession = Depends(get_db_session),
 ) -> SystemPromptResponse:
     """Create a new system prompt. If is_default=True, clears other defaults."""
-    user_id = _get_user_id(payload)
+    user_id = get_user_id(payload)
 
     if body.is_default:
         await db.execute(
@@ -113,6 +115,8 @@ async def create_system_prompt(
     await db.commit()
     await db.refresh(prompt)
 
+    await invalidate_cache("rc:list_system_prompts:*")
+
     return _prompt_to_response(prompt)
 
 
@@ -123,7 +127,7 @@ async def get_system_prompt(
     db: AsyncSession = Depends(get_db_session),
 ) -> SystemPromptResponse:
     """Get a single system prompt by ID."""
-    user_id = _get_user_id(payload)
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(SystemPrompt).where(
@@ -150,7 +154,7 @@ async def update_system_prompt(
     db: AsyncSession = Depends(get_db_session),
 ) -> SystemPromptResponse:
     """Update a system prompt."""
-    user_id = _get_user_id(payload)
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(SystemPrompt).where(
@@ -185,6 +189,8 @@ async def update_system_prompt(
     await db.commit()
     await db.refresh(prompt)
 
+    await invalidate_cache("rc:list_system_prompts:*")
+
     return _prompt_to_response(prompt)
 
 
@@ -195,7 +201,7 @@ async def delete_system_prompt(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Soft-delete a system prompt and clear FK references."""
-    user_id = _get_user_id(payload)
+    user_id = get_user_id(payload)
 
     result = await db.execute(
         select(SystemPrompt).where(
@@ -224,3 +230,5 @@ async def delete_system_prompt(
 
     prompt.soft_delete()
     await db.commit()
+
+    await invalidate_cache("rc:list_system_prompts:*")

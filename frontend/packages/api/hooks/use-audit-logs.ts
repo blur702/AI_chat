@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getClient } from "../client";
 import type { AuditLogEntry, AuditLogFilters } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseAuditLogsReturn {
   logs: AuditLogEntry[];
@@ -29,6 +30,10 @@ const DEFAULT_FILTERS: AuditLogFilters = {
   page_size: DEFAULT_PAGE_SIZE,
 };
 
+/**
+ * Fetches paginated audit log entries with filtering, sorting, and CSV/JSON export support.
+ * @returns Audit log list, pagination state, filter controls, and an `exportLogs` function.
+ */
 export function useAuditLogs(): UseAuditLogsReturn {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +55,7 @@ export function useAuditLogs(): UseAuditLogsReturn {
       setLogs(data.logs);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load audit logs");
+      setError(extractErrorMessage(err, "Failed to load audit logs"));
     } finally {
       setLoading(false);
     }
@@ -85,7 +90,7 @@ export function useAuditLogs(): UseAuditLogsReturn {
         anchor.remove();
         URL.revokeObjectURL(url);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to export audit logs");
+        setError(extractErrorMessage(err, "Failed to export audit logs"));
       } finally {
         setExporting(false);
       }

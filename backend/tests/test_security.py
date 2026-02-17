@@ -132,6 +132,14 @@ def _make_request(
     return request
 
 
+def _make_response() -> MagicMock:
+    """Create a mock FastAPI Response for cookie-setting endpoints."""
+    response = MagicMock()
+    response.set_cookie = MagicMock()
+    response.delete_cookie = MagicMock()
+    return response
+
+
 def _mock_scalar_result(value):
     """Return a mock SQLAlchemy result whose .scalar_one_or_none() yields *value*."""
     result = MagicMock()
@@ -305,7 +313,7 @@ class TestLoginFlow:
 
         with patch(self._VP, side_effect=_verify_password):
             resp = await login(
-                body=body, request=request, db=mock_db_session
+                body=body, request=request, response=_make_response(), db=mock_db_session
             )
 
         assert resp.access_token
@@ -327,7 +335,7 @@ class TestLoginFlow:
         request = _make_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await login(body=body, request=request, db=mock_db_session)
+            await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert exc_info.value.status_code == 401
 
     async def test_login_wrong_password(self, mock_db_session):
@@ -346,7 +354,7 @@ class TestLoginFlow:
 
         with patch(self._VP, side_effect=_verify_password):
             with pytest.raises(HTTPException) as exc_info:
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert exc_info.value.status_code == 401
         assert user.failed_login_attempts == 1
 
@@ -369,7 +377,7 @@ class TestLoginFlow:
         request = _make_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await login(body=body, request=request, db=mock_db_session)
+            await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert exc_info.value.status_code == 401
         assert "temporarily locked" in exc_info.value.detail
 
@@ -396,7 +404,7 @@ class TestLoginFlow:
                 )
                 with pytest.raises(HTTPException):
                     await login(
-                        body=body, request=request, db=mock_db_session
+                        body=body, request=request, response=_make_response(), db=mock_db_session
                     )
                 assert user_fresh.failed_login_attempts == i
 
@@ -416,7 +424,7 @@ class TestLoginFlow:
 
         with patch(self._VP, side_effect=_verify_password):
             with pytest.raises(HTTPException):
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
 
         assert user.failed_login_attempts == 5
         assert user.locked_until is not None
@@ -440,7 +448,7 @@ class TestLoginFlow:
         request = _make_request()
 
         with patch(self._VP, side_effect=_verify_password):
-            resp = await login(body=body, request=request, db=mock_db_session)
+            resp = await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert resp.access_token
         assert user.locked_until is None
         assert user.failed_login_attempts == 0
@@ -461,7 +469,7 @@ class TestLoginFlow:
         request = _make_request()
 
         with patch(self._VP, side_effect=_verify_password):
-            await login(body=body, request=request, db=mock_db_session)
+            await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert user.last_login_at is not None
         delta = abs(
             (
@@ -486,7 +494,7 @@ class TestLoginFlow:
         request = _make_request()
 
         with patch(self._VP, side_effect=_verify_password):
-            resp = await login(body=body, request=request, db=mock_db_session)
+            resp = await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         payload = verify_token(resp.access_token)
         assert payload is not None
         assert payload["user_id"] == str(user.id)
@@ -1032,7 +1040,7 @@ class TestAuditLogIntegration:
             patch(self._VP, side_effect=_verify_password),
             patch(self._LOG, new_callable=AsyncMock) as mock_log,
         ):
-            await login(body=body, request=request, db=mock_db_session)
+            await login(body=body, request=request, response=_make_response(), db=mock_db_session)
 
         mock_log.assert_called_once()
         kwargs = mock_log.call_args.kwargs
@@ -1060,7 +1068,7 @@ class TestAuditLogIntegration:
             patch(self._LOG, new_callable=AsyncMock) as mock_log,
         ):
             with pytest.raises(HTTPException):
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
 
         mock_log.assert_called_once()
         kwargs = mock_log.call_args.kwargs
@@ -1087,7 +1095,7 @@ class TestAuditLogIntegration:
             patch(self._LOG, new_callable=AsyncMock) as mock_log,
         ):
             with pytest.raises(HTTPException):
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
 
         mock_log.assert_called_once()
         kwargs = mock_log.call_args.kwargs
@@ -1470,7 +1478,7 @@ class TestSecurityAttacks:
                 )
                 with pytest.raises(HTTPException) as exc_info:
                     await login(
-                        body=body, request=request, db=mock_db_session
+                        body=body, request=request, response=_make_response(), db=mock_db_session
                     )
                 assert exc_info.value.status_code in (401, 429)
 
@@ -1528,7 +1536,7 @@ class TestSecurityAttacks:
         request = _make_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await login(body=body, request=request, db=mock_db_session)
+            await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert exc_info.value.status_code == 401
 
     @pytest.mark.parametrize(
@@ -1561,7 +1569,7 @@ class TestSecurityAttacks:
 
         with patch(self._VP, side_effect=_verify_password):
             with pytest.raises(HTTPException) as exc_info:
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
         assert exc_info.value.status_code == 401
 
     async def test_password_reset_email_enumeration_protection(
@@ -1617,7 +1625,7 @@ class TestSecurityAttacks:
                 identifier=user.username, password="WrongP@ss1!"
             )
             with pytest.raises(HTTPException):
-                await login(body=body, request=request, db=mock_db_session)
+                await login(body=body, request=request, response=_make_response(), db=mock_db_session)
 
         with patch(self._VP, side_effect=_verify_password):
             await asyncio.gather(attempt(), attempt(), attempt())
@@ -1688,8 +1696,9 @@ class TestAdminFunctionality:
         )
         auth_header = f"Bearer {token}"
 
+        request = _make_request()
         with pytest.raises(HTTPException) as exc_info:
-            require_admin(authorization=auth_header)
+            require_admin(request=request, authorization=auth_header)
         assert exc_info.value.status_code == 403
 
     async def _call_get_audit_logs(self, mock_db_session, admin_payload, **kwargs):

@@ -8,6 +8,7 @@ import type {
   ImageGenerationStatus,
   WebSocketMessage,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface ImageGenerationProgress {
   generation_id: string;
@@ -44,6 +45,12 @@ const POLL_MAX_MS = 15000;
 const POLL_BACKOFF_FACTOR = 1.5;
 const PAGE_SIZE = 20;
 
+/**
+ * Manages ComfyUI image generation for a project, including polling, WebSocket progress events, pagination, and favorites.
+ * @param projectId - The project context for generation and history listing.
+ * @param wsSubscribe - Optional WebSocket subscribe function for real-time generation progress events.
+ * @returns Generation list, current job state, generate/cancel/delete functions, and pagination/filter controls.
+ */
 export function useImageGeneration(
   projectId: string | null,
   wsSubscribe?: (eventType: string, handler: (msg: WebSocketMessage) => void) => () => void,
@@ -104,7 +111,7 @@ export function useImageGeneration(
       setGenerations(response.generations);
       setTotalCount(response.count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load generations");
+      setError(extractErrorMessage(err, "Failed to load generations"));
     } finally {
       setLoading(false);
     }
@@ -185,7 +192,7 @@ export function useImageGeneration(
         } catch (err) {
           setGenerating(false);
           setError(
-            err instanceof Error ? err.message : "Failed to poll generation status"
+            extractErrorMessage(err, "Failed to poll generation status")
           );
           stopStatusPolling();
         }
@@ -218,7 +225,7 @@ export function useImageGeneration(
       } catch (err) {
         setGenerating(false);
         setError(
-          err instanceof Error ? err.message : "Failed to start generation"
+          extractErrorMessage(err, "Failed to start generation")
         );
         return null;
       }
@@ -244,7 +251,7 @@ export function useImageGeneration(
         await refresh();
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to delete generation"
+          extractErrorMessage(err, "Failed to delete generation")
         );
       }
     },
@@ -266,7 +273,7 @@ export function useImageGeneration(
         await refresh();
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to delete some generations"
+          extractErrorMessage(err, "Failed to delete some generations")
         );
       }
     },
@@ -288,7 +295,7 @@ export function useImageGeneration(
         URL.revokeObjectURL(url);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to download image"
+          extractErrorMessage(err, "Failed to download image")
         );
       }
     },
@@ -318,7 +325,7 @@ export function useImageGeneration(
         prev.map((g) => (g.id === jobId ? { ...g, is_favorite: updated.is_favorite } : g))
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to toggle favorite");
+      setError(extractErrorMessage(err, "Failed to toggle favorite"));
     }
   }, []);
 
@@ -335,7 +342,7 @@ export function useImageGeneration(
       startListPolling();
       return created;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start upscale");
+      setError(extractErrorMessage(err, "Failed to start upscale"));
       return null;
     }
   }, [pollGenerationStatus, refresh, startListPolling]);

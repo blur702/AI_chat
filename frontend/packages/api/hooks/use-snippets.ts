@@ -7,6 +7,7 @@ import type {
   ContextSnippetCreateRequest,
   ContextSnippetUpdateRequest,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseSnippetsReturn {
   snippets: ContextSnippet[];
@@ -18,6 +19,10 @@ export interface UseSnippetsReturn {
   deleteSnippet: (id: string) => Promise<boolean>;
 }
 
+/**
+ * Fetches and manages reusable context snippets for the authenticated user.
+ * @returns Snippet list, loading/error state, and create/update/delete functions.
+ */
 export function useSnippets(): UseSnippetsReturn {
   const [snippets, setSnippets] = useState<ContextSnippet[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,7 +35,7 @@ export function useSnippets(): UseSnippetsReturn {
       const response = await getClient().listSnippets();
       setSnippets(response.snippets);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch snippets");
+      setError(extractErrorMessage(err, "Failed to fetch snippets"));
     } finally {
       setLoading(false);
     }
@@ -48,7 +53,7 @@ export function useSnippets(): UseSnippetsReturn {
         await refresh();
         return snippet;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create snippet");
+        setError(extractErrorMessage(err, "Failed to create snippet"));
         return null;
       }
     },
@@ -63,7 +68,7 @@ export function useSnippets(): UseSnippetsReturn {
         await refresh();
         return snippet;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update snippet");
+        setError(extractErrorMessage(err, "Failed to update snippet"));
         return null;
       }
     },
@@ -78,7 +83,7 @@ export function useSnippets(): UseSnippetsReturn {
         await refresh();
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete snippet");
+        setError(extractErrorMessage(err, "Failed to delete snippet"));
         return false;
       }
     },

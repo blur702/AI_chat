@@ -15,8 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
-from app.api.context_deps import validate_project_access
+from app.api.context_deps import get_current_user_payload, validate_project_access
+from app.auth import get_user_id
 from app.database import get_db_session
 from app.models.automation_action import AutomationAction
 from app.schemas.automation import (
@@ -87,7 +87,7 @@ async def create_action(
     db: AsyncSession = Depends(get_db_session),
 ) -> AutomationActionResponse:
     """Create a new pending automation action for a project."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     project_id = UUID(body.project_id)
     await validate_project_access(project_id, user_id, db)
 
@@ -121,7 +121,7 @@ async def list_actions(
     db: AsyncSession = Depends(get_db_session),
 ) -> AutomationActionListResponse:
     """List all automation actions for a project with optional filters."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
     stmt = (
@@ -164,7 +164,7 @@ async def get_action_detail(
     db: AsyncSession = Depends(get_db_session),
 ) -> AutomationActionResponse:
     """Get details for a single automation action."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     action = await _get_action_with_access(action_id, user_id, db)
     return _action_to_response(action)
 
@@ -185,7 +185,7 @@ async def approve_action(
     db: AsyncSession = Depends(get_db_session),
 ) -> AutomationActionResponse:
     """Approve an automation action, optionally modifying its data."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     action = await _get_action_with_access(action_id, user_id, db)
 
     action.user_approved = True
@@ -213,7 +213,7 @@ async def execute_action(
     db: AsyncSession = Depends(get_db_session),
 ) -> AutomationActionExecuteResponse:
     """Execute an approved automation action via background worker."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     action = await _get_action_with_access(action_id, user_id, db)
 
     if not action.user_approved:
@@ -265,7 +265,7 @@ async def delete_action(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Delete (reject) an automation action."""
-    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_id = get_user_id(payload)
     action = await _get_action_with_access(action_id, user_id, db)
 
     await db.delete(action)

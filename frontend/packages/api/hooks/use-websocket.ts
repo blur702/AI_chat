@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { WebSocketMessage } from "../types";
 
-type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error" | "exhausted";
 type MessageHandler = (message: WebSocketMessage) => void;
 
 interface UseWebSocketOptions {
@@ -21,8 +21,18 @@ interface UseWebSocketReturn {
   send: (data: unknown) => void;
   connect: () => void;
   disconnect: () => void;
+  resetReconnect: () => void;
 }
 
+/**
+ * Manages a persistent WebSocket connection to the backend event bus with auto-reconnect.
+ * Supports typed event subscriptions and a wildcard `"*"` handler for all messages.
+ * @param options - Connection options including `token`, `baseUrl`, and reconnect settings.
+ * @returns Connection status, last message, subscribe/send functions, and manual connect/disconnect controls.
+ * @example
+ * const { status, subscribe } = useWebSocket({ token });
+ * useEffect(() => subscribe("kernel_event", (msg) => console.log(msg)), [subscribe]);
+ */
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const {
     token,
@@ -85,18 +95,25 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     };
 
     ws.onclose = () => {
-      setStatus("disconnected");
       wsRef.current = null;
 
-      // Auto-reconnect
+      // Auto-reconnect with exponential backoff
       if (
         reconnectCountRef.current < maxReconnectAttempts &&
         token
       ) {
+        setStatus("disconnected");
+        const delay = reconnectInterval * Math.pow(2, reconnectCountRef.current);
         reconnectTimerRef.current = setTimeout(() => {
           reconnectCountRef.current++;
           connect();
-        }, reconnectInterval);
+        }, Math.min(delay, 30000));
+      } else {
+        // Max attempts exhausted
+        setStatus("exhausted");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("ws-reconnect-exhausted"));
+        }
       }
     };
 
@@ -117,6 +134,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     wsRef.current = null;
     setStatus("disconnected");
   }, [maxReconnectAttempts]);
+
+  const resetReconnect = useCallback(() => {
+    reconnectCountRef.current = 0;
+    connect();
+  }, [connect]);
 
   const subscribe = useCallback(
     (eventType: string, handler: MessageHandler): (() => void) => {
@@ -148,5 +170,5 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     };
   }, [autoConnect, token, connect, disconnect]);
 
-  return { status, lastMessage, subscribe, send, connect, disconnect };
+  return { status, lastMessage, subscribe, send, connect, disconnect, resetReconnect };
 }

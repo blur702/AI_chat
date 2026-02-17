@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { getClient } from "../client";
 import type { KBSource, KBSearchResult } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 const MAX_KB_FILE_SIZE = 50 * 1024 * 1024; // 50 MB (matches backend)
 const ALLOWED_EXTENSIONS = new Set([".pdf", ".txt", ".md"]);
@@ -28,6 +29,10 @@ function getFileExtension(filename: string): string {
   return idx >= 0 ? filename.slice(idx).toLowerCase() : "";
 }
 
+/**
+ * Manages knowledge base sources for a project, with upload (PDF/TXT/MD, max 50 MB), delete, and vector search.
+ * @returns Source list, upload/delete state, semantic search state, and `loadSources`/`uploadSource`/`search` functions.
+ */
 export function useKBSources(): UseKBSourcesReturn {
   const [sources, setSources] = useState<KBSource[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
@@ -45,7 +50,7 @@ export function useKBSources(): UseKBSourcesReturn {
       const result = await getClient().listKBSources(projectId);
       setSources(result.sources);
     } catch (err) {
-      setSourcesError(err instanceof Error ? err.message : "Failed to load sources");
+      setSourcesError(extractErrorMessage(err, "Failed to load sources"));
       setSources([]);
     } finally {
       setSourcesLoading(false);
@@ -72,7 +77,7 @@ export function useKBSources(): UseKBSourcesReturn {
         setSources((prev) => [source, ...prev]);
         return source;
       } catch (err) {
-        setSourcesError(err instanceof Error ? err.message : "Failed to upload");
+        setSourcesError(extractErrorMessage(err, "Failed to upload"));
         return null;
       } finally {
         setUploading(false);
@@ -89,7 +94,7 @@ export function useKBSources(): UseKBSourcesReturn {
         await getClient().deleteKBSource(sourceId);
         setSources((prev) => prev.filter((s) => s.id !== sourceId));
       } catch (err) {
-        setSourcesError(err instanceof Error ? err.message : "Failed to delete");
+        setSourcesError(extractErrorMessage(err, "Failed to delete"));
       } finally {
         setDeleting(false);
       }
@@ -109,7 +114,7 @@ export function useKBSources(): UseKBSourcesReturn {
         });
         setSearchResults(result.results);
       } catch (err) {
-        setSearchError(err instanceof Error ? err.message : "Search failed");
+        setSearchError(extractErrorMessage(err, "Search failed"));
         setSearchResults([]);
       } finally {
         setSearchLoading(false);

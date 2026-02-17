@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { getClient } from "../client";
+import { extractErrorMessage } from "../utils/error";
 import type {
   DrupalLocalFileNode,
   DrupalLocalFileContent,
@@ -66,6 +67,11 @@ export interface UseDrupalLocalReturn {
   error: string | null;
 }
 
+/**
+ * Manages the local Drupal development environment including file tree, Drush, modules, themes, status, config, and palette.
+ * All state is memoized to avoid unnecessary re-renders.
+ * @returns File and Drush operations, module/theme management, site/config status, and palette generation functions.
+ */
 export function useDrupalLocal(): UseDrupalLocalReturn {
   const [files, setFiles] = useState<DrupalLocalFileNode[]>([]);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -92,8 +98,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalFiles(path);
       setFiles(res.files);
-    } catch (e: any) {
-      setError(e.message || "Failed to load files");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load files"));
     } finally {
       setFileTreeLoading(false);
     }
@@ -105,8 +111,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalFileContent(path);
       setActiveFile(res);
-    } catch (e: any) {
-      setError(e.message || "Failed to open file");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to open file"));
     } finally {
       setFileLoading(false);
     }
@@ -118,9 +124,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       await client.updateDrupalLocalFile(path, content);
       // Update active file in place
       setActiveFile((prev) => prev && prev.path === path ? { ...prev, content } : prev);
-    } catch (e: any) {
-      setError(e.message || "Failed to save file");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to save file"));
+      throw err;
     }
   }, [client]);
 
@@ -128,9 +134,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       await client.createDrupalLocalFile(path, content);
-    } catch (e: any) {
-      setError(e.message || "Failed to create file");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to create file"));
+      throw err;
     }
   }, [client]);
 
@@ -138,9 +144,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       await client.createDrupalLocalDirectory(path);
-    } catch (e: any) {
-      setError(e.message || "Failed to create directory");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to create directory"));
+      throw err;
     }
   }, [client]);
 
@@ -150,9 +156,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       await client.deleteDrupalLocalFile(path);
       // If deleted file is active, clear it
       setActiveFile((prev) => prev && prev.path === path ? null : prev);
-    } catch (e: any) {
-      setError(e.message || "Failed to delete");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to delete"));
+      throw err;
     }
   }, [client]);
 
@@ -160,9 +166,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       await client.renameDrupalLocalFile(oldPath, newPath);
-    } catch (e: any) {
-      setError(e.message || "Failed to rename");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to rename"));
+      throw err;
     }
   }, [client]);
 
@@ -173,9 +179,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       const res = await client.runDrupalLocalDrush(command);
       setDrushHistory((prev) => [...prev, res]);
       return res;
-    } catch (e: any) {
-      setError(e.message || "Drush command failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Drush command failed"));
+      throw err;
     } finally {
       setDrushLoading(false);
     }
@@ -187,8 +193,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalModules();
       setModules(res.modules);
-    } catch (e: any) {
-      setError(e.message || "Failed to load modules");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load modules"));
     } finally {
       setModulesLoading(false);
     }
@@ -200,8 +206,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalThemes();
       setThemes(res.themes);
-    } catch (e: any) {
-      setError(e.message || "Failed to load themes");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load themes"));
     } finally {
       setThemesLoading(false);
     }
@@ -211,9 +217,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       return await client.scaffoldDrupalLocalModule(data);
-    } catch (e: any) {
-      setError(e.message || "Failed to scaffold module");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to scaffold module"));
+      throw err;
     }
   }, [client]);
 
@@ -223,8 +229,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalStatus();
       setSiteStatus(res);
-    } catch (e: any) {
-      setError(e.message || "Failed to load status");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load status"));
     } finally {
       setStatusLoading(false);
     }
@@ -236,8 +242,8 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     try {
       const res = await client.getDrupalLocalConfigStatus();
       setConfigStatus(res);
-    } catch (e: any) {
-      setError(e.message || "Failed to load config status");
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Failed to load config status"));
     } finally {
       setStatusLoading(false);
     }
@@ -247,9 +253,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       return await client.exportDrupalLocalConfig();
-    } catch (e: any) {
-      setError(e.message || "Config export failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Config export failed"));
+      throw err;
     }
   }, [client]);
 
@@ -257,9 +263,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
     setError(null);
     try {
       return await client.importDrupalLocalConfig();
-    } catch (e: any) {
-      setError(e.message || "Config import failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Config import failed"));
+      throw err;
     }
   }, [client]);
 
@@ -270,9 +276,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       const res = await client.generatePalette(data);
       setPalette(res);
       return res;
-    } catch (e: any) {
-      setError(e.message || "Palette generation failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Palette generation failed"));
+      throw err;
     } finally {
       setPaletteLoading(false);
     }
@@ -285,9 +291,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       const res = await client.validatePalette(colors);
       setPalette(res);
       return res;
-    } catch (e: any) {
-      setError(e.message || "Palette validation failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Palette validation failed"));
+      throw err;
     } finally {
       setPaletteLoading(false);
     }
@@ -300,9 +306,9 @@ export function useDrupalLocal(): UseDrupalLocalReturn {
       const res = await client.adjustPalette(colors);
       setPalette(res);
       return res;
-    } catch (e: any) {
-      setError(e.message || "Palette adjustment failed");
-      throw e;
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, "Palette adjustment failed"));
+      throw err;
     } finally {
       setPaletteLoading(false);
     }

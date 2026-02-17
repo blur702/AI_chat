@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload, require_admin
+from app.auth import get_current_user_payload, get_optional_user_payload, require_admin
 from app.database import get_db_session
 from app.models.help_topic import HelpTopic
 from app.schemas.help import (
@@ -54,7 +54,7 @@ async def list_help_topics(
     tag: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict | None = Depends(get_optional_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> HelpTopicListResponse:
     """List help topics with optional section/tag filters."""
@@ -85,7 +85,7 @@ async def list_help_topics(
 
 @router.get("/anchors")
 async def list_section_anchors(
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict | None = Depends(get_optional_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[dict]:
     """Return minimal anchor data (slug, section_id, title) for deep-linking."""
@@ -102,7 +102,7 @@ async def list_section_anchors(
 @router.get("/{slug_or_id}", response_model=HelpTopicResponse)
 async def get_help_topic(
     slug_or_id: str,
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict | None = Depends(get_optional_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> HelpTopicResponse:
     """Get a help topic by slug or UUID."""
@@ -135,7 +135,7 @@ async def get_help_topic(
 async def search_help(
     body: HelpSearchRequest,
     request: Request,
-    payload: dict = Depends(get_current_user_payload),
+    payload: dict | None = Depends(get_optional_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> HelpSearchResponse:
     """Search help topics. Uses semantic search when embeddings exist, falls back to text search."""

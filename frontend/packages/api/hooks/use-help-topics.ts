@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { HelpTopic, HelpSearchResult } from "../types/help";
-
 export type { HelpTopic, HelpSearchResult };
 
 export interface UseHelpTopicsReturn {
@@ -14,6 +13,10 @@ export interface UseHelpTopicsReturn {
   refresh: () => void;
 }
 
+/**
+ * Fetches all published help topics and provides a semantic `search` function.
+ * @returns Topic list, loading/error state, a `search` async function, and a `refresh` callback.
+ */
 export function useHelpTopics(): UseHelpTopicsReturn {
   const [topics, setTopics] = useState<HelpTopic[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,9 +28,8 @@ export function useHelpTopics(): UseHelpTopicsReturn {
     try {
       const data = await getClient().listHelpTopics();
       setTopics(data.topics);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load help topics";
-      setError(message);
+    } catch {
+      // Silently ignore — help topics are informational and may fail before auth
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -70,7 +71,7 @@ interface WorkspaceToolbarProps {
   onQuickExecuteTool?: (toolName: string) => void;
 }
 
-export function WorkspaceToolbar({
+export const WorkspaceToolbar = memo(function WorkspaceToolbar({
   onFilesClick,
   onRunClick,
   onChatClick,
@@ -414,4 +415,4 @@ export function WorkspaceToolbar({
       </div>
     </TooltipProvider>
   );
-}
+});

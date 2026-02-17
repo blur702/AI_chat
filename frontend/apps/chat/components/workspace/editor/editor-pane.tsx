@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { EditorTabs } from "./editor-tabs";
 import { MonacoWrapper } from "./monaco-editor";
-import { getClient } from "@workstation/api/client";
-import { Badge } from "@workstation/ui";
-import { Save } from "lucide-react";
+import { getClient, MAX_EDITOR_FILE_SIZE } from "@workstation/api/client";
+import { Badge, Button } from "@workstation/ui";
+import { Save, AlertTriangle } from "lucide-react";
 
 interface OpenFile {
   path: string;
@@ -14,6 +14,8 @@ interface OpenFile {
   language: string;
   isDirty: boolean;
   savedContent: string;
+  isLarge?: boolean;
+  byteSize?: number;
 }
 
 interface EditorPaneProps {
@@ -52,6 +54,7 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
         const name = selectedFile.includes("/")
           ? selectedFile.substring(selectedFile.lastIndexOf("/") + 1)
           : selectedFile;
+        const byteSize = new Blob([fc.content]).size;
         const newFile: OpenFile = {
           path: fc.path,
           name,
@@ -59,6 +62,8 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
           language: fc.language,
           isDirty: false,
           savedContent: fc.content,
+          isLarge: byteSize > MAX_EDITOR_FILE_SIZE,
+          byteSize,
         };
         setFiles((prev) => [...prev, newFile]);
         setActiveFile(fc.path);
@@ -120,6 +125,12 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
     }
   }, [currentFile, projectId]);
 
+  const handleLoadLargeFile = useCallback((path: string) => {
+    setFiles((prev) =>
+      prev.map((f) => (f.path === path ? { ...f, isLarge: false } : f))
+    );
+  }, []);
+
   // Ctrl+S / Cmd+S keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -146,6 +157,23 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
       />
       <div className="flex-1 relative">
         {currentFile ? (
+          currentFile.isLarge ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+              <AlertTriangle className="h-10 w-10 text-yellow-500" />
+              <p className="text-sm font-medium">Large file detected</p>
+              <p className="text-xs text-center max-w-sm">
+                This file is {((currentFile.byteSize ?? 0) / (1024 * 1024)).toFixed(1)} MB.
+                Loading it in the editor may affect performance.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLoadLargeFile(currentFile.path)}
+              >
+                Load anyway
+              </Button>
+            </div>
+          ) : (
           <>
             <MonacoWrapper
               value={currentFile.content}
@@ -172,6 +200,7 @@ export function EditorPane({ projectId, selectedFile, onFileOpened }: EditorPane
               )}
             </div>
           </>
+          )
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground">
             {loadingFile ? "Loading file..." : "No file open"}

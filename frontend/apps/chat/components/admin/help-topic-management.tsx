@@ -49,6 +49,7 @@ function SectionFilter({
       <button
         type="button"
         onClick={() => onSelect(null)}
+        aria-pressed={selected === null}
         className={cn(
           "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
           selected === null
@@ -63,6 +64,7 @@ function SectionFilter({
           key={s}
           type="button"
           onClick={() => onSelect(s === selected ? null : s)}
+          aria-pressed={s === selected}
           className={cn(
             "px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize",
             s === selected
@@ -181,8 +183,9 @@ function TopicFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Title</label>
+            <label htmlFor="topic-title" className="text-xs font-medium">Title</label>
             <Input
+              id="topic-title"
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               onBlur={autoSlug}
@@ -194,8 +197,9 @@ function TopicFormDialog({
 
           {/* Slug */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Slug</label>
+            <label htmlFor="topic-slug" className="text-xs font-medium">Slug</label>
             <Input
+              id="topic-slug"
               value={form.slug}
               onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
               placeholder="e.g. how-to-use-terminal"
@@ -206,9 +210,10 @@ function TopicFormDialog({
 
           {/* Section */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Section</label>
+            <label htmlFor="topic-section" className="text-xs font-medium">Section</label>
             <div className="flex gap-2">
               <Input
+                id="topic-section"
                 value={form.section_id}
                 onChange={(e) => setForm((f) => ({ ...f, section_id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
                 placeholder="e.g. getting-started"
@@ -226,8 +231,9 @@ function TopicFormDialog({
 
           {/* Body */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Body</label>
+            <label htmlFor="topic-body" className="text-xs font-medium">Body</label>
             <textarea
+              id="topic-body"
               value={form.body}
               onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
               placeholder="Help topic content..."
@@ -239,8 +245,9 @@ function TopicFormDialog({
 
           {/* Tags */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Tags (comma-separated)</label>
+            <label htmlFor="topic-tags" className="text-xs font-medium">Tags (comma-separated)</label>
             <Input
+              id="topic-tags"
               value={form.tags}
               onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
               placeholder="e.g. terminal, basics, commands"
@@ -447,7 +454,7 @@ export function HelpTopicManagement() {
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span>{actionError || error}</span>
           {actionError && (
-            <button type="button" onClick={() => setActionError(null)} className="ml-auto">
+            <button type="button" onClick={() => setActionError(null)} className="ml-auto" aria-label="Dismiss error">
               <X className="h-3 w-3" />
             </button>
           )}
@@ -463,12 +470,14 @@ export function HelpTopicManagement() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search topics by title, body, slug, or tag..."
             className="pl-9 h-8 text-xs"
+            aria-label="Search help topics"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
             >
               <X className="h-3 w-3" />
             </button>
@@ -508,6 +517,8 @@ export function HelpTopicManagement() {
                     type="button"
                     onClick={() => toggleSection(sectionId)}
                     className="flex items-center justify-between w-full px-4 py-2.5 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
+                    aria-expanded={!collapsed}
+                    aria-label={`${sectionId.replace(/-/g, " ")} section`}
                   >
                     <div className="flex items-center gap-2">
                       {collapsed ? (
@@ -560,6 +571,7 @@ export function HelpTopicManagement() {
                                 className="h-7 w-7 p-0"
                                 onClick={() => handleEdit(topic)}
                                 title="Edit topic"
+                                aria-label={`Edit ${topic.title}`}
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
@@ -569,6 +581,7 @@ export function HelpTopicManagement() {
                                 className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                                 onClick={() => handleDelete(topic)}
                                 title="Delete topic"
+                                aria-label={`Delete ${topic.title}`}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>

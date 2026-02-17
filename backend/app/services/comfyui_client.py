@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from app.kernel.base import BaseKernelService
+from app.kernel.http_service import HttpKernelService
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ COMFYUI_OUTPUT_DIR = os.getenv("COMFYUI_OUTPUT_DIR", "/tmp/comfyui_outputs")
 DEFAULT_CHECKPOINT = os.getenv("COMFYUI_DEFAULT_MODEL", "v1-5-pruned-emaonly.safetensors")
 
 
-class ComfyUIClient(BaseKernelService):
+class ComfyUIClient(HttpKernelService):
     """
     Kernel service wrapping the ComfyUI HTTP API.
 
@@ -26,53 +26,25 @@ class ComfyUIClient(BaseKernelService):
     """
 
     def __init__(self, base_url: str = "http://comfyui:8188") -> None:
-        self._base_url = base_url.rstrip("/")
-        self._running = False
-        self._client: Optional[httpx.AsyncClient] = None
-
-    # -- BaseKernelService lifecycle -----------------------------------------
+        super().__init__(base_url)
 
     @property
     def name(self) -> str:
         return "comfyui_client"
 
     @property
-    def is_running(self) -> bool:
-        return self._running
+    def _health_endpoint(self) -> str:
+        return "/system_stats"
 
-    async def startup(self) -> None:
-        if self._running:
-            return
-        self._client = httpx.AsyncClient(
-            base_url=self._base_url,
-            timeout=httpx.Timeout(connect=5.0, read=120.0, write=10.0, pool=5.0),
-        )
-        self._running = True
-        logger.info("ComfyUIClient started (base_url=%s)", self._base_url)
-
-    async def shutdown(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._running = False
-        logger.info("ComfyUIClient stopped")
-
-    async def health_check(self) -> Tuple[bool, str]:
-        if not self._running or not self._client:
-            return False, "service not running"
-        try:
-            resp = await self._client.get("/system_stats", timeout=5.0)
-            resp.raise_for_status()
-            return True, "ok"
-        except Exception as exc:
-            return False, f"comfyui unreachable: {exc}"
+    @property
+    def _default_timeout(self) -> httpx.Timeout:
+        return httpx.Timeout(connect=5.0, read=120.0, write=10.0, pool=5.0)
 
     # -- Public API ----------------------------------------------------------
 
     async def submit_workflow(self, workflow_json: Dict[str, Any]) -> str:
         """Submit a workflow to ComfyUI and return the prompt_id (job ID)."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         payload = {"prompt": workflow_json}
         resp = await self._client.post("/prompt", json=payload)
         resp.raise_for_status()
@@ -85,24 +57,21 @@ class ComfyUIClient(BaseKernelService):
 
     async def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """Get the execution history for a completed job."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         resp = await self._client.get(f"/history/{job_id}", timeout=10.0)
         resp.raise_for_status()
         return resp.json()
 
     async def get_queue_status(self) -> Dict[str, Any]:
         """Get the current ComfyUI queue status."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         resp = await self._client.get("/queue", timeout=5.0)
         resp.raise_for_status()
         return resp.json()
 
     async def download_image(self, filename: str, subfolder: str = "", folder_type: str = "output") -> bytes:
         """Download a generated image from ComfyUI by filename."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         params = {"filename": filename, "subfolder": subfolder, "type": folder_type}
         resp = await self._client.get("/view", params=params, timeout=30.0)
         resp.raise_for_status()
@@ -110,8 +79,7 @@ class ComfyUIClient(BaseKernelService):
 
     async def upload_image(self, image_bytes: bytes, filename: str, folder_type: str = "input") -> str:
         """Upload an image into ComfyUI and return stored filename."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         files = {"image": (filename, image_bytes, "application/octet-stream")}
         data = {"type": folder_type, "overwrite": "true"}
         resp = await self._client.post("/upload/image", files=files, data=data, timeout=60.0)
@@ -122,6 +90,8 @@ class ComfyUIClient(BaseKernelService):
             raise ValueError("ComfyUI upload did not return filename")
         return str(uploaded_name)
 
+    _MAX_DECODED_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+
     async def upload_base64_image(self, image_value: str, prefix: str = "input") -> str:
         """Accept a data URL or raw base64 string and upload it to ComfyUI input."""
         if image_value.startswith("data:"):
@@ -129,13 +99,16 @@ class ComfyUIClient(BaseKernelService):
         else:
             b64 = image_value
         image_bytes = base64.b64decode(b64)
+        if len(image_bytes) > self._MAX_DECODED_IMAGE_BYTES:
+            raise ValueError(
+                f"Decoded image exceeds {self._MAX_DECODED_IMAGE_BYTES // (1024 * 1024)} MB limit"
+            )
         filename = f"{prefix}-{uuid.uuid4().hex}.png"
         return await self.upload_image(image_bytes=image_bytes, filename=filename, folder_type="input")
 
     async def get_node_info(self, node_class: str) -> Dict[str, Any]:
         """Get ComfyUI object info for a node class."""
-        if self._client is None:
-            raise RuntimeError("ComfyUIClient not started")
+        self._require_client()
         # Newer builds support /object_info/{node}; older builds expose /object_info.
         try:
             resp = await self._client.get(f"/object_info/{node_class}", timeout=20.0)

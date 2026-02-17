@@ -69,6 +69,7 @@ async def run_verification_checks(
     automated_results = [r for r in results if r["type"] not in ("manual", "ui")]
     passed_count = sum(1 for r in automated_results if r["passed"])
     total = len(automated_results)
+    # Zero automated checks is treated as passing so plans with only manual/ui steps don't block
     all_passed = passed_count == total if total > 0 else True
 
     return {
@@ -85,6 +86,7 @@ async def _run_test_check(
     cmd = criteria if criteria else "npm test"
     try:
         output = await sandbox.exec_simple(container_id, cmd)
+        # exec_simple raises RuntimeError on non-zero exit, so reaching here means exit code 0
         return {
             "type": "test",
             "criteria": criteria,
@@ -122,7 +124,25 @@ async def _run_static_check(
                 "output": str(exc)[:2000],
             }
 
-    commands = ["npx tsc --noEmit 2>&1", "python -m mypy . 2>&1"]
+    # No explicit criteria — auto-detect the project type and pick the right linter
+    has_typescript = await _detect_typescript_project(container_id, sandbox)
+    has_python = await _detect_python_project(container_id, sandbox)
+    commands: list[str] = []
+    if has_typescript:
+        commands.append("npx tsc --noEmit 2>&1")
+    if has_python:
+        commands.append("python -m mypy . 2>&1")
+    if not commands:
+        return {
+            "type": "static",
+            "criteria": criteria,
+            "passed": False,
+            "output": (
+                "No static checks were selected: could not detect a TypeScript or "
+                "Python project. Provide explicit static check criteria."
+            ),
+        }
+
     outputs: list[str] = []
     all_passed = True
     try:
@@ -146,6 +166,39 @@ async def _run_static_check(
             "passed": False,
             "output": str(exc)[:2000],
         }
+
+
+async def _detect_typescript_project(container_id: str, sandbox: SandboxManager) -> bool:
+    """Return True when tsconfig.json or .ts/.tsx files are present."""
+    try:
+        # -lc runs the command in a login shell so PATH includes npx/node from nvm or asdf
+        out = await sandbox.exec_simple(
+            container_id,
+            (
+                "sh -lc \"if [ -f tsconfig.json ] || "
+                "find . -type f \\( -name '*.ts' -o -name '*.tsx' \\) | head -n 1 | grep -q .; "
+                "then echo yes; fi\""
+            ),
+        )
+    except RuntimeError:
+        return False
+    return "yes" in (out or "")
+
+
+async def _detect_python_project(container_id: str, sandbox: SandboxManager) -> bool:
+    """Return True when pyproject/setup.py or .py files are present."""
+    try:
+        out = await sandbox.exec_simple(
+            container_id,
+            (
+                "sh -lc \"if [ -f pyproject.toml ] || [ -f setup.py ] || "
+                "find . -type f -name '*.py' | head -n 1 | grep -q .; "
+                "then echo yes; fi\""
+            ),
+        )
+    except RuntimeError:
+        return False
+    return "yes" in (out or "")
 
 
 async def _run_integration_check(

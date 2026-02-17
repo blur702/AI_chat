@@ -5,6 +5,13 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix Tabs provides an accessible tabbed interface following the ARIA Tabs pattern.
+ * TabsList receives role="tablist"; each TabsTrigger receives role="tab" with aria-selected and aria-controls.
+ * Arrow keys move focus between tabs; Home/End jump to first/last tab.
+ * Always provide an aria-label or aria-labelledby on TabsList to describe the tab group to screen readers.
+ * TabsContent receives role="tabpanel" and is automatically linked to its trigger via aria-labelledby.
+ */
 const Tabs = TabsPrimitive.Root;
 
 const TabsList = React.forwardRef<

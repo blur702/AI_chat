@@ -20,6 +20,7 @@ from app.api.context_deps import (
     get_ollama_client,
     validate_chat_access,
 )
+from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.kernel.prompt_builder import PromptBuilder
 from app.kernel.token_counter import TokenCounter
@@ -187,7 +188,7 @@ async def get_conversation_state(
     db: AsyncSession = Depends(get_db_session),
 ) -> ConversationStateResponse:
     """Retrieve the full conversation state for a chat."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     state = await cm.get_conversation_state(chat_id)
@@ -209,7 +210,7 @@ async def update_conversation_state(
     db: AsyncSession = Depends(get_db_session),
 ) -> ConversationStateResponse:
     """Update the cached conversation state with the provided updates."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     state = await cm.update_conversation_state(chat_id, body.updates)
@@ -233,7 +234,7 @@ async def invalidate_conversation_cache(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Invalidate the cached conversation state for a chat."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     await cm.invalidate_conversation_cache(chat_id)
@@ -257,7 +258,7 @@ async def update_message(
     db: AsyncSession = Depends(get_db_session),
 ) -> MessageUpdateResponse:
     """Update a message: pin, exclude, or edit content."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     from sqlalchemy import select as sa_select
@@ -315,7 +316,7 @@ async def delete_message(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Soft-delete a message."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     from sqlalchemy import select as sa_select
@@ -350,7 +351,7 @@ async def manual_compact(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Manually trigger compaction for a conversation."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     compaction_id = await cm.trigger_compaction(chat_id)
@@ -382,7 +383,7 @@ async def get_token_breakdown(
     db: AsyncSession = Depends(get_db_session),
 ) -> TokenBreakdownResponse:
     """Get detailed per-layer token breakdown for a conversation."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     state = await cm.get_conversation_state(chat_id)
@@ -438,7 +439,7 @@ async def get_assembled_context(
     db: AsyncSession = Depends(get_db_session),
 ) -> AssembledContextResponse:
     """Get the fully assembled context exactly as the LLM would see it."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     state = await cm.get_conversation_state(chat_id)
@@ -566,7 +567,7 @@ async def update_compaction_summary(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update a compaction summary's text."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     compaction = await db.get(ContextCompaction, compaction_id)
@@ -604,7 +605,7 @@ async def get_compaction_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> CompactionStatusResponse:
     """Get the current status of a compaction operation."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     compaction = await db.get(ContextCompaction, compaction_id)
@@ -639,7 +640,7 @@ async def update_chat_instructions(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update the per-chat instructions."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     from sqlalchemy import select as sa_select
@@ -686,7 +687,7 @@ async def submit_message(
     db: AsyncSession = Depends(get_db_session),
 ) -> MessageSubmitResponse:
     """Submit a user message and receive an AI assistant response."""
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
     # -- 1. Persist user message and commit immediately --------------------
@@ -903,7 +904,7 @@ async def stream_message(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
-    user_id = payload.get("user_id", "")
+    user_id = get_user_id(payload)
 
     body = await request.json()
     content: str = body.get("content", "").strip()

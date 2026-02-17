@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getClient } from "../client";
 import type { TokenBreakdownResponse, CompactionStatusResponse } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseContextDashboardReturn {
   breakdown: TokenBreakdownResponse | null;
@@ -15,6 +16,11 @@ export interface UseContextDashboardReturn {
   compactionStatus: CompactionStatusResponse | null;
 }
 
+/**
+ * Fetches the token breakdown for a chat and manages context compaction, polling until completion.
+ * @param chatId - The chat whose context to inspect, or `null` to skip fetching.
+ * @returns Token breakdown, compaction state/status, and `fetchBreakdown`/`triggerCompaction` functions.
+ */
 export function useContextDashboard(chatId: string | null): UseContextDashboardReturn {
   const [breakdown, setBreakdown] = useState<TokenBreakdownResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,7 +38,7 @@ export function useContextDashboard(chatId: string | null): UseContextDashboardR
       const data = await getClient().getTokenBreakdown(chatId);
       setBreakdown(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch token breakdown");
+      setError(extractErrorMessage(err, "Failed to fetch token breakdown"));
     } finally {
       setLoading(false);
     }
@@ -55,7 +61,7 @@ export function useContextDashboard(chatId: string | null): UseContextDashboardR
       }
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to trigger compaction");
+      setError(extractErrorMessage(err, "Failed to trigger compaction"));
       return null;
     }
   }, [chatId]);

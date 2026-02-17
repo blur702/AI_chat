@@ -16,7 +16,7 @@ from typing import List
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.auth import get_current_user_payload
+from app.auth import get_current_user_payload, get_user_id
 from fastapi import Request
 
 from app.schemas.drupal_local import (
@@ -170,16 +170,6 @@ def _build_tree_from_fs(root: str, prefix: str = "") -> tuple[list[FileTreeNode]
     return nodes, total
 
 
-def _extract_user_id(payload: dict) -> str:
-    user_id = payload.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: missing user_id",
-        )
-    return user_id
-
-
 async def _run_drush(args: list[str], timeout: float = 30.0) -> tuple[int, str, str]:
     """Run a Drush command inside the Drupal container via docker exec.
 
@@ -220,7 +210,7 @@ async def list_files(
     payload: dict = Depends(get_current_user_payload),
 ):
     """List the Drupal codebase file tree."""
-    _extract_user_id(payload)
+    get_user_id(payload)
 
     root = DRUPAL_MOUNT
     if path:
@@ -240,7 +230,7 @@ async def get_file_content(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Read file content from the Drupal codebase."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     clean = _sanitize_path(path)
     abs_p = _abs_path(clean)
 
@@ -268,7 +258,7 @@ async def update_file_content(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Write file content to the Drupal codebase."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     clean = _sanitize_path(body.path)
     abs_p = _abs_path(clean)
 
@@ -290,7 +280,7 @@ async def create_file(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Create a new file in the Drupal codebase."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     clean = _sanitize_path(body.path)
     abs_p = _abs_path(clean)
 
@@ -312,7 +302,7 @@ async def create_directory(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Create a new directory in the Drupal codebase."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     clean = _sanitize_path(body.path)
     abs_p = _abs_path(clean)
 
@@ -329,7 +319,7 @@ async def delete_file(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Delete a file or directory from the Drupal codebase."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     clean = _sanitize_path(path)
     abs_p = _abs_path(clean)
 
@@ -352,7 +342,7 @@ async def rename_file(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Rename or move a file/directory."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     old_clean = _sanitize_path(body.old_path)
     new_clean = _sanitize_path(body.new_path)
     old_abs = _abs_path(old_clean)
@@ -382,7 +372,7 @@ async def run_drush_command(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Run a Drush command inside the Drupal container."""
-    _extract_user_id(payload)
+    get_user_id(payload)
 
     import shlex
     try:
@@ -464,14 +454,14 @@ def _list_custom_themes() -> list[ThemeInfo]:
 @router.get("/modules")
 async def list_modules(payload: dict = Depends(get_current_user_payload)):
     """List custom Drupal modules."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     return {"modules": _list_custom_modules()}
 
 
 @router.get("/themes")
 async def list_themes(payload: dict = Depends(get_current_user_payload)):
     """List custom Drupal themes."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     return {"themes": _list_custom_themes()}
 
 
@@ -481,7 +471,7 @@ async def scaffold_module(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Generate module boilerplate files."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     mod_dir = os.path.join(DRUPAL_MOUNT, "web", "modules", "custom", body.machine_name)
 
     if os.path.exists(mod_dir):
@@ -539,7 +529,7 @@ async def scaffold_module(
 @router.get("/status", response_model=SiteStatusResponse)
 async def site_status(payload: dict = Depends(get_current_user_payload)):
     """Get Drupal site status via drush status."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     exit_code, stdout, stderr = await _run_drush(["status", "--format=json"])
 
     result = SiteStatusResponse(raw=stdout)
@@ -559,7 +549,7 @@ async def site_status(payload: dict = Depends(get_current_user_payload)):
 @router.get("/config/status", response_model=ConfigStatusResponse)
 async def config_status(payload: dict = Depends(get_current_user_payload)):
     """Get config diff via drush config:status."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     exit_code, stdout, stderr = await _run_drush(["config:status", "--format=json"])
 
     result = ConfigStatusResponse(raw=stdout)
@@ -579,7 +569,7 @@ async def config_status(payload: dict = Depends(get_current_user_payload)):
 @router.post("/config/export")
 async def config_export(payload: dict = Depends(get_current_user_payload)):
     """Run drush config:export."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     exit_code, stdout, stderr = await _run_drush(["config:export", "-y"], timeout=60.0)
     return {"exit_code": exit_code, "stdout": stdout, "stderr": stderr}
 
@@ -587,7 +577,7 @@ async def config_export(payload: dict = Depends(get_current_user_payload)):
 @router.post("/config/import")
 async def config_import(payload: dict = Depends(get_current_user_payload)):
     """Run drush config:import."""
-    _extract_user_id(payload)
+    get_user_id(payload)
     exit_code, stdout, stderr = await _run_drush(["config:import", "-y"], timeout=60.0)
     return {"exit_code": exit_code, "stdout": stdout, "stderr": stderr}
 
@@ -788,7 +778,7 @@ async def generate_palette(
     creative palettes. Otherwise falls back to algorithmic generation from seed color
     and harmony rules. All palettes are validated and auto-adjusted for WCAG AA.
     """
-    _extract_user_id(payload)
+    get_user_id(payload)
 
     hex_colors: list[str] = []
     names: list[str] | None = None
@@ -861,7 +851,7 @@ async def validate_palette(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Validate an existing set of colors for WCAG AA compliance."""
-    _extract_user_id(payload)
+    get_user_id(payload)
 
     # Validate hex format
     clean_colors = []
@@ -880,7 +870,7 @@ async def adjust_palette(
     payload: dict = Depends(get_current_user_payload),
 ):
     """Auto-adjust a palette to meet WCAG AA requirements."""
-    _extract_user_id(payload)
+    get_user_id(payload)
 
     clean_colors = []
     for c in body.colors:

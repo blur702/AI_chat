@@ -97,11 +97,28 @@ docker exec workstation-redis redis-cli -a "$REDIS_PASSWORD" ping
 
 ## Documentation Index
 
-- Backend: `backend/README.md`
-- Nginx and SSL: `nginx/README.md`
-- WebSocket reconnection/state recovery: `backend/docs/websocket_reconnection.md`
-- UI accessibility: `frontend/packages/ui/ACCESSIBILITY.md`
-- UI responsive system: `frontend/packages/ui/RESPONSIVE.md`
+### Guides
+- Architecture overview: [`docs/architecture.md`](docs/architecture.md)
+- Developer onboarding: [`docs/onboarding.md`](docs/onboarding.md)
+- Testing guide: [`docs/testing.md`](docs/testing.md)
+- Troubleshooting: [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- Security & deployment: [`docs/security-and-deployment.md`](docs/security-and-deployment.md)
+- Performance guidelines: [`docs/performance.md`](docs/performance.md)
+
+### Backend
+- Backend development: [`backend/README.md`](backend/README.md)
+- Kernel architecture: [`backend/app/kernel/README.md`](backend/app/kernel/README.md)
+- WebSocket reconnection: [`backend/docs/websocket_reconnection.md`](backend/docs/websocket_reconnection.md)
+- OpenAPI docs (when running): `http://localhost:8001/docs`
+
+### Frontend
+- Frontend monorepo: [`frontend/README.md`](frontend/README.md)
+- Component catalog: [`frontend/packages/ui/COMPONENTS.md`](frontend/packages/ui/COMPONENTS.md)
+- Accessibility: [`frontend/packages/ui/ACCESSIBILITY.md`](frontend/packages/ui/ACCESSIBILITY.md)
+- Responsive system: [`frontend/packages/ui/RESPONSIVE.md`](frontend/packages/ui/RESPONSIVE.md)
+
+### Infrastructure
+- Nginx and SSL: [`nginx/README.md`](nginx/README.md)
 
 ## Notes
 

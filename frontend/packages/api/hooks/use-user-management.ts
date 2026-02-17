@@ -10,6 +10,7 @@ import type {
   AdminUserUpdateResponse,
   UserUnlockResponse,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseUserManagementReturn {
   users: AdminUser[];
@@ -31,6 +32,10 @@ export interface UseUserManagementReturn {
   selectAndLoadUser: (userId: string) => Promise<void>;
 }
 
+/**
+ * Manages the admin user list with pagination, sorting, search, detail loading, update, and unlock operations.
+ * @returns Paginated user list, selected user detail, loading/error state, and admin CRUD functions.
+ */
 export function useUserManagement(): UseUserManagementReturn {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -62,7 +67,7 @@ export function useUserManagement(): UseUserManagementReturn {
       setPage(data.page);
       setPageSize(data.page_size);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load users");
+      setError(extractErrorMessage(err, "Failed to load users"));
     } finally {
       setLoading(false);
     }
@@ -91,7 +96,7 @@ export function useUserManagement(): UseUserManagementReturn {
       const user = await getClient().getUserDetails(userId);
       setSelectedUser(user);
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : "Failed to load user details");
+      setDetailError(extractErrorMessage(err, "Failed to load user details"));
     } finally {
       setDetailLoading(false);
     }

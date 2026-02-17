@@ -49,6 +49,14 @@ function summarizeFileTree(nodes: FileNode[]): string {
   return summary;
 }
 
+/**
+ * Manages a workspace/IDE conversation for a project, enriching messages with sandbox context (file, file tree, terminal history).
+ * Loads a specified chat by `externalChatId` or auto-creates/retrieves the default project chat.
+ * @param projectId - The project whose workspace conversation to manage.
+ * @param context - Sandbox context (selected file, file tree, terminal history) prepended to each message.
+ * @param externalChatId - Optional specific chat ID to load; falls back to the project default if omitted.
+ * @returns Chat ID, messages, streaming progress, error state, and a `sendMessage` function.
+ */
 export function useWorkspaceConversation(
   projectId: string,
   context: SandboxContext,

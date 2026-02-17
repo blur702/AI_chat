@@ -1,21 +1,26 @@
 import { test, expect, Page } from "@playwright/test";
-
-const BASE_URL = process.env.BASE_URL ?? "http://localhost";
-const ADMIN_ID = process.env.ADMIN_ID ?? "admin";
-const ADMIN_PW = process.env.ADMIN_PW ?? "Admin123!";
+import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
+import { resetLockout, flushRateLimits } from "../../helpers/db";
 
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
+  resetLockout(ADMIN_ID);
+  flushRateLimits();
+
   const context = await browser.newContext();
   page = await context.newPage();
 
-  // Login
-  await page.goto(`${BASE_URL}/login`);
-  await page.fill('input[name="identifier"], input[type="text"]', ADMIN_ID);
-  await page.fill('input[type="password"]', ADMIN_PW);
-  await page.click('button[type="submit"]');
-  await page.waitForURL("**/chat**", { timeout: 15000 });
+  // Login via API to set auth cookie
+  const res = await page.request.post("/api/auth/login", {
+    data: { identifier: ADMIN_ID, password: ADMIN_PW },
+  });
+  if (res.status() !== 200) {
+    throw new Error(`Login failed: ${res.status()}`);
+  }
+
+  await page.goto("/chat");
+  await page.waitForLoadState("domcontentloaded");
 });
 
 test.afterAll(async () => {

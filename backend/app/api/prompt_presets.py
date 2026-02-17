@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user_payload
+from app.auth import get_current_user_payload, get_user_id
 from app.database import get_db_session
 from app.models.prompt_preset import PromptPreset
 from app.schemas.prompt_preset import (
@@ -47,10 +47,7 @@ async def create_preset(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Create a new prompt preset."""
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(status_code=401, detail="Missing user_id in token")
-    user_id = UUID(raw_user_id)
+    user_id = get_user_id(payload)
 
     preset = PromptPreset(
         user_id=user_id,
@@ -84,10 +81,7 @@ async def list_presets(
     db: AsyncSession = Depends(get_db_session),
 ):
     """List prompt presets (own + public)."""
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(status_code=401, detail="Missing user_id in token")
-    user_id = UUID(raw_user_id)
+    user_id = get_user_id(payload)
 
     base_filter = (
         or_(PromptPreset.user_id == user_id, PromptPreset.is_public == True)  # noqa: E712
@@ -134,10 +128,7 @@ async def get_preset(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get a single prompt preset."""
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(status_code=401, detail="Missing user_id in token")
-    user_id = UUID(raw_user_id)
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PromptPreset).where(
             PromptPreset.id == preset_id,
@@ -160,10 +151,7 @@ async def update_preset(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Update a prompt preset (owner only)."""
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(status_code=401, detail="Missing user_id in token")
-    user_id = UUID(raw_user_id)
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PromptPreset).where(
             PromptPreset.id == preset_id,
@@ -197,10 +185,7 @@ async def delete_preset(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Delete a prompt preset (owner only)."""
-    raw_user_id = payload.get("user_id")
-    if not raw_user_id:
-        raise HTTPException(status_code=401, detail="Missing user_id in token")
-    user_id = UUID(raw_user_id)
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PromptPreset).where(
             PromptPreset.id == preset_id,

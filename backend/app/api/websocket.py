@@ -14,18 +14,36 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
-
+from app.api.context_deps import check_project_ownership
 from app.auth import get_user_id_from_token, verify_token
 from app.database import AsyncSessionLocal
-from app.models.project import Project
 from app.services.sandbox_manager import COMMAND_TIMEOUT
 
 logger = logging.getLogger("workstation.websocket")
 
 MAX_COMMAND_LENGTH = 8192  # Max chars for terminal commands
+MAX_CONNECTIONS_PER_USER = 5
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
+
+
+class _WSRateLimiter:
+    """Simple per-connection sliding window rate limiter for WebSocket messages."""
+
+    def __init__(self, max_messages: int, window_seconds: float) -> None:
+        self._max = max_messages
+        self._window = window_seconds
+        self._timestamps: List[float] = []
+
+    def allow(self) -> bool:
+        import time
+        now = time.monotonic()
+        cutoff = now - self._window
+        self._timestamps = [t for t in self._timestamps if t > cutoff]
+        if len(self._timestamps) >= self._max:
+            return False
+        self._timestamps.append(now)
+        return True
 
 
 class ConnectionManager:
@@ -48,7 +66,7 @@ class ConnectionManager:
         connection_id: str,
         websocket: WebSocket,
         metadata: Optional[dict] = None
-    ) -> None:
+    ) -> bool:
         """
         Accept and register a new WebSocket connection.
 
@@ -56,12 +74,35 @@ class ConnectionManager:
             connection_id: Unique identifier for this connection
             websocket: The WebSocket instance to register
             metadata: Optional metadata (e.g., user_id, authenticated_at)
+
+        Returns:
+            True if connected, False if per-user connection limit exceeded.
         """
-        await websocket.accept()
+        meta = metadata or {}
+        user_id = meta.get("user_id")
+
         async with self._lock:
+            # Enforce per-user connection limit
+            if user_id:
+                user_conns = sum(
+                    1 for m in self._connection_metadata.values()
+                    if m.get("user_id") == user_id
+                )
+                if user_conns >= MAX_CONNECTIONS_PER_USER:
+                    logger.warning(
+                        "Connection limit (%d) reached for user %s",
+                        MAX_CONNECTIONS_PER_USER, user_id,
+                    )
+                    return False
+
+            # Accept and register atomically under the same lock to prevent
+            # TOCTOU races where concurrent connects bypass the limit.
+            await websocket.accept()
             self._active_connections[connection_id] = websocket
-            self._connection_metadata[connection_id] = metadata or {}
+            self._connection_metadata[connection_id] = meta
+
         logger.info("WebSocket connected: %s", connection_id)
+        return True
 
     async def disconnect(self, connection_id: str) -> None:
         """
@@ -365,8 +406,8 @@ async def websocket_events_endpoint(
         return
 
     try:
-        # Connect with metadata
-        await manager.connect(
+        # Connect with metadata (enforces per-user connection limit)
+        connected = await manager.connect(
             connection_id,
             websocket,
             metadata={
@@ -375,6 +416,9 @@ async def websocket_events_endpoint(
                 "token_exp": payload.get("exp"),
             }
         )
+        if not connected:
+            await websocket.close(code=1008, reason="Too many connections")
+            return
 
         # Send connection confirmation
         await manager.send_typed_message(
@@ -400,11 +444,21 @@ async def websocket_events_endpoint(
             logger.error("Failed to send state snapshot: %s", e)
             # Don't close connection on snapshot failure
 
+        # Per-connection rate limiter: 30 msgs / 10s
+        msg_limiter = _WSRateLimiter(max_messages=30, window_seconds=10)
+
         # Keep connection alive and handle client messages
         while True:
             try:
                 # Wait for client messages (ping/pong, subscription requests, etc.)
                 data = await websocket.receive_text()
+
+                if not msg_limiter.allow():
+                    await manager.send_typed_message(
+                        connection_id, "error",
+                        {"message": "Rate limit exceeded, slow down"},
+                    )
+                    continue
 
                 # Handle ping messages
                 if data == "ping":
@@ -475,21 +529,16 @@ async def websocket_terminal_endpoint(
         return
 
     # -- Verify project exists and user owns it --
-    # NOTE: This inline access check mirrors validate_project_access_with_template
-    # from context_deps.py but is duplicated here because WebSocket endpoints
-    # cannot use FastAPI Depends() for DB sessions the same way HTTP endpoints do.
     project_template_id = None
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Project.user_id, Project.template_id)
-            .where(Project.id == project_uuid, Project.is_deleted == False)  # noqa: E712
-        )
-        row = result.one_or_none()
-        if row is None:
+        try:
+            project_template_id = await check_project_ownership(
+                project_uuid, user_id, db
+            )
+        except ValueError:
             await websocket.close(code=1008, reason="Project not found")
             return
-        owner_id, project_template_id = row
-        if str(owner_id) != str(user_id):
+        except PermissionError:
             await websocket.close(code=1008, reason="Access denied")
             return
 
@@ -519,9 +568,20 @@ async def websocket_terminal_endpoint(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+        # Per-connection rate limiter: 10 msgs / 5s
+        cmd_limiter = _WSRateLimiter(max_messages=10, window_seconds=5)
+
         # Command loop
         while True:
             raw = await websocket.receive_text()
+
+            if not cmd_limiter.allow():
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {"message": "Rate limit exceeded, slow down"},
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+                continue
 
             try:
                 msg = json.loads(raw)

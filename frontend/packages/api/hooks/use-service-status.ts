@@ -50,6 +50,11 @@ const SERVICE_LABELS: Record<TrackedService, string> = {
 const POLL_FAST_MS = 4_000;
 const POLL_SLOW_MS = 30_000;
 
+/**
+ * Polls kernel service health, using fast (4s) polling until critical services are ready, then slow (30s) polling.
+ * Tracks unreachable duration in seconds for displaying degraded-state UI.
+ * @returns Backend reachability, per-service health details, readiness flags, and a manual `refresh` callback.
+ */
 export function useServiceStatus(): UseServiceStatusReturn {
   const [backendReachable, setBackendReachable] = useState(true);
   const [kernelStatus, setKernelStatus] = useState<KernelStatusResponse | null>(null);

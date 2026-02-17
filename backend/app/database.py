@@ -5,16 +5,21 @@ This module provides the async engine, session factory, and base class
 for all database models.
 """
 
+import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 from sqlalchemy.orm import declarative_base
+
+logger = logging.getLogger("workstation.db")
 
 # Database URL from environment with fallback for local development
 DATABASE_URL = os.getenv(
@@ -26,12 +31,26 @@ DATABASE_URL = os.getenv(
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Connection pool configuration
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "1800"))  # 30 minutes
+POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
     echo=os.getenv("DEBUG", "false").lower() == "true",  # Log SQL in debug mode
     future=True,  # SQLAlchemy 2.0 style
     pool_pre_ping=True,  # Verify connections before use
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
+    pool_recycle=POOL_RECYCLE,
+    pool_timeout=POOL_TIMEOUT,
+    pool_reset_on_return="rollback",  # Ensure clean connection state on return
+    connect_args={
+        "statement_cache_size": 0,  # Avoid prepared statement conflicts with pgbouncer
+    },
 )
 
 # Database connection and session management for backend app
@@ -60,6 +79,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     session = AsyncSessionLocal()
     try:
         yield session
+    except Exception:
+        await session.rollback()
+        raise
     finally:
         await session.close()
 
@@ -95,3 +117,23 @@ async def close_db() -> None:
     Call this during application shutdown.
     """
     await engine.dispose()
+
+
+# Slow query logging
+SLOW_QUERY_THRESHOLD = float(os.getenv("SLOW_QUERY_THRESHOLD_MS", "500")) / 1000
+
+
+@event.listens_for(engine.sync_engine, "before_cursor_execute")
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    conn.info.setdefault("query_start_time", []).append(time.monotonic())
+
+
+@event.listens_for(engine.sync_engine, "after_cursor_execute")
+def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    total = time.monotonic() - conn.info["query_start_time"].pop(-1)
+    if total >= SLOW_QUERY_THRESHOLD:
+        logger.warning(
+            "Slow query (%.1fms): %s",
+            total * 1000,
+            statement[:200],
+        )

@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { AutomationAction } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
+/**
+ * Fetches and manages automation actions for a project, including approve, execute, and reject operations.
+ * @param projectId - The project whose automation actions to load.
+ * @returns Action list, pending count, loading/error state, and `approve`/`execute`/`reject` callbacks.
+ */
 export function useAutomationActions(projectId: string) {
   const [actions, setActions] = useState<AutomationAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +22,7 @@ export function useAutomationActions(projectId: string) {
       const res = await getClient().listAutomationActions(projectId);
       setActions(res.actions);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load actions");
+      setError(extractErrorMessage(err, "Failed to load actions"));
     } finally {
       setLoading(false);
     }
@@ -27,12 +33,12 @@ export function useAutomationActions(projectId: string) {
   }, [refresh]);
 
   const approve = useCallback(
-    async (actionId: string, modifiedData?: Record<string, any>) => {
+    async (actionId: string, modifiedData?: Record<string, unknown>) => {
       try {
         await getClient().approveAutomationAction(actionId, modifiedData);
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to approve action");
+        setError(extractErrorMessage(err, "Failed to approve action"));
         throw err;
       }
     },
@@ -46,7 +52,7 @@ export function useAutomationActions(projectId: string) {
         await refresh();
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to execute action");
+        setError(extractErrorMessage(err, "Failed to execute action"));
         throw err;
       }
     },
@@ -59,7 +65,7 @@ export function useAutomationActions(projectId: string) {
         await getClient().deleteAutomationAction(actionId);
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to reject action");
+        setError(extractErrorMessage(err, "Failed to reject action"));
         throw err;
       }
     },

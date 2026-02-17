@@ -37,6 +37,43 @@ def _make_mock_container(container_id="abc123def456", status="running", labels=N
     return c
 
 
+def _make_initialized_manager(mock_client=None):
+    """Create a SandboxManager with helpers initialized (bypassing Docker startup)."""
+    mgr = SandboxManager()
+    if mock_client is None:
+        mock_client = MagicMock()
+    mgr._client = mock_client
+    mgr._running = True
+
+    # Initialize helpers the same way startup() does
+    from app.services.sandbox.exec_runner import ExecRunner
+    from app.services.sandbox.file_ops import FileOps
+    from app.services.sandbox.tech_merger import TechMerger
+    from app.services.sandbox.template_applier import TemplateApplier
+    from app.services.sandbox.container_lifecycle import ContainerLifecycle
+    from app.services.sandbox.portability import Portability
+
+    mgr._run = ExecRunner(mock_client, mgr._last_activity)
+    mgr._file_ops = FileOps(mgr._run, mock_client, mgr._last_activity)
+    mgr._tech_merger = TechMerger(mgr._template_registry)
+    mgr._template_applier = TemplateApplier(
+        mgr._run, mgr._file_ops, mock_client,
+        mgr._template_registry, mgr._sidecars,
+    )
+    mgr._lifecycle = ContainerLifecycle(
+        mock_client, mgr._containers, mgr._last_activity,
+        mgr._creation_locks, mgr._applied_templates,
+        mgr._creation_failures, mgr._sidecars,
+        mgr._template_registry, mgr._tech_merger, mgr._template_applier,
+    )
+    mgr._portability = Portability(
+        mock_client, mgr._containers, mgr._template_registry,
+        mgr._exported_images,
+        mgr.get_or_create_container, mgr.stop_container,
+    )
+    return mgr
+
+
 # ---------------------------------------------------------------------------
 # Initialization
 # ---------------------------------------------------------------------------
@@ -175,15 +212,14 @@ class TestGetOrCreateContainer:
 
     @pytest.mark.asyncio
     async def test_returns_existing_running_container(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
         container = _make_mock_container(status="running")
         mgr._containers[pid] = container.id
-        mgr._client.containers.get.return_value = container
+        mock_client.containers.get.return_value = container
 
         result = await mgr.get_or_create_container(project_id)
         assert result == container.id
@@ -191,15 +227,14 @@ class TestGetOrCreateContainer:
 
     @pytest.mark.asyncio
     async def test_starts_stopped_container(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
         container = _make_mock_container(status="exited")
         mgr._containers[pid] = container.id
-        mgr._client.containers.get.return_value = container
+        mock_client.containers.get.return_value = container
 
         result = await mgr.get_or_create_container(project_id)
         assert result == container.id
@@ -207,9 +242,8 @@ class TestGetOrCreateContainer:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_rejects_during_cooldown(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
@@ -220,9 +254,8 @@ class TestGetOrCreateContainer:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_clears_after_cooldown(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
@@ -233,7 +266,7 @@ class TestGetOrCreateContainer:
         )
 
         container = _make_mock_container()
-        mgr._client.containers.run.return_value = container
+        mock_client.containers.run.return_value = container
 
         result = await mgr.get_or_create_container(project_id)
         assert result == container.id
@@ -250,16 +283,15 @@ class TestStopContainer:
 
     @pytest.mark.asyncio
     async def test_stop_and_remove_container(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
         container = _make_mock_container()
         mgr._containers[pid] = container.id
         mgr._last_activity[container.id] = time.time()
-        mgr._client.containers.get.return_value = container
+        mock_client.containers.get.return_value = container
 
         result = await mgr.stop_container(project_id)
         assert result is True
@@ -270,18 +302,16 @@ class TestStopContainer:
 
     @pytest.mark.asyncio
     async def test_stop_nonexistent_project(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         result = await mgr.stop_container(uuid4())
         assert result is False
 
     @pytest.mark.asyncio
     async def test_stop_cleans_up_sidecars(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
@@ -295,7 +325,7 @@ class TestStopContainer:
                 return sidecar
             return container
 
-        mgr._client.containers.get.side_effect = get_container
+        mock_client.containers.get.side_effect = get_container
 
         result = await mgr.stop_container(project_id)
         assert result is True
@@ -305,9 +335,8 @@ class TestStopContainer:
 
     @pytest.mark.asyncio
     async def test_stop_clears_tracking_dicts(self):
-        mgr = SandboxManager()
-        mgr._running = True
-        mgr._client = MagicMock()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
 
         project_id = uuid4()
         pid = str(project_id)
@@ -316,7 +345,7 @@ class TestStopContainer:
         mgr._creation_locks[pid] = asyncio.Lock()
         mgr._applied_templates[pid] = "template-1"
         mgr._creation_failures[pid] = (time.time(), "err")
-        mgr._client.containers.get.return_value = container
+        mock_client.containers.get.return_value = container
 
         await mgr.stop_container(project_id)
         assert pid not in mgr._creation_locks
@@ -348,12 +377,14 @@ class TestExportedImageOwnership:
 
     @pytest.mark.asyncio
     async def test_owned_image(self):
-        mgr = SandboxManager()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
         project_id = uuid4()
         mgr._exported_images["sha256:abc"] = str(project_id)
         assert await mgr.is_exported_image_owned_by_project(project_id, "sha256:abc") is True
 
     @pytest.mark.asyncio
     async def test_unowned_image(self):
-        mgr = SandboxManager()
+        mock_client = MagicMock()
+        mgr = _make_initialized_manager(mock_client)
         assert await mgr.is_exported_image_owned_by_project(uuid4(), "sha256:xyz") is False

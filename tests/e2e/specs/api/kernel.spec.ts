@@ -1,23 +1,28 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { resetLockout, flushRateLimits } from "../../helpers/db";
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost";
-const ADMIN_ID = "admin";
-const ADMIN_PW = "Admin123!";
+const BASE = process.env.API_BASE_URL ?? process.env.BASE_URL ?? "http://localhost";
+import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
 
 let api: APIRequestContext;
 let adminToken: string;
 
 test.beforeAll(async ({ playwright }) => {
-  resetLockout("admin");
+  resetLockout(ADMIN_ID);
   flushRateLimits();
 
-  api = await playwright.request.newContext({ baseURL: BASE });
-  const res = await api.post("/api/auth/login", {
+  const loginCtx = await playwright.request.newContext({ baseURL: BASE });
+  const res = await loginCtx.post("/api/auth/login", {
     data: { identifier: ADMIN_ID, password: ADMIN_PW },
   });
   const body = await res.json();
   adminToken = body.access_token;
+  await loginCtx.dispose();
+
+  api = await playwright.request.newContext({
+    baseURL: BASE,
+    extraHTTPHeaders: { Authorization: `Bearer ${adminToken}` },
+  });
 });
 
 test.afterAll(async () => {
@@ -89,9 +94,7 @@ test.describe("Health endpoints", () => {
 
 test.describe("Tools API", () => {
   test("GET /api/tools returns tool list", async () => {
-    const res = await api.get("/api/tools", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/tools");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -107,9 +110,7 @@ test.describe("Tools API", () => {
 
 test.describe("Events API", () => {
   test("GET /api/events returns event list", async () => {
-    const res = await api.get("/api/events", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/events");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -118,9 +119,7 @@ test.describe("Events API", () => {
   });
 
   test("GET /api/events/stats/summary returns event statistics", async () => {
-    const res = await api.get("/api/events/stats/summary", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/events/stats/summary");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -131,9 +130,7 @@ test.describe("Events API", () => {
   });
 
   test("GET /api/events/types/list returns event types", async () => {
-    const res = await api.get("/api/events/types/list", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/events/types/list");
     expect(res.status()).toBe(200);
 
     const body = await res.json();
@@ -148,8 +145,7 @@ test.describe("Events API", () => {
 test.describe("Context API", () => {
   test("GET /api/context/conversations/:id returns 404 for missing chat", async () => {
     const res = await api.get(
-      "/api/context/conversations/00000000-0000-0000-0000-000000000000",
-      { headers: { Authorization: `Bearer ${adminToken}` } }
+      "/api/context/conversations/00000000-0000-0000-0000-000000000000"
     );
     expect(res.status()).toBe(404);
   });
@@ -161,17 +157,13 @@ test.describe("Context API", () => {
 
 test.describe("Admin endpoints", () => {
   test("GET /api/admin/kernel/debug returns debug info", async () => {
-    const res = await api.get("/api/admin/kernel/debug", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/admin/kernel/debug");
     // May require admin role check or may be open
     expect([200, 401, 403]).toContain(res.status());
   });
 
   test("GET /api/admin/kernel/metrics returns metrics", async () => {
-    const res = await api.get("/api/admin/kernel/metrics", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const res = await api.get("/api/admin/kernel/metrics");
     expect([200, 401, 403]).toContain(res.status());
   });
 });

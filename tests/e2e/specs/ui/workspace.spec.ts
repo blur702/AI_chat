@@ -1,40 +1,17 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "../../helpers/auth";
 import { resetLockout, flushRateLimits } from "../../helpers/db";
+import { ADMIN_ID } from "../../helpers/credentials";
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost";
-const ADMIN_PW = "Admin123!";
-const ID_FIELD = /admin@workstation\.local/i;
-const PW_FIELD = /enter your password/i;
-
-/** Log in and return the authenticated page. */
-async function loginAsAdmin(page: Page) {
-  flushRateLimits();
-
-  await page.goto("/login");
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.waitForLoadState("domcontentloaded");
-
-  await page.getByPlaceholder(ID_FIELD).fill("admin");
-  await page.getByPlaceholder(PW_FIELD).fill(ADMIN_PW);
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL("**/chat", { timeout: 15_000 });
-}
-
-/** Get auth token from localStorage (must be called after login). */
-async function getToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() =>
-    localStorage.getItem("workstation_token")
-  );
-  return token ?? "";
-}
+// Origin header required by CSRF middleware for cookie-authenticated POST/DELETE
+const ORIGIN = process.env.BASE_URL ?? "https://ssdd.kevinalthaus.com";
 
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
 test.beforeAll(() => {
-  resetLockout("admin");
+  resetLockout(ADMIN_ID);
   flushRateLimits();
 });
 
@@ -49,14 +26,10 @@ test.beforeEach(async ({ page }) => {
 
 test.describe("Workspace IDE", () => {
   test("workspace page loads with IDE layout", async ({ page }) => {
-    // Create a project via API (using page request context which shares baseURL)
-    const token = await getToken(page);
-    const res = await page.request.post(`${BASE}/api/projects`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+    // Create a project via API — page.request shares the auth cookie
+    const res = await page.request.post("/api/projects", {
       data: { name: "E2E Workspace Test", path: "e2e_workspace_test" },
+      headers: { Origin: ORIGIN },
     });
     const body = await res.json();
     const projectId = body.id;
@@ -74,8 +47,8 @@ test.describe("Workspace IDE", () => {
     );
 
     // Cleanup
-    await page.request.delete(`${BASE}/api/projects/${projectId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    await page.request.delete(`/api/projects/${projectId}`, {
+      headers: { Origin: ORIGIN },
     });
   });
 });
@@ -86,21 +59,10 @@ test.describe("Workspace IDE", () => {
 
 test.describe("Projects page", () => {
   test("projects page is accessible after login", async ({ page }) => {
-    // Navigate using client-side routing from /chat to avoid auth race
-    await page.evaluate(() => {
-      window.location.href = "/projects";
-    });
-    await page.waitForURL(/\/(projects|chat|login)/, { timeout: 10_000 });
+    await page.goto("/projects");
+    await page.waitForLoadState("domcontentloaded");
 
-    if (page.url().includes("/login")) {
-      // Auth race condition happened — re-login from the redirect
-      await page.getByPlaceholder(ID_FIELD).fill("admin");
-      await page.getByPlaceholder(PW_FIELD).fill(ADMIN_PW);
-      await page.getByRole("button", { name: /sign in/i }).click();
-      await page.waitForURL(/\/(projects|chat)/, { timeout: 10_000 });
-    }
-
-    // Should be on projects or chat (after the auth flow settles)
+    // Should be on projects or chat (cookie auth keeps session alive)
     expect(page.url()).toMatch(/\/(projects|chat)/);
   });
 });

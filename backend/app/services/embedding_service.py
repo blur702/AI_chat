@@ -1,11 +1,10 @@
 """EmbeddingService - Async embedding generation via Ollama API."""
 
+import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List
 
-import httpx
-
-from app.kernel.base import BaseKernelService
+from app.kernel.http_service import HttpKernelService
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ EMBEDDING_DIMENSION = 1024
 MAX_EMBED_CHARS = 1000
 
 
-class EmbeddingService(BaseKernelService):
+class EmbeddingService(HttpKernelService):
     """
     Kernel service for generating vector embeddings via the Ollama API.
 
@@ -27,46 +26,15 @@ class EmbeddingService(BaseKernelService):
     """
 
     def __init__(self, base_url: str = "http://ollama:11434") -> None:
-        self._base_url = base_url.rstrip("/")
-        self._running = False
-        self._client: Optional[httpx.AsyncClient] = None
-
-    # -- BaseKernelService lifecycle -----------------------------------------
+        super().__init__(base_url)
 
     @property
     def name(self) -> str:
         return "embedding_service"
 
     @property
-    def is_running(self) -> bool:
-        return self._running
-
-    async def startup(self) -> None:
-        if self._running:
-            return
-        self._client = httpx.AsyncClient(
-            base_url=self._base_url,
-            timeout=httpx.Timeout(connect=5.0, read=60.0, write=5.0, pool=5.0),
-        )
-        self._running = True
-        logger.info("EmbeddingService started (base_url=%s)", self._base_url)
-
-    async def shutdown(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-        self._running = False
-        logger.info("EmbeddingService stopped")
-
-    async def health_check(self) -> Tuple[bool, str]:
-        if not self._running or not self._client:
-            return False, "service not running"
-        try:
-            resp = await self._client.get("/api/tags", timeout=5.0)
-            resp.raise_for_status()
-            return True, "ok"
-        except Exception as exc:
-            return False, f"ollama unreachable: {exc}"
+    def _health_endpoint(self) -> str:
+        return "/api/tags"
 
     # -- Public API ----------------------------------------------------------
 
@@ -89,8 +57,7 @@ class EmbeddingService(BaseKernelService):
             httpx.HTTPStatusError: On non-2xx response from Ollama.
             ValueError: If the returned embedding has unexpected dimensions.
         """
-        if self._client is None:
-            raise RuntimeError("EmbeddingService not started")
+        self._require_client()
 
         # Truncate to avoid exceeding model context window
         truncated = text[:MAX_EMBED_CHARS] if len(text) > MAX_EMBED_CHARS else text
@@ -109,24 +76,28 @@ class EmbeddingService(BaseKernelService):
         self,
         texts: List[str],
         model: str = DEFAULT_EMBEDDING_MODEL,
+        batch_size: int = 10,
     ) -> List[List[float]]:
-        """Generate embeddings for multiple texts.
+        """Generate embeddings for multiple texts with parallel processing.
 
-        Processes each text individually through the Ollama API since the
-        /api/embeddings endpoint handles one prompt at a time.
+        Uses asyncio.gather with a semaphore to process up to `batch_size`
+        embeddings concurrently through the Ollama API.
 
         Args:
             texts: List of input texts to embed.
             model: Ollama embedding model name.
+            batch_size: Maximum concurrent embedding requests.
 
         Returns:
             List of embedding vectors matching the input order.
         """
-        results: List[List[float]] = []
-        for text in texts:
-            embedding = await self.generate_embedding(text, model=model)
-            results.append(embedding)
-        return results
+        semaphore = asyncio.Semaphore(batch_size)
+
+        async def _embed(text: str) -> List[float]:
+            async with semaphore:
+                return await self.generate_embedding(text, model=model)
+
+        return list(await asyncio.gather(*[_embed(t) for t in texts]))
 
     # -- Helpers -------------------------------------------------------------
 

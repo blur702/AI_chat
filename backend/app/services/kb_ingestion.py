@@ -5,7 +5,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.base import BaseKernelService
@@ -35,16 +35,19 @@ class KBIngestionService(BaseKernelService):
         return self._running
 
     async def startup(self) -> None:
+        """Mark the service as running."""
         if self._running:
             return
         self._running = True
         logger.info("KBIngestionService started")
 
     async def shutdown(self) -> None:
+        """Mark the service as stopped."""
         self._running = False
         logger.info("KBIngestionService stopped")
 
     async def health_check(self) -> Tuple[bool, str]:
+        """Return service health status."""
         if not self._running:
             return False, "service not running"
         return True, "ok"
@@ -207,9 +210,12 @@ class KBIngestionService(BaseKernelService):
         """
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+        # Separator priority: prefer paragraph breaks over line breaks over words over chars,
+        # so splits happen at the most natural boundary possible before falling back.
         if separators is None:
             separators = ["\n\n", "\n", " ", ""]
 
+        # gpt-3.5-turbo tokenizer is used purely for accurate token counting — not for inference
         splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             model_name="gpt-3.5-turbo",
             chunk_size=chunk_size,
@@ -282,16 +288,20 @@ class KBIngestionService(BaseKernelService):
                 source_id, len(full_text), len(chunks),
             )
 
-            # Create KBChunk records
-            for chunk_data in chunks:
-                chunk = KBChunk(
-                    source_id=source_id,
-                    project_id=source.project_id,
-                    content=chunk_data["content"],
-                    chunk_index=chunk_data["index"],
-                    chunk_metadata=chunk_data["metadata"],
-                )
-                db.add(chunk)
+            # Bulk insert KBChunk records in a single statement
+            chunk_rows = [
+                {
+                    "source_id": source_id,
+                    "project_id": source.project_id,
+                    "content": chunk_data["content"],
+                    "chunk_index": chunk_data["index"],
+                    "chunk_metadata": chunk_data["metadata"],
+                }
+                for chunk_data in chunks
+            ]
+            # Single bulk INSERT instead of per-chunk round-trips to avoid N+1 DB overhead
+            if chunk_rows:
+                await db.execute(insert(KBChunk), chunk_rows)
 
             # Update source with completion status
             source.chunk_count = len(chunks)
@@ -305,7 +315,7 @@ class KBIngestionService(BaseKernelService):
 
         except Exception as exc:
             logger.error("Failed to process source %s: %s", source_id, exc)
-            # Refresh source in case of rollback
+            # Rollback first, then re-fetch source in a clean transaction to update status
             await db.rollback()
             result = await db.execute(
                 select(KBSource).where(KBSource.id == source_id)

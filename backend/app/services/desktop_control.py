@@ -5,6 +5,7 @@ import io
 import logging
 import os
 import sys
+import time
 from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -120,11 +121,15 @@ def type_text(text: str, interval: float = 0.02) -> Dict[str, Any]:
         old_clipboard = None
         clipboard_loaded = False
         try:
-            old_clipboard = _pyperclip.paste()
-            clipboard_loaded = True
+            try:
+                old_clipboard = _pyperclip.paste()
+                clipboard_loaded = True
+            except Exception:
+                clipboard_loaded = False
             _pyperclip.copy(text)
             paste_modifier = "command" if sys.platform == "darwin" else "ctrl"
             _pyautogui.hotkey(paste_modifier, "v")
+            time.sleep(0.2)
         finally:
             if clipboard_loaded:
                 try:

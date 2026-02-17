@@ -383,16 +383,16 @@ class TestTokenTracking:
 
     @pytest.mark.unit
     async def test_compaction_threshold_triggered(self, cm):
-        """Returns True when ratio >= 80%."""
+        """Returns True when ratio >= 90%."""
         chat_id = uuid.uuid4()
-        needs = await cm.track_token_usage(chat_id, 8500, 10000)
+        needs = await cm.track_token_usage(chat_id, 9500, 10000)
         assert needs is True
 
     @pytest.mark.unit
     async def test_compaction_threshold_not_triggered(self, cm):
-        """Returns False when ratio < 80%."""
+        """Returns False when ratio < 90%."""
         chat_id = uuid.uuid4()
-        needs = await cm.track_token_usage(chat_id, 7000, 10000)
+        needs = await cm.track_token_usage(chat_id, 8500, 10000)
         assert needs is False
 
     @pytest.mark.unit

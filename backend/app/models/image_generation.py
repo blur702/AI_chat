@@ -106,6 +106,8 @@ class ImageGeneration(UUIDMixin, TimestampMixin, Base):
         Index("idx_image_generations_user", "user_id"),
         Index("idx_image_generations_project", "project_id"),
         Index("idx_image_generations_status", "status"),
+        Index("idx_image_generations_user_created", "user_id", "created_at"),
+        Index("idx_image_generations_deleted", "is_deleted"),
     )
 
     def __repr__(self) -> str:

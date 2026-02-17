@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getClient } from "../client";
 import type { ToolInfo, ToolExecuteRequest, ToolExecuteResponse } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 interface UseToolsReturn {
   tools: ToolInfo[];
@@ -12,6 +13,10 @@ interface UseToolsReturn {
   refresh: () => Promise<void>;
 }
 
+/**
+ * Fetches the list of registered kernel tools and provides a direct `executeTool` function.
+ * @returns Tool list, loading/error state, an `executeTool` function, and a `refresh` callback.
+ */
 export function useTools(): UseToolsReturn {
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +29,7 @@ export function useTools(): UseToolsReturn {
       const result = await getClient().listTools();
       setTools(result.tools);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch tools");
+      setError(extractErrorMessage(err, "Failed to fetch tools"));
     } finally {
       setLoading(false);
     }

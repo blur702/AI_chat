@@ -14,6 +14,7 @@ import type {
   CloneProjectResponse,
   SnapshotInfo,
 } from "../types";
+import { extractErrorMessage } from "../utils/error";
 
 export interface UseProjectImportReturn {
   // Import
@@ -53,6 +54,11 @@ export interface UseProjectImportReturn {
   error: string | null;
 }
 
+/**
+ * Manages project import (Git, website, archive), export, cloning, snapshots, and project-type detection.
+ * Polls import status automatically and cleans up on unmount.
+ * @returns Import/export/clone functions, snapshot management, import status, and loading/error state.
+ */
 export function useProjectImport(): UseProjectImportReturn {
   const [importStatus, setImportStatus] = useState<ImportStatusResponse | null>(null);
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([]);
@@ -114,7 +120,7 @@ export function useProjectImport(): UseProjectImportReturn {
         pollImportStatus(res.import_id);
         return res;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Git import failed";
+        const msg = extractErrorMessage(err, "Git import failed");
         setError(msg);
         throw err;
       } finally {
@@ -146,7 +152,7 @@ export function useProjectImport(): UseProjectImportReturn {
         pollImportStatus(res.import_id);
         return res;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Archive import failed";
+        const msg = extractErrorMessage(err, "Archive import failed");
         setError(msg);
         throw err;
       } finally {
@@ -173,7 +179,7 @@ export function useProjectImport(): UseProjectImportReturn {
         pollImportStatus(res.import_id);
         return res;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Website import failed";
+        const msg = extractErrorMessage(err, "Website import failed");
         setError(msg);
         throw err;
       } finally {
@@ -197,7 +203,7 @@ export function useProjectImport(): UseProjectImportReturn {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Export failed";
+      const msg = extractErrorMessage(err, "Export failed");
       setError(msg);
       throw err;
     } finally {
@@ -212,7 +218,7 @@ export function useProjectImport(): UseProjectImportReturn {
         setError(null);
         return await getClient().cloneProject(projectId, data);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Clone failed";
+        const msg = extractErrorMessage(err, "Clone failed");
         setError(msg);
         throw err;
       } finally {
@@ -229,7 +235,7 @@ export function useProjectImport(): UseProjectImportReturn {
       const res = await getClient().listSnapshots(projectId);
       setSnapshots(res.snapshots);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load snapshots";
+      const msg = extractErrorMessage(err, "Failed to load snapshots");
       setError(msg);
     } finally {
       setLoading(false);
@@ -245,7 +251,7 @@ export function useProjectImport(): UseProjectImportReturn {
         setSnapshots((prev) => [...prev, res]);
         return res;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to create snapshot";
+        const msg = extractErrorMessage(err, "Failed to create snapshot");
         setError(msg);
         throw err;
       } finally {
@@ -262,7 +268,7 @@ export function useProjectImport(): UseProjectImportReturn {
         setError(null);
         await getClient().restoreSnapshot(projectId, name);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to restore snapshot";
+        const msg = extractErrorMessage(err, "Failed to restore snapshot");
         setError(msg);
         throw err;
       } finally {
@@ -280,7 +286,7 @@ export function useProjectImport(): UseProjectImportReturn {
         await getClient().deleteSnapshot(projectId, name);
         setSnapshots((prev) => prev.filter((s) => s.name !== name));
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to delete snapshot";
+        const msg = extractErrorMessage(err, "Failed to delete snapshot");
         setError(msg);
         throw err;
       } finally {
@@ -296,7 +302,7 @@ export function useProjectImport(): UseProjectImportReturn {
       setError(null);
       return await getClient().detectProjectType(projectId);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Detection failed";
+      const msg = extractErrorMessage(err, "Detection failed");
       setError(msg);
       throw err;
     } finally {

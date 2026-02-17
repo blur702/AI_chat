@@ -11,6 +11,7 @@ from app.api.context_deps import (
     get_current_user_payload,
     get_db_session,
 )
+from app.auth import get_user_id
 from app.models.context_snippet import ContextSnippet
 from app.schemas.context import (
     ContextSnippetCreateRequest,
@@ -27,21 +28,7 @@ router = APIRouter(prefix="/context/snippets", tags=["context"])
 MAX_SNIPPETS_PER_USER = 500
 
 
-def _get_user_id(payload: dict) -> UUID:
-    """Extract and validate user_id from an auth payload dict."""
-    raw = payload.get("user_id")
-    if not raw:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing user_id in token",
-        )
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user_id in token",
-        ) from None
+_get_user_id = get_user_id  # backward compat alias
 
 
 def _snippet_to_response(s: ContextSnippet) -> ContextSnippetResponse:

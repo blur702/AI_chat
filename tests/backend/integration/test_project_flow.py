@@ -214,7 +214,9 @@ async def test_update_project_name(client):
         ]
     )
     mock_db.commit = AsyncMock()
-    mock_db.refresh = AsyncMock()
+    mock_db.refresh = AsyncMock(
+        side_effect=lambda obj: setattr(obj, "name", "Renamed Project")
+    )
 
     async def fake_get_db():
         yield mock_db
@@ -235,7 +237,8 @@ async def test_update_project_name(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["name"] == "My Project" or "Renamed" in str(data)
+    assert data["name"] == "Renamed Project"
+    mock_db.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

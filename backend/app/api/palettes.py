@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import get_current_user_payload, get_db_session
+from app.auth import get_user_id
 from app.models.color_palette import ColorPalette
 from app.schemas.palette import (
     PaletteCreateRequest,
@@ -17,21 +18,6 @@ from app.schemas.palette import (
 
 router = APIRouter(prefix="/palettes", tags=["palettes"])
 
-
-def _get_user_uuid(payload: dict) -> UUID:
-    raw = payload.get("user_id") or payload.get("sub")
-    if not raw:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing user_id in token",
-        )
-    try:
-        return UUID(str(raw))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user_id in token",
-        ) from exc
 
 
 def _to_response(p: ColorPalette) -> PaletteResponse:
@@ -53,7 +39,8 @@ async def list_palettes(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaletteListResponse:
-    user_id = _get_user_uuid(payload)
+    """List all saved color palettes for the current user with pagination."""
+    user_id = get_user_id(payload)
     base_q = select(ColorPalette).where(
         ColorPalette.user_id == user_id,
         ColorPalette.is_deleted == False,  # noqa: E712
@@ -73,7 +60,8 @@ async def create_palette(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaletteResponse:
-    user_id = _get_user_uuid(payload)
+    """Save a new color palette for the current user."""
+    user_id = get_user_id(payload)
     row = ColorPalette(
         user_id=user_id,
         name=body.name.strip(),
@@ -94,7 +82,8 @@ async def update_palette(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> PaletteResponse:
-    user_id = _get_user_uuid(payload)
+    """Update an existing palette's name, colors, or tags."""
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(ColorPalette).where(
             ColorPalette.id == palette_id,
@@ -127,7 +116,8 @@ async def delete_palette(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    user_id = _get_user_uuid(payload)
+    """Soft-delete a saved color palette."""
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(ColorPalette).where(
             ColorPalette.id == palette_id,

@@ -5,6 +5,13 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Sheet is a slide-in panel built on Radix Dialog, inheriting its full accessibility features.
+ * Focus is trapped inside the panel while open; Escape closes and returns focus to the trigger.
+ * Always include a SheetTitle inside SheetContent so screen readers announce the panel name.
+ * SheetDescription provides supplementary context linked via aria-describedby.
+ * The panel slides in from the right edge at a fixed width of 420px.
+ */
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;
 const SheetPortal = DialogPrimitive.Portal;

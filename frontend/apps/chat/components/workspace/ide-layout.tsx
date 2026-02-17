@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   Panel,
   Group,
@@ -7,33 +8,40 @@ import {
 } from "react-resizable-panels";
 import { FileExplorer } from "./file-explorer/file-explorer";
 import { EditorPane } from "./editor/editor-pane";
-import { TerminalPane, type TerminalHandle } from "./terminal/terminal-pane";
-import { PreviewPane } from "./preview/preview-pane";
-import { ChatPanel } from "./chat-panel/chat-panel";
-import { AutomationActionsPanel } from "./automation-actions-panel";
-import { YoloEditHistory } from "./yolo-edit-history";
-import { ImageGenPanel } from "./image-gen/image-gen-panel";
-import { ToolsPanel } from "./tools/tools-panel";
-import { ResourcesPanel } from "./resources/resources-panel";
-import { EventsPanel } from "./events/events-panel";
-import { DrupalPanel } from "./drupal/drupal-panel";
-import { KBPanel } from "./kb/kb-panel";
-import { SnapshotsPanel } from "./snapshots/snapshots-panel";
-import { ContextEditorPanel } from "../context/context-editor-panel";
-import { UIBuilderPanel } from "./ui-builder/ui-builder-panel";
-import { PlanningPanel } from "./planning/planning-panel";
-import { KBBuilderPanel } from "./kb-builder/kb-builder-panel";
+import type { TerminalHandle } from "./terminal/terminal-pane";
 import { WorkspaceToolbar } from "./workspace-toolbar";
 import { MobileIdeTabs, type MobileIdeTab } from "./mobile-ide-tabs";
 import { PanelErrorBoundary } from "./panel-error-boundary";
+import { PanelSheets, type OverlayPanel } from "./panel-sheets";
+
+// Loading fallback for lazy-loaded panels
+import { Loader2 } from "lucide-react";
+const PanelSkeleton = () => (
+  <div className="flex h-full items-center justify-center">
+    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+  </div>
+);
+
+// Lazy-loaded panels (only loaded when their tab is opened)
+const TerminalPane = dynamic(() => import("./terminal/terminal-pane").then(m => m.TerminalPane), { ssr: false, loading: PanelSkeleton });
+const PreviewPane = dynamic(() => import("./preview/preview-pane").then(m => m.PreviewPane), { ssr: false, loading: PanelSkeleton });
+const ChatPanel = dynamic(() => import("./chat-panel/chat-panel").then(m => m.ChatPanel), { ssr: false, loading: PanelSkeleton });
+const ImageGenPanel = dynamic(() => import("./image-gen/image-gen-panel").then(m => m.ImageGenPanel), { ssr: false, loading: PanelSkeleton });
+const ToolsPanel = dynamic(() => import("./tools/tools-panel").then(m => m.ToolsPanel), { ssr: false, loading: PanelSkeleton });
+const ResourcesPanel = dynamic(() => import("./resources/resources-panel").then(m => m.ResourcesPanel), { ssr: false, loading: PanelSkeleton });
+const EventsPanel = dynamic(() => import("./events/events-panel").then(m => m.EventsPanel), { ssr: false, loading: PanelSkeleton });
+const DrupalPanel = dynamic(() => import("./drupal/drupal-panel").then(m => m.DrupalPanel), { ssr: false, loading: PanelSkeleton });
+const KBPanel = dynamic(() => import("./kb/kb-panel").then(m => m.KBPanel), { ssr: false, loading: PanelSkeleton });
+const SnapshotsPanel = dynamic(() => import("./snapshots/snapshots-panel").then(m => m.SnapshotsPanel), { ssr: false, loading: PanelSkeleton });
+const ContextEditorPanel = dynamic(() => import("../context/context-editor-panel").then(m => m.ContextEditorPanel), { ssr: false, loading: PanelSkeleton });
+const UIBuilderPanel = dynamic(() => import("./ui-builder/ui-builder-panel").then(m => m.UIBuilderPanel), { ssr: false, loading: PanelSkeleton });
+const PlanningPanel = dynamic(() => import("./planning/planning-panel").then(m => m.PlanningPanel), { ssr: false, loading: PanelSkeleton });
+const KBBuilderPanel = dynamic(() => import("./kb-builder/kb-builder-panel").then(m => m.KBBuilderPanel), { ssr: false, loading: PanelSkeleton });
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   useBreakpoint,
-  Sheet,
-  SheetContent,
-  SheetTitle,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -52,25 +60,15 @@ interface IDELayoutProps {
 
 export function IDELayout({ projectId }: IDELayoutProps) {
   const router = useRouter();
-  const [showChat, setShowChat] = useState(false);
-  const [showAutomations, setShowAutomations] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showImageGen, setShowImageGen] = useState(false);
-  const [showTools, setShowTools] = useState(false);
-  const [showEvents, setShowEvents] = useState(false);
-  const [showResources, setShowResources] = useState(false);
-  const [showDrupal, setShowDrupal] = useState(false);
-  const [showKB, setShowKB] = useState(false);
-  const [showSnapshots, setShowSnapshots] = useState(false);
-  const [showContext, setShowContext] = useState(false);
-  const [showUIBuilder, setShowUIBuilder] = useState(false);
-  const [showPlanning, setShowPlanning] = useState(false);
-  const [showKBBuilder, setShowKBBuilder] = useState(false);
+  const [activePanel, setActivePanel] = useState<OverlayPanel>(null);
+  const [showChat, setShowChat] = useState(false); // Chat is inline, not an overlay
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [toolsPrefillFile, setToolsPrefillFile] = useState<string | null>(null);
-  const [toolsFilterForFile, setToolsFilterForFile] = useState(false);
-  const [initialTool, setInitialTool] = useState<string | null>(null);
+  const [toolsContext, setToolsContext] = useState<{
+    prefillFile: string | null;
+    filterForFile: boolean;
+    initialTool: string | null;
+  }>({ prefillFile: null, filterForFile: false, initialTool: null });
   const [lastToolExecution, setLastToolExecution] = useState<{
     toolName: string;
     success: boolean;
@@ -140,118 +138,43 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     }
   }, [isMobile]);
 
-  const handleActionsClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("chat");
+  const togglePanel = useCallback((panel: NonNullable<typeof activePanel>, mobileTab?: MobileIdeTab) => {
+    if (isMobile && mobileTab) {
+      setMobileTab(mobileTab);
     } else {
-      setShowAutomations((prev) => !prev);
+      setActivePanel((p) => (p === panel ? null : panel));
     }
   }, [isMobile]);
 
-  const handleHistoryClick = useCallback(() => {
-    setShowHistory((prev) => !prev);
-  }, []);
-
-  const handleImageGenClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("image-gen");
-    } else {
-      setShowImageGen((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleResourcesClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("resources");
-    } else {
-      setShowResources((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleEventsClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("events");
-    } else {
-      setShowEvents((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleDrupalClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("drupal");
-    } else {
-      setShowDrupal((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleKBClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("kb");
-    } else {
-      setShowKB((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleSnapshotsClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("snapshots");
-    } else {
-      setShowSnapshots((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleContextClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("context");
-    } else {
-      setShowContext((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleUIBuilderClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("ui-builder");
-    } else {
-      setShowUIBuilder((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handlePlanningClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("planning");
-    } else {
-      setShowPlanning((prev) => !prev);
-    }
-  }, [isMobile]);
-
-  const handleKBBuilderClick = useCallback(() => {
-    if (isMobile) {
-      setMobileTab("kb");
-    } else {
-      setShowKBBuilder((prev) => !prev);
-    }
-  }, [isMobile]);
+  const handleActionsClick = useCallback(() => togglePanel("automations", "chat"), [togglePanel]);
+  const handleHistoryClick = useCallback(() => togglePanel("history"), [togglePanel]);
+  const handleImageGenClick = useCallback(() => togglePanel("image-gen", "image-gen"), [togglePanel]);
+  const handleResourcesClick = useCallback(() => togglePanel("resources", "resources"), [togglePanel]);
+  const handleEventsClick = useCallback(() => togglePanel("events", "events"), [togglePanel]);
+  const handleDrupalClick = useCallback(() => togglePanel("drupal", "drupal"), [togglePanel]);
+  const handleKBClick = useCallback(() => togglePanel("kb", "kb"), [togglePanel]);
+  const handleSnapshotsClick = useCallback(() => togglePanel("snapshots", "snapshots"), [togglePanel]);
+  const handleContextClick = useCallback(() => togglePanel("context", "context"), [togglePanel]);
+  const handleUIBuilderClick = useCallback(() => togglePanel("ui-builder", "ui-builder"), [togglePanel]);
+  const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
+  const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb"), [togglePanel]);
 
   const handleToolsClick = useCallback(() => {
-    setToolsPrefillFile(null);
-    setToolsFilterForFile(false);
-    setInitialTool(null);
+    setToolsContext({ prefillFile: null, filterForFile: false, initialTool: null });
     if (isMobile) {
       setMobileTab("tools");
     } else {
-      setShowTools((prev) => !prev);
+      setActivePanel((p) => (p === "tools" ? null : "tools"));
     }
   }, [isMobile]);
 
   const handleRunToolOnFile = useCallback(
     (filePath: string) => {
-      setToolsPrefillFile(filePath);
-      setToolsFilterForFile(true);
-      setInitialTool(null);
+      setToolsContext({ prefillFile: filePath, filterForFile: true, initialTool: null });
       if (isMobile) {
         setMobileTab("tools");
       } else {
-        setShowTools(true);
+        setActivePanel("tools");
       }
     },
     [isMobile]
@@ -280,7 +203,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
 
   const handleRerunLastTool = useCallback(async () => {
     if (!lastToolExecution) return;
-    setShowTools(true);
+    setActivePanel("tools");
     setRerunExecution({
       toolName: lastToolExecution.toolName,
       params: lastToolExecution.params,
@@ -303,6 +226,19 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     router.push("/chat");
   }, [projectId, router]);
 
+  const handleQuickExecuteTool = useCallback((toolName: string) => {
+    setToolsContext({ prefillFile: null, filterForFile: false, initialTool: toolName });
+    if (isMobile) {
+      setMobileTab("tools");
+    } else {
+      setActivePanel("tools");
+    }
+  }, [isMobile]);
+
+  const handleConfirmClose = useCallback(() => {
+    setShowCloseConfirm(true);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -314,7 +250,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         if (isMobile) {
           setMobileTab("tools");
         } else {
-          setShowTools(true);
+          setActivePanel("tools");
         }
         return;
       }
@@ -322,13 +258,11 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       // Cmd/Ctrl+Shift+T — open tools page (same panel, "all" tab focus)
       if (mod && e.shiftKey && e.key === "T") {
         e.preventDefault();
-        setToolsPrefillFile(null);
-        setToolsFilterForFile(false);
-        setInitialTool(null);
+        setToolsContext({ prefillFile: null, filterForFile: false, initialTool: null });
         if (isMobile) {
           setMobileTab("tools");
         } else {
-          setShowTools(true);
+          setActivePanel("tools");
         }
         return;
       }
@@ -368,7 +302,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   };
 
   const handleShowActions = useCallback(() => {
-    setShowAutomations(true);
+    setActivePanel("automations");
   }, []);
 
   const chatPanelProps = {
@@ -398,17 +332,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onPlanningClick={handlePlanningClick}
           onKBBuilderClick={handleKBBuilderClick}
           onToolsClick={handleToolsClick}
-          onCloseProject={() => setShowCloseConfirm(true)}
+          onCloseProject={handleConfirmClose}
           onSettingsClick={handleSettingsClick}
           pendingActionsCount={pendingCount}
           toolsCount={tools.length}
           pinnedTools={tools.filter((t) => pinnedToolNames.includes(t.name))}
-          onQuickExecuteTool={(toolName) => {
-            setToolsPrefillFile(null);
-            setToolsFilterForFile(false);
-            setInitialTool(toolName);
-            setMobileTab("tools");
-          }}
+          onQuickExecuteTool={handleQuickExecuteTool}
         />
         <div className="flex-1 overflow-hidden">
           {mobileTab === "files" && <FileExplorer {...fileExplorerProps} />}
@@ -442,11 +371,11 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               onExecute={executeTool}
               onRefresh={refreshTools}
               onClose={() => setMobileTab("editor")}
-              prefillFile={toolsPrefillFile}
-              filterForFile={toolsFilterForFile}
+              prefillFile={toolsContext.prefillFile}
+              filterForFile={toolsContext.filterForFile}
               onToolExecuted={handleToolExecuted}
               rerunExecution={rerunExecution}
-              initialTool={initialTool}
+              initialTool={toolsContext.initialTool}
             />
           )}
           {mobileTab === "events" && (
@@ -521,17 +450,12 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onPlanningClick={handlePlanningClick}
         onKBBuilderClick={handleKBBuilderClick}
         onToolsClick={handleToolsClick}
-        onCloseProject={() => setShowCloseConfirm(true)}
+        onCloseProject={handleConfirmClose}
         onSettingsClick={handleSettingsClick}
         pendingActionsCount={pendingCount}
         toolsCount={tools.length}
         pinnedTools={tools.filter((t) => pinnedToolNames.includes(t.name))}
-        onQuickExecuteTool={(toolName) => {
-          setToolsPrefillFile(null);
-          setToolsFilterForFile(false);
-          setInitialTool(toolName);
-          setShowTools(true);
-        }}
+        onQuickExecuteTool={handleQuickExecuteTool}
       />
       <Group orientation="horizontal" id="ide-main" className="flex-1">
         {/* File Explorer */}
@@ -595,165 +519,22 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         )}
       </Group>
 
-      {/* --- Slide-in Sheet overlays (float on top of content) --- */}
-
-      <Sheet open={showAutomations} onOpenChange={setShowAutomations}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Automation Actions</SheetTitle>
-          <PanelErrorBoundary panelName="Automation Actions">
-            <AutomationActionsPanel
-              projectId={projectId}
-              onClose={() => setShowAutomations(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showHistory} onOpenChange={setShowHistory}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Edit History</SheetTitle>
-          <PanelErrorBoundary panelName="Edit History">
-            <YoloEditHistory
-              projectId={projectId}
-              onClose={() => setShowHistory(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showImageGen} onOpenChange={setShowImageGen}>
-        <SheetContent className="w-[520px]">
-          <SheetTitle className="sr-only">Image Generation</SheetTitle>
-          <PanelErrorBoundary panelName="Image Generation">
-            <ImageGenPanel
-              projectId={projectId}
-              onClose={() => setShowImageGen(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showTools} onOpenChange={setShowTools}>
-        <SheetContent className="w-[520px]">
-          <SheetTitle className="sr-only">Tools</SheetTitle>
-          <PanelErrorBoundary panelName="Tools">
-            <ToolsPanel
-              tools={tools}
-              loading={toolsLoading}
-              error={toolsError}
-              onExecute={executeTool}
-              onRefresh={refreshTools}
-              onClose={() => setShowTools(false)}
-              prefillFile={toolsPrefillFile}
-              filterForFile={toolsFilterForFile}
-              onToolExecuted={handleToolExecuted}
-              rerunExecution={rerunExecution}
-              initialTool={initialTool}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showEvents} onOpenChange={setShowEvents}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Events</SheetTitle>
-          <PanelErrorBoundary panelName="Events">
-            <EventsPanel onClose={() => setShowEvents(false)} />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showResources} onOpenChange={setShowResources}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Resources</SheetTitle>
-          <PanelErrorBoundary panelName="Resources">
-            <ResourcesPanel onClose={() => setShowResources(false)} />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showDrupal} onOpenChange={setShowDrupal}>
-        <SheetContent className="w-[520px]">
-          <SheetTitle className="sr-only">Drupal</SheetTitle>
-          <PanelErrorBoundary panelName="Drupal">
-            <DrupalPanel
-              projectId={projectId}
-              onClose={() => setShowDrupal(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showKB} onOpenChange={setShowKB}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Knowledge Base</SheetTitle>
-          <PanelErrorBoundary panelName="Knowledge Base">
-            <KBPanel
-              projectId={projectId}
-              onClose={() => setShowKB(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showSnapshots} onOpenChange={setShowSnapshots}>
-        <SheetContent>
-          <SheetTitle className="sr-only">Snapshots</SheetTitle>
-          <PanelErrorBoundary panelName="Snapshots">
-            <SnapshotsPanel
-              projectId={projectId}
-              onClose={() => setShowSnapshots(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showContext} onOpenChange={setShowContext}>
-        <SheetContent className="w-[520px]">
-          <SheetTitle className="sr-only">Context Editor</SheetTitle>
-          <PanelErrorBoundary panelName="Context Editor">
-            <ContextEditorPanel
-              projectId={projectId}
-              onClose={() => setShowContext(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showUIBuilder} onOpenChange={setShowUIBuilder}>
-        <SheetContent className="w-[560px]">
-          <SheetTitle className="sr-only">UI Builder</SheetTitle>
-          <PanelErrorBoundary panelName="UI Builder">
-            <UIBuilderPanel
-              onClose={() => setShowUIBuilder(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showPlanning} onOpenChange={setShowPlanning}>
-        <SheetContent className="w-[600px]">
-          <SheetTitle className="sr-only">Planning</SheetTitle>
-          <PanelErrorBoundary panelName="Planning">
-            <PlanningPanel
-              projectId={projectId}
-              onClose={() => setShowPlanning(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={showKBBuilder} onOpenChange={setShowKBBuilder}>
-        <SheetContent className="w-[640px] sm:max-w-[640px]">
-          <SheetTitle className="sr-only">KB Builder</SheetTitle>
-          <PanelErrorBoundary panelName="KB Builder">
-            <KBBuilderPanel
-              projectId={projectId}
-              onClose={() => setShowKBBuilder(false)}
-            />
-          </PanelErrorBoundary>
-        </SheetContent>
-      </Sheet>
+      {/* Sheet overlays */}
+      <PanelSheets
+        projectId={projectId}
+        activePanel={activePanel}
+        setActivePanel={setActivePanel}
+        tools={tools}
+        toolsLoading={toolsLoading}
+        toolsError={toolsError}
+        executeTool={executeTool}
+        refreshTools={refreshTools}
+        toolsPrefillFile={toolsContext.prefillFile}
+        toolsFilterForFile={toolsContext.filterForFile}
+        toolsRerunExecution={rerunExecution}
+        toolsInitialTool={toolsContext.initialTool}
+        onToolExecuted={handleToolExecuted}
+      />
 
       <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
         <DialogContent>

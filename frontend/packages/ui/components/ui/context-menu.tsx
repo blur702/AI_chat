@@ -6,6 +6,13 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
+/**
+ * Radix ContextMenu provides a right-click (or long-press) triggered menu with full keyboard support.
+ * The menu opens on contextmenu events and closes on Escape or blur; arrow keys navigate items.
+ * ContextMenuItem accepts a shortcut prop which is forwarded to aria-keyshortcuts for screen readers.
+ * Keyboard shortcuts displayed via ContextMenuShortcut are visually rendered only (aria-hidden="true").
+ * Use ContextMenuCheckboxItem and ContextMenuRadioItem for stateful menu selections.
+ */
 const ContextMenu = ContextMenuPrimitive.Root;
 
 const ContextMenuTrigger = React.forwardRef<
