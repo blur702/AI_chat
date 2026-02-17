@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAuth, AuthProvider } from "@workstation/api/hooks/use-auth";
@@ -14,7 +15,7 @@ function makeJwt(payload: Record<string, unknown>): string {
 const mockGetCurrentUser = vi.fn();
 const mockLogin = vi.fn();
 const mockSetToken = vi.fn();
-const mockLogout = vi.fn();
+const mockLogout = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@workstation/api/client", () => ({
   getClient: () => ({
@@ -25,47 +26,42 @@ vi.mock("@workstation/api/client", () => ({
   }),
 }));
 
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <AuthProvider>{children}</AuthProvider>
+);
+
 describe("useAuth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Clear localStorage
+    mockGetCurrentUser.mockRejectedValue(new Error("no session"));
     localStorage.clear();
   });
 
   it("throws error when used outside AuthProvider", () => {
-    // Suppress console.error for this test
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-
     expect(() => {
       renderHook(() => useAuth());
-    }).toThrow();
-
+    }).toThrow("useAuth must be used within AuthProvider");
     spy.mockRestore();
   });
 
   it("returns initial unauthenticated state", () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.user).toBeNull();
+    expect(result.current.userId).toBeNull();
     expect(result.current.token).toBeNull();
+    expect(result.current.username).toBeNull();
   });
 
   it("login() parses JWT and sets auth state", () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     const validPayload = {
       user_id: "123",
       username: "testuser",
-      exp: Math.floor(Date.now() / 1000) + 3600, // Expires in 1 hour
+      role: "admin",
+      exp: Math.floor(Date.now() / 1000) + 3600,
     };
     const token = makeJwt(validPayload);
 
@@ -75,19 +71,14 @@ describe("useAuth", () => {
     });
 
     expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.user).toEqual({
-      id: "123",
-      username: "testuser",
-    });
+    expect(result.current.userId).toBe("123");
+    expect(result.current.username).toBe("testuser");
+    expect(result.current.role).toBe("admin");
     expect(result.current.token).toBe(token);
     expect(mockSetToken).toHaveBeenCalledWith(token);
   });
 
   it("login() returns false for invalid token", () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     act(() => {
@@ -96,20 +87,15 @@ describe("useAuth", () => {
     });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.user).toBeNull();
   });
 
   it("login() returns false for expired token", () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     const expiredPayload = {
       user_id: "123",
       username: "testuser",
-      exp: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
+      exp: Math.floor(Date.now() / 1000) - 3600,
     };
     const token = makeJwt(expiredPayload);
 
@@ -119,24 +105,26 @@ describe("useAuth", () => {
     });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.user).toBeNull();
   });
 
   it("loginWithCredentials() calls client.login and sets state", async () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     const validPayload = {
       user_id: "456",
       username: "newuser",
+      role: "user",
       exp: Math.floor(Date.now() / 1000) + 3600,
     };
     const token = makeJwt(validPayload);
 
-    mockLogin.mockResolvedValue({ access_token: token });
+    mockLogin.mockResolvedValue({
+      access_token: token,
+      user_id: "456",
+      username: "newuser",
+      role: "user",
+      screen_name: "New User",
+    });
 
     await act(async () => {
       const success = await result.current.loginWithCredentials("newuser", "password123");
@@ -145,17 +133,11 @@ describe("useAuth", () => {
 
     expect(mockLogin).toHaveBeenCalledWith("newuser", "password123");
     expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.user).toEqual({
-      id: "456",
-      username: "newuser",
-    });
+    expect(result.current.userId).toBe("456");
+    expect(result.current.username).toBe("newuser");
   });
 
   it("loginWithCredentials() returns false on error", async () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     mockLogin.mockRejectedValue(new Error("Invalid credentials"));
@@ -166,20 +148,16 @@ describe("useAuth", () => {
     });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.user).toBeNull();
   });
 
   it("logout() clears state and calls client.logout", () => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider>{children}</AuthProvider>
-    );
-
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     // First login
     const validPayload = {
       user_id: "789",
       username: "logoutuser",
+      role: "user",
       exp: Math.floor(Date.now() / 1000) + 3600,
     };
     const token = makeJwt(validPayload);
@@ -187,7 +165,6 @@ describe("useAuth", () => {
     act(() => {
       result.current.login(token);
     });
-
     expect(result.current.isAuthenticated).toBe(true);
 
     // Then logout
@@ -196,7 +173,7 @@ describe("useAuth", () => {
     });
 
     expect(result.current.isAuthenticated).toBe(false);
-    expect(result.current.user).toBeNull();
+    expect(result.current.userId).toBeNull();
     expect(result.current.token).toBeNull();
     expect(mockLogout).toHaveBeenCalled();
   });

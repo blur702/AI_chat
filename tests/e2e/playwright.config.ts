@@ -24,5 +24,33 @@ export default defineConfig({
       testMatch: /ui\/.+\.spec\.ts$/,
       dependencies: ["api"],
     },
+    {
+      name: "a11y",
+      testMatch: /a11y\/.+\.spec\.ts$/,
+    },
+    {
+      name: "visual",
+      testMatch: /visual\/.+\.spec\.ts$/,
+    },
+    {
+      name: "performance",
+      testMatch: /performance\/.+\.spec\.ts$/,
+    },
+    {
+      name: "mobile",
+      testMatch: /responsive\/.+\.spec\.ts$/,
+      use: {
+        viewport: { width: 375, height: 812 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
+      name: "tablet",
+      testMatch: /responsive\/.+\.spec\.ts$/,
+      use: {
+        viewport: { width: 768, height: 1024 },
+      },
+    },
   ],
 });

@@ -159,7 +159,7 @@ describe('useEvents hooks', () => {
       const { result } = renderHook(() => useEventTypes());
 
       await waitFor(() => {
-        expect(result.current.types).toEqual(mockTypes);
+        expect(result.current.eventTypes).toEqual(mockTypes);
       });
 
       expect(mockClient.getEventTypes).toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe('useEvents hooks', () => {
       const { result } = renderHook(() => useEventTypes());
 
       await waitFor(() => {
-        expect(result.current.types).toEqual(mockTypes);
+        expect(result.current.eventTypes).toEqual(mockTypes);
       });
 
       expect(mockClient.getEventTypes).toHaveBeenCalledTimes(1);
@@ -261,10 +261,14 @@ describe('useEvents hooks', () => {
       const { result } = renderHook(() => useCreateEvent());
 
       await act(async () => {
-        await result.current.createEvent({
-          event_type: 'test',
-          data: {},
-        });
+        try {
+          await result.current.createEvent({
+            event_type: 'test',
+            data: {},
+          });
+        } catch {
+          // hook re-throws the error
+        }
       });
 
       await waitFor(() => {
@@ -281,10 +285,14 @@ describe('useEvents hooks', () => {
       const { result } = renderHook(() => useCreateEvent());
 
       await act(async () => {
-        await result.current.createEvent({
-          event_type: 'test',
-          data: {},
-        });
+        try {
+          await result.current.createEvent({
+            event_type: 'test',
+            data: {},
+          });
+        } catch {
+          // hook re-throws the error
+        }
       });
 
       await waitFor(() => {

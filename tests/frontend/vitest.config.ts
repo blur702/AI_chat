@@ -7,9 +7,12 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./setup.ts"],
+    setupFiles: [path.resolve(frontendRoot, "vitest.setup.ts")],
     include: ["unit/**/*.{test,spec}.{ts,tsx}", "integration/**/*.{test,spec}.{ts,tsx}"],
     root: __dirname,
+    deps: {
+      moduleDirectories: ["node_modules", path.resolve(frontendRoot, "node_modules")],
+    },
   },
   resolve: {
     alias: {

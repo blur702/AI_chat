@@ -145,15 +145,18 @@ describe('useConversation', () => {
       await result.current.sendMessage('Hello');
     });
 
+    // streamMessage is called with (chatId, content, onToken, onDone, onError, model, chatMode, onToolCall, onToolResult, onToolApprovalRequired)
     expect(mockClient.streamMessage).toHaveBeenCalledWith(
       'chat-1',
       'Hello',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
-      expect.objectContaining({
-        role: 'user',
-      })
+      undefined,
+      undefined,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
     );
 
     await waitFor(() => {
@@ -306,7 +309,7 @@ describe('useConversation', () => {
     });
 
     expect(mockClient.updateMessage).toHaveBeenCalledWith('chat-1', 'msg-1', {
-      pinned: true,
+      is_pinned: true,
     });
   });
 
@@ -345,7 +348,7 @@ describe('useConversation', () => {
     });
 
     expect(mockClient.updateMessage).toHaveBeenCalledWith('chat-1', 'msg-1', {
-      excluded_from_context: true,
+      is_excluded: true,
     });
   });
 });

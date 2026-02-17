@@ -6,6 +6,11 @@
     "test": "npx playwright test",
     "test:api": "npx playwright test --project=api",
     "test:ui": "npx playwright test --project=ui",
+    "test:a11y": "npx playwright test --project=a11y",
+    "test:visual": "npx playwright test --project=visual",
+    "test:performance": "npx playwright test --project=performance",
+    "test:mobile": "npx playwright test --project=mobile",
+    "test:tablet": "npx playwright test --project=tablet",
     "report": "npx playwright show-report"
   },
   "keywords": [],
@@ -13,6 +18,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.58.2"
   }
 }
