@@ -131,6 +131,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
   }, [enabled, interval]);
 
   const refresh = useCallback(async () => {
+    if (cancelledRef.current) return;
     try {
       const result = await fetcherRef.current();
       if (cancelledRef.current) return;

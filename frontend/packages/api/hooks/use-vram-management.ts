@@ -25,7 +25,7 @@ export interface UseVramManagementReturn {
   offloadedResources: Resource[];
   loadModel: (name: string) => Promise<boolean>;
   unloadModel: (name: string) => Promise<boolean>;
-  offloadToRam: (resourceId: string, userId: string) => Promise<OffloadDecisionResponse>;
+  offloadToRam: (resourceId: string, userId?: string) => Promise<OffloadDecisionResponse>;
   reloadFromRam: (resourceId: string, estimatedVramMb: number, userId?: string) => Promise<OffloadDecisionResponse>;
   refresh: () => Promise<void>;
   actionLoading: string | null;
@@ -91,13 +91,13 @@ export function useVramManagement(): UseVramManagementReturn {
     : null;
 
   const offloadToRam = useCallback(
-    async (resourceId: string, userId: string): Promise<OffloadDecisionResponse> => {
+    async (resourceId: string, userId?: string): Promise<OffloadDecisionResponse> => {
       try {
         setLocalActionLoading(resourceId);
         setLocalError(null);
         const result = await getClient().submitOffloadDecision({
           resource_id: resourceId,
-          user_id: userId,
+          user_id: userId ?? "",
           decision: "offload",
           remember: false,
         });

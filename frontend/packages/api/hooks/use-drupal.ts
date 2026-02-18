@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "../client";
 import { extractErrorMessage } from "../utils/error";
 import type {
@@ -132,6 +132,16 @@ export interface UseDrupalReturn {
  * @returns Site info, config, sync/staging state, and functions for connect, disconnect, pull, push, Drush, and content management.
  */
 export function useDrupal(projectId: string): UseDrupalReturn {
+  // Stale-request guard: increments on projectId change so in-flight requests from old projects are discarded
+  const requestIdRef = useRef(0);
+  useEffect(() => {
+    requestIdRef.current++;
+  }, [projectId]);
+
+  // Filter caching: preserve last-used filter across mutations
+  const modulesFilterRef = useRef<string | undefined>(undefined);
+  const themesFilterRef = useRef<string | undefined>(undefined);
+
   const [site, setSite] = useState<DrupalSiteInfo | null>(null);
   const [siteLoading, setSiteLoading] = useState(true);
   const [config, setConfig] = useState<DrupalSiteConfig | null>(null);
@@ -338,12 +348,15 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   // Content CRUD
 
   const fetchContentTypes = useCallback(async () => {
+    const rid = requestIdRef.current;
     try {
       setContentTypesLoading(true);
       setError(null);
       const data = await getClient().getDrupalContentTypes(projectId);
+      if (requestIdRef.current !== rid) return;
       setContentTypes(data);
     } catch (err) {
+      if (requestIdRef.current !== rid) return;
       setError(extractErrorMessage(err, "Failed to load content types"));
     } finally {
       setContentTypesLoading(false);
@@ -352,12 +365,15 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchNodes = useCallback(
     async (bundle: string) => {
+      const rid = requestIdRef.current;
       try {
         setNodesLoading(true);
         setError(null);
         const data = await getClient().listDrupalContent(projectId, bundle);
+        if (requestIdRef.current !== rid) return;
         setNodes(data.nodes);
       } catch (err) {
+        if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load content"));
       } finally {
         setNodesLoading(false);
@@ -500,12 +516,17 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchModules = useCallback(
     async (statusFilter?: string) => {
+      const rid = requestIdRef.current;
+      if (statusFilter !== undefined) modulesFilterRef.current = statusFilter;
+      const filter = statusFilter ?? modulesFilterRef.current;
       try {
         setModulesLoading(true);
         setError(null);
-        const data = await getClient().listDrupalModules(projectId, statusFilter);
+        const data = await getClient().listDrupalModules(projectId, filter);
+        if (requestIdRef.current !== rid) return;
         setModules(data.items);
       } catch (err) {
+        if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load modules"));
       } finally {
         setModulesLoading(false);
@@ -516,12 +537,17 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchThemes = useCallback(
     async (statusFilter?: string) => {
+      const rid = requestIdRef.current;
+      if (statusFilter !== undefined) themesFilterRef.current = statusFilter;
+      const filter = statusFilter ?? themesFilterRef.current;
       try {
         setThemesLoading(true);
         setError(null);
-        const data = await getClient().listDrupalThemes(projectId, statusFilter);
+        const data = await getClient().listDrupalThemes(projectId, filter);
+        if (requestIdRef.current !== rid) return;
         setThemes(data.items);
       } catch (err) {
+        if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load themes"));
       } finally {
         setThemesLoading(false);
@@ -532,13 +558,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const enableModules = useCallback(
     async (data: ModuleEnableRequest): Promise<DrushOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setModulesOperating(true);
         setError(null);
         const result = await getClient().enableDrupalModules(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchModules();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to enable modules"));
         return null;
       } finally {
@@ -550,13 +579,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const disableModules = useCallback(
     async (data: ModuleDisableRequest): Promise<DrushOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setModulesOperating(true);
         setError(null);
         const result = await getClient().disableDrupalModules(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchModules();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to disable modules"));
         return null;
       } finally {
@@ -568,13 +600,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const enableTheme = useCallback(
     async (data: ThemeEnableRequest): Promise<DrushOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setThemesOperating(true);
         setError(null);
         const result = await getClient().enableDrupalTheme(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchThemes();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to enable theme"));
         return null;
       } finally {
@@ -586,13 +621,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const disableTheme = useCallback(
     async (data: ThemeDisableRequest): Promise<DrushOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setThemesOperating(true);
         setError(null);
         const result = await getClient().disableDrupalTheme(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchThemes();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to disable theme"));
         return null;
       } finally {
@@ -606,13 +644,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const composerRequire = useCallback(
     async (data: ComposerRequireRequest): Promise<ComposerOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setComposerOperating(true);
         setError(null);
         const result = await getClient().composerRequire(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchModules();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Composer require failed"));
         return null;
       } finally {
@@ -624,13 +665,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const composerRemove = useCallback(
     async (data: ComposerRemoveRequest): Promise<ComposerOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setComposerOperating(true);
         setError(null);
         const result = await getClient().composerRemove(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchModules();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Composer remove failed"));
         return null;
       } finally {
@@ -642,13 +686,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const composerUpdate = useCallback(
     async (data: ComposerUpdateRequest): Promise<ComposerOperationResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setComposerOperating(true);
         setError(null);
         const result = await getClient().composerUpdate(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchModules();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Composer update failed"));
         return null;
       } finally {
@@ -662,13 +709,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const createContentType = useCallback(
     async (data: ContentTypeCreateRequest): Promise<ContentTypeCreateResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setCreatingContentType(true);
         setError(null);
         const result = await getClient().createDrupalContentType(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchContentTypes();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to create content type"));
         return null;
       } finally {
@@ -682,12 +732,15 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchBlocks = useCallback(
     async (bundle: string) => {
+      const rid = requestIdRef.current;
       try {
         setBlocksLoading(true);
         setError(null);
         const data = await getClient().listDrupalBlocks(projectId, bundle);
+        if (requestIdRef.current !== rid) return;
         setBlocks(data.blocks);
       } catch (err) {
+        if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load blocks"));
       } finally {
         setBlocksLoading(false);
@@ -701,13 +754,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       bundle: string,
       data: BlockContentCreateRequest,
     ): Promise<BlockContentResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setBlocksOperating(true);
         setError(null);
         const result = await getClient().createDrupalBlock(projectId, bundle, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchBlocks(bundle);
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to create block"));
         return null;
       } finally {
@@ -723,13 +779,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       blockUuid: string,
       data: BlockContentUpdateRequest,
     ): Promise<BlockContentResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setBlocksOperating(true);
         setError(null);
         const result = await getClient().updateDrupalBlock(projectId, bundle, blockUuid, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchBlocks(bundle);
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to update block"));
         return null;
       } finally {
@@ -743,13 +802,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const scaffoldTheme = useCallback(
     async (data: ThemeScaffoldRequest): Promise<ThemeScaffoldResponse | null> => {
+      const rid = requestIdRef.current;
       try {
         setScaffoldingTheme(true);
         setError(null);
         const result = await getClient().scaffoldDrupalTheme(projectId, data);
+        if (requestIdRef.current !== rid) return null;
         await fetchThemes();
         return result;
       } catch (err) {
+        if (requestIdRef.current !== rid) return null;
         setError(extractErrorMessage(err, "Failed to scaffold theme"));
         return null;
       } finally {

@@ -48,21 +48,29 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
 
   const handleStartFix = useCallback(
     async (issue: IssueResponse) => {
-      const result = await startFix(issue.id);
-      // Dispatch custom event to inject fix request into chat
-      const event = new CustomEvent("workspace:inject-message", {
-        detail: {
-          content: `Fix issue: "${issue.title}"\n\nBranch: ${result.branch}\nSeverity: ${issue.severity}\n\n${issue.description || "No description"}\n\n${issue.reproduction_steps ? `Reproduction steps:\n${issue.reproduction_steps}` : ""}`,
-        },
-      });
-      window.dispatchEvent(event);
+      try {
+        const result = await startFix(issue.id);
+        // Dispatch custom event to inject fix request into chat
+        const event = new CustomEvent("workspace:inject-message", {
+          detail: {
+            content: `Fix issue: "${issue.title}"\n\nBranch: ${result.branch}\nSeverity: ${issue.severity}\n\n${issue.description || "No description"}\n\n${issue.reproduction_steps ? `Reproduction steps:\n${issue.reproduction_steps}` : ""}`,
+          },
+        });
+        window.dispatchEvent(event);
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") console.warn("startFix failed:", err);
+      }
     },
     [startFix],
   );
 
   const handleResolve = useCallback(
     async (id: string) => {
-      await updateIssue(id, { status: "resolved" });
+      try {
+        await updateIssue(id, { status: "resolved" });
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") console.warn("resolve failed:", err);
+      }
     },
     [updateIssue],
   );
@@ -178,7 +186,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                   variant="ghost"
                   size="icon"
                   className="ml-auto h-6 w-6 text-destructive"
-                  onClick={() => deleteIssue(issue.id)}
+                  onClick={() => deleteIssue(issue.id).catch(() => {})}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
