@@ -183,6 +183,37 @@ async def _reload_phase(db: AsyncSession, pid: UUID) -> PlanPhase:
     return result.scalar_one()
 
 
+async def _validate_phase_access(phase_id: UUID, user_id: UUID, db: AsyncSession) -> PlanPhase:
+    """Load a phase, resolve its session, and validate project access."""
+    result = await db.execute(
+        select(PlanPhase)
+        .where(PlanPhase.id == phase_id)
+        .options(selectinload(PlanPhase.tasks))
+    )
+    phase = result.scalar_one_or_none()
+    if not phase:
+        raise HTTPException(status_code=404, detail="Phase not found")
+    sess_result = await db.execute(
+        select(PlanningSession).where(PlanningSession.id == phase.session_id)
+    )
+    session = sess_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
+    _check_ownership(session, user_id)
+    return phase
+
+
+async def _validate_task_access(task_id: UUID, user_id: UUID, db: AsyncSession) -> PlanTask:
+    """Load a task, resolve its phase's session, and validate project access."""
+    result = await db.execute(select(PlanTask).where(PlanTask.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await _validate_phase_access(task.phase_id, user_id, db)
+    return task
+
+
 # -------------------------------------------------------------------------
 # Planning Sessions
 # -------------------------------------------------------------------------
@@ -421,10 +452,11 @@ async def advance_to_next_phase(
 async def get_progress(
     session_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanProgressResponse:
     """Get progress summary for a planning session."""
     sid = _parse_uuid(session_id, "session_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -435,6 +467,7 @@ async def get_progress(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
 
     phases = session.phases or []
     all_tasks = [t for p in phases for t in (p.tasks or [])]
@@ -476,10 +509,11 @@ async def create_phase(
     session_id: str,
     data: PlanPhaseCreateRequest,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanPhaseResponse:
     """Add a phase to a planning session."""
     sid = _parse_uuid(session_id, "session_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -488,6 +522,8 @@ async def create_phase(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
+    _check_ownership(session, user_id)
 
     next_order = len(session.phases) if session.phases else 0
 
@@ -513,18 +549,12 @@ async def update_phase(
     phase_id: str,
     data: PlanPhaseUpdateRequest,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanPhaseResponse:
     """Update a phase."""
     pid = _parse_uuid(phase_id, "phase_id")
-    result = await db.execute(
-        select(PlanPhase)
-        .where(PlanPhase.id == pid)
-        .options(selectinload(PlanPhase.tasks))
-    )
-    phase = result.scalar_one_or_none()
-    if not phase:
-        raise HTTPException(status_code=404, detail="Phase not found")
+    user_id = get_user_id(payload)
+    phase = await _validate_phase_access(pid, user_id, db)
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -539,18 +569,12 @@ async def update_phase(
 async def approve_phase(
     phase_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanPhaseResponse:
     """Approve a phase for execution."""
     pid = _parse_uuid(phase_id, "phase_id")
-    result = await db.execute(
-        select(PlanPhase)
-        .where(PlanPhase.id == pid)
-        .options(selectinload(PlanPhase.tasks))
-    )
-    phase = result.scalar_one_or_none()
-    if not phase:
-        raise HTTPException(status_code=404, detail="Phase not found")
+    user_id = get_user_id(payload)
+    phase = await _validate_phase_access(pid, user_id, db)
 
     phase.user_approved = True
     # Mark all pending tasks as ready
@@ -567,18 +591,12 @@ async def approve_phase(
 async def verify_phase(
     phase_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanPhaseResponse:
     """Trigger verification checks for a phase (enqueues ARQ task)."""
     pid = _parse_uuid(phase_id, "phase_id")
-    result = await db.execute(
-        select(PlanPhase)
-        .where(PlanPhase.id == pid)
-        .options(selectinload(PlanPhase.tasks))
-    )
-    phase = result.scalar_one_or_none()
-    if not phase:
-        raise HTTPException(status_code=404, detail="Phase not found")
+    user_id = get_user_id(payload)
+    phase = await _validate_phase_access(pid, user_id, db)
 
     phase.status = "verifying"
     await db.commit()
@@ -608,14 +626,12 @@ async def verify_phase(
 async def delete_phase(
     phase_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> None:
     """Delete a phase and its tasks."""
     pid = _parse_uuid(phase_id, "phase_id")
-    result = await db.execute(select(PlanPhase).where(PlanPhase.id == pid))
-    phase = result.scalar_one_or_none()
-    if not phase:
-        raise HTTPException(status_code=404, detail="Phase not found")
+    user_id = get_user_id(payload)
+    phase = await _validate_phase_access(pid, user_id, db)
     await db.delete(phase)
     await db.commit()
 
@@ -630,18 +646,12 @@ async def create_task(
     phase_id: str,
     data: PlanTaskCreateRequest,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanTaskResponse:
     """Add a task to a phase."""
     pid = _parse_uuid(phase_id, "phase_id")
-    result = await db.execute(
-        select(PlanPhase)
-        .where(PlanPhase.id == pid)
-        .options(selectinload(PlanPhase.tasks))
-    )
-    phase = result.scalar_one_or_none()
-    if not phase:
-        raise HTTPException(status_code=404, detail="Phase not found")
+    user_id = get_user_id(payload)
+    phase = await _validate_phase_access(pid, user_id, db)
 
     next_order = len(phase.tasks) if phase.tasks else 0
 
@@ -666,14 +676,12 @@ async def update_task(
     task_id: str,
     data: PlanTaskUpdateRequest,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> PlanTaskResponse:
     """Update a task."""
     tid = _parse_uuid(task_id, "task_id")
-    result = await db.execute(select(PlanTask).where(PlanTask.id == tid))
-    task = result.scalar_one_or_none()
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    user_id = get_user_id(payload)
+    task = await _validate_task_access(tid, user_id, db)
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -692,6 +700,8 @@ async def execute_task(
 ) -> PlanTaskResponse:
     """Execute a task by creating a corresponding automation action."""
     tid = _parse_uuid(task_id, "task_id")
+    user_id = get_user_id(payload)
+    await _validate_task_access(tid, user_id, db)
     result = await db.execute(
         select(PlanTask)
         .where(PlanTask.id == tid)
@@ -743,14 +753,12 @@ async def execute_task(
 async def delete_task(
     task_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> None:
     """Delete a task."""
     tid = _parse_uuid(task_id, "task_id")
-    result = await db.execute(select(PlanTask).where(PlanTask.id == tid))
-    task = result.scalar_one_or_none()
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    user_id = get_user_id(payload)
+    task = await _validate_task_access(tid, user_id, db)
     await db.delete(task)
     await db.commit()
 
@@ -764,10 +772,11 @@ async def delete_task(
 async def export_to_ui_builder(
     session_id: str,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> dict:
     """Convert plan UI component tasks into a UI builder tree structure."""
     sid = _parse_uuid(session_id, "session_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession)
         .where(PlanningSession.id == sid)
@@ -778,6 +787,8 @@ async def export_to_ui_builder(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
+    _check_ownership(session, user_id)
 
     ui_tree = []
     for phase in (session.phases or []):
@@ -817,16 +828,19 @@ async def import_from_ui_builder(
     session_id: str,
     data: UIBuilderImportRequest,
     db: AsyncSession = Depends(get_session),
-    _payload: dict = Depends(get_current_user_payload),
+    payload: dict = Depends(get_current_user_payload),
 ) -> dict:
     """Save current UI builder tree state into a planning session."""
     sid = _parse_uuid(session_id, "session_id")
+    user_id = get_user_id(payload)
     result = await db.execute(
         select(PlanningSession).where(PlanningSession.id == sid)
     )
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
+    await validate_project_access(session.project_id, str(user_id), db)
+    _check_ownership(session, user_id)
 
     session.ui_builder_state = {"tree": data.ui_tree}
     await db.commit()

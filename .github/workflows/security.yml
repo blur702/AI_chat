@@ -19,7 +19,7 @@ jobs:
       - name: Build backend image
         run: docker build -t workstation-backend:ci -f backend/Dockerfile backend/
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.34.0
         with:
           image-ref: 'workstation-backend:ci'
           format: 'sarif'

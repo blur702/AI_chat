@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
+import aiofiles
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -309,17 +311,17 @@ async def upload_media(
     file_path = os.path.join(media_dir, safe_name)
 
     total_bytes = 0
-    with open(file_path, "wb") as f:
+    async with aiofiles.open(file_path, "wb") as f:
         while chunk := await file.read(1024 * 1024):  # 1 MB chunks
             total_bytes += len(chunk)
             if total_bytes > MAX_UPLOAD_BYTES:
-                f.close()
+                await f.close()
                 os.remove(file_path)
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
                 )
-            f.write(chunk)
+            await f.write(chunk)
 
     asset.file_path = file_path
     asset.file_size_bytes = total_bytes
@@ -484,17 +486,17 @@ async def upload_recording(
     file_path = os.path.join(media_dir, safe_name)
 
     total_bytes = 0
-    with open(file_path, "wb") as f:
+    async with aiofiles.open(file_path, "wb") as f:
         while chunk := await file.read(1024 * 1024):
             total_bytes += len(chunk)
             if total_bytes > MAX_UPLOAD_BYTES:
-                f.close()
+                await f.close()
                 os.remove(file_path)
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
                 )
-            f.write(chunk)
+            await f.write(chunk)
 
     asset.file_path = file_path
     asset.file_size_bytes = total_bytes

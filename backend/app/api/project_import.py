@@ -463,7 +463,16 @@ async def clone_project(
     await db.refresh(new_project)
 
     # Clone volume data
-    await sandbox.clone_volume(project_id, new_project.id)
+    try:
+        await sandbox.clone_volume(project_id, new_project.id)
+    except Exception as exc:
+        logger.error("Failed to clone volume for project %s: %s", new_project.id, exc)
+        await db.delete(new_project)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clone project volume: {exc}",
+        ) from exc
 
     return CloneProjectResponse(
         project_id=str(new_project.id),

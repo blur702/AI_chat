@@ -1,12 +1,15 @@
 """API endpoints for Drupal MCP site management."""
 
+import ipaddress
 import logging
 import os
 import re
 import shlex
+import socket
 import tempfile
 from datetime import datetime, timezone
 from typing import List
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -84,6 +87,41 @@ ALLOWED_DRUSH_COMMANDS = frozenset({
 _SHELL_METACHARS = re.compile(r'[;|&`$(){}<>\\]')
 
 
+def _validate_url_safe(url: str) -> None:
+    """Block private IPs, localhost, and non-http(s) schemes."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported URL scheme: {parsed.scheme}",
+        )
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL must include a hostname",
+        )
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Localhost URLs are not allowed",
+        )
+    try:
+        resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot resolve hostname: {hostname}",
+        )
+    for family, _type, _proto, _canonname, sockaddr in resolved:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="URLs pointing to private or reserved IP addresses are not allowed",
+            )
+
+
 async def _get_drupal_site(
     project_id: UUID, db: AsyncSession
 ) -> DrupalSite:
@@ -116,6 +154,8 @@ async def connect_site(
     """Connect a remote Drupal site to a project."""
     user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
+
+    _validate_url_safe(body.site_url)
 
     # Test connection first
     ok, msg = await drupal.test_connection(body.site_url, body.username, body.password)
@@ -556,10 +596,9 @@ async def clone_production(
 
     try:
         # Ensure sandbox container exists
-        container = await sandbox_mgr.get_or_create_container(
+        container_id = await sandbox_mgr.get_or_create_container(
             str(project_id), template_id="drupal"
         )
-        container_id = container.get("id") or container.get("container_id", "")
 
         if not container_id:
             return CloneResponse(
@@ -835,13 +874,13 @@ async def start_staging(
     await _get_drupal_site(project_id, db)
 
     try:
-        container = await sandbox_mgr.get_or_create_container(
+        container_id = await sandbox_mgr.get_or_create_container(
             str(project_id), template_id="drupal"
         )
         return {
             "success": True,
             "message": "Staging sandbox started",
-            "container_id": container.get("id") or container.get("container_id"),
+            "container_id": container_id,
         }
     except Exception as e:
         raise HTTPException(

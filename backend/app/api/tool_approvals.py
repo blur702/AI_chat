@@ -19,6 +19,7 @@ router = APIRouter(prefix="/tool-approvals", tags=["tools"])
 # Redis channel prefix for tool approval pub/sub
 _APPROVAL_CHANNEL_PREFIX = "tool_approval:"
 _APPROVAL_RESULT_PREFIX = "tool_approval_result:"
+_APPROVAL_OWNER_PREFIX = "tool_approval_owner:"
 # How long to wait for approval before timing out (seconds)
 _APPROVAL_TIMEOUT_SECONDS = 120
 
@@ -69,13 +70,25 @@ async def submit_tool_approval(
     to that channel, unblocking the stream.
     """
     redis_client = _get_redis(request)
+    user_id = str(get_user_id(payload))
+
+    # Verify the caller owns the pending approval
+    owner_key = f"{_APPROVAL_OWNER_PREFIX}{body.call_id}"
+    owner_user_id = await redis_client.get(owner_key)
+    if owner_user_id is not None:
+        owner_str = owner_user_id if isinstance(owner_user_id, str) else owner_user_id.decode()
+        if owner_str != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to approve this tool call",
+            )
 
     channel = f"{_APPROVAL_CHANNEL_PREFIX}{body.call_id}"
     result_key = f"{_APPROVAL_RESULT_PREFIX}{body.call_id}"
     message = json.dumps({
         "approved": body.approved,
         "modified_arguments": body.modified_arguments,
-        "user_id": str(get_user_id(payload)),
+        "user_id": user_id,
     })
 
     try:
@@ -98,6 +111,7 @@ async def wait_for_approval(
     redis_client: aioredis.Redis,
     call_id: str,
     timeout: float = _APPROVAL_TIMEOUT_SECONDS,
+    owner_user_id: Optional[str] = None,
 ) -> Optional[dict]:
     """
     Wait for a tool approval decision via Redis pub/sub.
@@ -108,6 +122,7 @@ async def wait_for_approval(
         redis_client: Async Redis client.
         call_id: Unique tool call identifier.
         timeout: Seconds to wait before timing out.
+        owner_user_id: If provided, stored so only this user can submit the approval.
 
     Returns:
         Dict with 'approved' bool and optional 'modified_arguments',
@@ -115,6 +130,11 @@ async def wait_for_approval(
     """
     channel = f"{_APPROVAL_CHANNEL_PREFIX}{call_id}"
     result_key = f"{_APPROVAL_RESULT_PREFIX}{call_id}"
+
+    if owner_user_id:
+        owner_key = f"{_APPROVAL_OWNER_PREFIX}{call_id}"
+        await redis_client.set(owner_key, owner_user_id, ex=int(timeout))
+
     pubsub = redis_client.pubsub()
 
     try:

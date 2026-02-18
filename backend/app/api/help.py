@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_payload, get_optional_user_payload, require_admin
@@ -269,7 +270,14 @@ async def create_help_topic(
         logger.warning("Failed to generate embedding for help topic '%s'", body.slug, exc_info=True)
 
     db.add(topic)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Help topic with slug '{body.slug}' already exists",
+        )
     await db.refresh(topic)
 
     return _topic_to_response(topic)
@@ -322,7 +330,14 @@ async def update_help_topic(
         except Exception:
             logger.warning("Failed to regenerate embedding for help topic '%s'", topic.slug, exc_info=True)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Help topic with slug '{topic.slug}' already exists",
+        )
     await db.refresh(topic)
 
     return _topic_to_response(topic)

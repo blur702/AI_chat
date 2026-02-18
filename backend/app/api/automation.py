@@ -12,7 +12,7 @@ from uuid import UUID
 
 from arq import create_pool
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import get_current_user_payload, validate_project_access
@@ -223,6 +223,24 @@ async def execute_action(
         )
 
     if action.executed_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Action has already been executed",
+        )
+
+    # Atomically mark the action as executed to prevent double-enqueue
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        sa_update(AutomationAction)
+        .where(AutomationAction.id == action_id)
+        .where(AutomationAction.executed_at.is_(None))
+        .values(executed_at=now)
+    )
+    await db.commit()
+
+    if result.rowcount == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Action has already been executed",

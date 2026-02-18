@@ -741,6 +741,7 @@ async def bulk_ingest(
             "image_processing": json.dumps(body.image_processing or {}),
             "scope": body.scope,
             "file_statuses": json.dumps([]),
+            "owner_user_id": str(user_id),
         }
         await redis_client.hset(f"kb_batch:{batch_id}", mapping=batch_data)
         await redis_client.expire(f"kb_batch:{batch_id}", 3600)  # 1 hour TTL
@@ -767,6 +768,8 @@ async def bulk_status(
     """Poll batch ingestion progress from Redis."""
     import redis.asyncio as aioredis
 
+    user_id = get_user_id(payload)
+
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_client = aioredis.from_url(redis_url, decode_responses=True)
     try:
@@ -775,6 +778,13 @@ async def bulk_status(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Batch '{batch_id}' not found",
+            )
+
+        owner = data.get("owner_user_id")
+        if owner and owner != str(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this batch",
             )
 
         file_statuses = []

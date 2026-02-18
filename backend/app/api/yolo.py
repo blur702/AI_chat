@@ -262,9 +262,6 @@ async def undo_edit(
         )
 
     if files_failed:
-        # Partial success: mark undone but surface failures in response
-        edit.undo_performed = True
-        await db.commit()
         return YoloEditUndoResponse(
             id=str(edit.id),
             status=f"partial (failed: {', '.join(files_failed)})",

@@ -417,6 +417,7 @@ async def websocket_events_endpoint(
             }
         )
         if not connected:
+            await websocket.accept()
             await websocket.close(code=1008, reason="Too many connections")
             return
 
@@ -632,22 +633,7 @@ async def websocket_terminal_endpoint(
                         "Command timed out after %ds in container %s",
                         COMMAND_TIMEOUT, container_id[:12],
                     )
-                    # Kill the orphaned process inside the container
-                    try:
-                        exec_inspect = await asyncio.to_thread(
-                            sandbox_manager._client.api.exec_inspect, exec_id
-                        )
-                        pid = exec_inspect.get("Pid", 0)
-                        if pid:
-                            container = await asyncio.to_thread(
-                                sandbox_manager._client.containers.get, container_id
-                            )
-                            await asyncio.to_thread(
-                                container.exec_run,
-                                ["kill", "-9", str(pid)],
-                            )
-                    except Exception as kill_err:
-                        logger.debug("Failed to kill timed-out process: %s", kill_err)
+                    await sandbox_manager.kill_exec(exec_id)
                     await websocket.send_json({
                         "type": "error",
                         "data": {"message": f"Command timed out after {COMMAND_TIMEOUT}s"},

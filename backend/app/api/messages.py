@@ -1052,7 +1052,14 @@ async def stream_message(
                 for tc in pending_tool_calls:
                     fn = tc.get("function", {})
                     tool_name = fn.get("name", "unknown")
-                    tool_args = fn.get("arguments", {})
+                    raw_args = fn.get("arguments", {})
+                    if isinstance(raw_args, str):
+                        try:
+                            tool_args = json.loads(raw_args)
+                        except json.JSONDecodeError:
+                            tool_args = {}
+                    else:
+                        tool_args = raw_args
                     call_id = str(uuid4())
 
                     # Notify frontend about tool invocation
@@ -1127,7 +1134,9 @@ async def stream_message(
                         redis_client = tool_registry.get_redis_client()
                         approval = None
                         if redis_client:
-                            approval = await wait_for_approval(redis_client, call_id)
+                            approval = await wait_for_approval(
+                                redis_client, call_id, owner_user_id=str(user_id),
+                            )
 
                         if approval and approval.get("approved"):
                             # Use modified arguments if provided

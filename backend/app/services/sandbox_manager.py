@@ -173,6 +173,22 @@ class SandboxManager(BaseKernelService):
     async def terminate_exec(self, container_id: str, exec_id: str) -> bool:
         return await self._run.terminate_exec(container_id, exec_id)
 
+    async def kill_exec(self, exec_id: str) -> None:
+        try:
+            exec_inspect = await asyncio.to_thread(self._client.api.exec_inspect, exec_id)
+            pid = exec_inspect.get("Pid", 0)
+            if pid:
+                container_id = exec_inspect.get("ContainerID")
+                if container_id:
+                    container = await asyncio.to_thread(
+                        self._client.containers.get, container_id,
+                    )
+                    await asyncio.to_thread(
+                        container.exec_run, ["kill", "-9", str(pid)],
+                    )
+        except Exception as e:
+            logger.debug("Failed to kill exec process %s: %s", exec_id, e)
+
     async def exec_simple(self, container_id: str, command: str) -> str:
         return await self._run.exec_simple(container_id, command)
 

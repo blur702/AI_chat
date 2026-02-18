@@ -137,3 +137,12 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
             total * 1000,
             statement[:200],
         )
+
+
+@event.listens_for(engine.sync_engine, "handle_error")
+def _handle_error(exception_context):
+    conn = exception_context.connection
+    if conn is not None:
+        timing_stack = conn.info.get("query_start_time")
+        if timing_stack:
+            timing_stack.pop(-1)
