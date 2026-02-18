@@ -8,6 +8,7 @@ import type {
   PasswordChangeRequest,
   PasswordChangeResponse,
   VRAMStats,
+  PerGpuStats,
   ResourceStatusResponse,
   PreemptionCheckRequest,
   PreemptionCheckResponse,
@@ -123,6 +124,24 @@ import type {
   CloneResponse,
   PushRequest,
   PushResponse,
+  ComposerRequireRequest,
+  ComposerRemoveRequest,
+  ComposerUpdateRequest,
+  ComposerOperationResponse,
+  ModuleEnableRequest,
+  ModuleDisableRequest,
+  ThemeEnableRequest,
+  ThemeDisableRequest,
+  DrushOperationResponse,
+  ModuleThemeListResponse,
+  ContentTypeCreateRequest,
+  ContentTypeCreateResponse,
+  BlockContentCreateRequest,
+  BlockContentResponse,
+  BlockContentListResponse,
+  BlockContentUpdateRequest,
+  ThemeScaffoldRequest,
+  ThemeScaffoldResponse,
   OllamaModelListResponse,
   ModelActionResponse,
   ModelPullProgress,
@@ -549,6 +568,11 @@ export class WorkstationClient {
   /** Fetch current GPU VRAM allocation statistics. */
   async getVRAMStats(): Promise<VRAMStats> {
     return this.request("/api/resources/vram");
+  }
+
+  /** Fetch per-GPU VRAM statistics. */
+  async getPerGpuVramStats(): Promise<PerGpuStats[]> {
+    return this.request("/api/resources/vram/gpus");
   }
 
   /** Fetch the overall resource manager status, including loaded model information. */
@@ -1854,6 +1878,164 @@ export class WorkstationClient {
     );
   }
 
+  // Drupal Module/Theme Management
+
+  /** List installed modules on the connected Drupal site. */
+  async listDrupalModules(
+    projectId: string,
+    statusFilter?: string,
+  ): Promise<ModuleThemeListResponse> {
+    const params = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/modules${params}`);
+  }
+
+  /** List installed themes on the connected Drupal site. */
+  async listDrupalThemes(
+    projectId: string,
+    statusFilter?: string,
+  ): Promise<ModuleThemeListResponse> {
+    const params = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/themes${params}`);
+  }
+
+  /** Enable one or more Drupal modules via drush. */
+  async enableDrupalModules(
+    projectId: string,
+    data: ModuleEnableRequest,
+  ): Promise<DrushOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/modules/enable`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Disable (uninstall) one or more Drupal modules via drush. */
+  async disableDrupalModules(
+    projectId: string,
+    data: ModuleDisableRequest,
+  ): Promise<DrushOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/modules/disable`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Enable a Drupal theme, optionally setting it as default. */
+  async enableDrupalTheme(
+    projectId: string,
+    data: ThemeEnableRequest,
+  ): Promise<DrushOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/themes/enable`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Disable (uninstall) a Drupal theme. */
+  async disableDrupalTheme(
+    projectId: string,
+    data: ThemeDisableRequest,
+  ): Promise<DrushOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/themes/disable`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Drupal Composer Operations
+
+  /** Install a package via composer require on the remote Drupal site. */
+  async composerRequire(
+    projectId: string,
+    data: ComposerRequireRequest,
+  ): Promise<ComposerOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/composer/require`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Remove a package via composer remove on the remote Drupal site. */
+  async composerRemove(
+    projectId: string,
+    data: ComposerRemoveRequest,
+  ): Promise<ComposerOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/composer/remove`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Update packages via composer update on the remote Drupal site. */
+  async composerUpdate(
+    projectId: string,
+    data: ComposerUpdateRequest,
+  ): Promise<ComposerOperationResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/composer/update`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Drupal Content Type & Block Content Management
+
+  /** Create a new content type on the connected Drupal site. */
+  async createDrupalContentType(
+    projectId: string,
+    data: ContentTypeCreateRequest,
+  ): Promise<ContentTypeCreateResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/content-types/create`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** List block content entities of a given bundle. */
+  async listDrupalBlocks(
+    projectId: string,
+    bundle: string,
+  ): Promise<BlockContentListResponse> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/blocks/${encodeURIComponent(bundle)}`,
+    );
+  }
+
+  /** Create a new block content entity. */
+  async createDrupalBlock(
+    projectId: string,
+    bundle: string,
+    data: BlockContentCreateRequest,
+  ): Promise<BlockContentResponse> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/blocks/${encodeURIComponent(bundle)}`,
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  }
+
+  /** Update an existing block content entity. */
+  async updateDrupalBlock(
+    projectId: string,
+    bundle: string,
+    blockUuid: string,
+    data: BlockContentUpdateRequest,
+  ): Promise<BlockContentResponse> {
+    return this.request(
+      `/api/drupal/${encodeURIComponent(projectId)}/blocks/${encodeURIComponent(bundle)}/${encodeURIComponent(blockUuid)}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    );
+  }
+
+  /** Scaffold a new custom Drupal theme on the remote VPS. */
+  async scaffoldDrupalTheme(
+    projectId: string,
+    data: ThemeScaffoldRequest,
+  ): Promise<ThemeScaffoldResponse> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/themes/scaffold`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // Knowledge Base
 
   /** Fetch paginated text chunks that belong to a specific KB source document. */
@@ -2369,6 +2551,11 @@ export class WorkstationClient {
     return this.request(`/api/notes/${encodeURIComponent(noteId)}/archive`, {
       method: "POST",
     });
+  }
+
+  /** Export all App Bugs notes as markdown for Claude Code. */
+  async exportAppBugs(): Promise<{ markdown: string; count: number }> {
+    return this.request("/api/notes/export/app-bugs");
   }
 
   // ---- Note Categories ----

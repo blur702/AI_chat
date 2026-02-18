@@ -72,26 +72,36 @@ def _category_to_response(c: NoteCategory) -> NoteCategoryResponse:
     )
 
 
+_SYSTEM_CATEGORIES = [
+    {"name": "Errors", "slug": "errors", "color": "#ef4444", "sort_order": 0},
+    {"name": "App Bugs", "slug": "app-bugs", "color": "#f97316", "sort_order": 1},
+]
+
+
 async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
-    """Create built-in 'Errors' category if the user has no categories yet."""
+    """Ensure all system categories exist for the user, creating any that are missing."""
     result = await db.execute(
-        select(func.count()).select_from(
-            select(NoteCategory).where(
-                NoteCategory.user_id == user_id,
-                NoteCategory.is_deleted == False,  # noqa: E712
-            ).subquery()
+        select(NoteCategory.slug).where(
+            NoteCategory.user_id == user_id,
+            NoteCategory.is_system == True,  # noqa: E712
+            NoteCategory.is_deleted == False,  # noqa: E712
         )
     )
-    if (result.scalar() or 0) == 0:
-        db.add(NoteCategory(
-            user_id=user_id,
-            name="Errors",
-            slug="errors",
-            color="#ef4444",
-            is_system=True,
-            sort_order=0,
-        ))
-        await db.flush()
+    existing_slugs = set(result.scalars().all())
+    added = False
+    for cat in _SYSTEM_CATEGORIES:
+        if cat["slug"] not in existing_slugs:
+            db.add(NoteCategory(
+                user_id=user_id,
+                name=cat["name"],
+                slug=cat["slug"],
+                color=cat["color"],
+                is_system=True,
+                sort_order=cat["sort_order"],
+            ))
+            added = True
+    if added:
+        await db.commit()
 
 
 # ---- Note Category Endpoints ----
@@ -254,6 +264,56 @@ async def create_note(
     await db.commit()
     await db.refresh(row)
     return _note_to_response(row)
+
+
+@router.get("/export/app-bugs")
+async def export_app_bugs(
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Export all active App Bugs notes as markdown for pasting into Claude Code."""
+    user_id = get_user_id(payload)
+    await _ensure_default_categories(user_id, db)
+
+    cat_result = await db.execute(
+        select(NoteCategory).where(
+            NoteCategory.user_id == user_id,
+            NoteCategory.slug == "app-bugs",
+            NoteCategory.is_deleted == False,  # noqa: E712
+        )
+    )
+    category = cat_result.scalar_one_or_none()
+    if category is None:
+        return {"markdown": "# App Bugs to Fix\n\nNo App Bugs category found.\n", "count": 0}
+
+    notes_result = await db.execute(
+        select(Note).where(
+            Note.user_id == user_id,
+            Note.category_id == category.id,
+            Note.status == "active",
+            Note.is_deleted == False,  # noqa: E712
+        ).order_by(Note.created_at.asc())
+    )
+    bugs = notes_result.scalars().all()
+
+    if not bugs:
+        return {"markdown": "# App Bugs to Fix\n\nNo app bugs reported.\n", "count": 0}
+
+    lines = [
+        "# App Bugs to Fix\n",
+        f"{len(bugs)} bug(s) reported in the AICHAT workstation app. Fix each one.",
+        "Codebase root: D:\\AICHAT\n",
+    ]
+    for i, bug in enumerate(bugs, 1):
+        title = bug.title or "Untitled"
+        created = bug.created_at.strftime("%Y-%m-%d") if bug.created_at else "unknown"
+        lines.append(f"## {i}. {title}")
+        lines.append(f"**Created:** {created}")
+        if bug.body:
+            lines.append(bug.body)
+        lines.append("")
+
+    return {"markdown": "\n".join(lines), "count": len(bugs)}
 
 
 @router.get("/{note_id}", response_model=NoteResponse)

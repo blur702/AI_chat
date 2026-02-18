@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { ScrollArea } from "@workstation/ui";
-import { StickyNote, X, LayoutGrid } from "lucide-react";
+import { StickyNote, X, LayoutGrid, Download, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useNotes as useNotesContext } from "./notes-provider";
 import { useNotes as useNotesData } from "@workstation/api/hooks/use-notes";
@@ -14,6 +14,13 @@ import { NoteList } from "./note-list";
 
 export function NotesModal() {
   const { isOpen, closeNotes } = useNotesContext();
+
+  if (!isOpen) return null;
+
+  return <NotesModalContent closeNotes={closeNotes} />;
+}
+
+function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
   const [statusFilter, setStatusFilter] = useState("active");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -35,6 +42,7 @@ export function NotesModal() {
 
   const { projects } = useProjects();
   const router = useRouter();
+  const [exportDone, setExportDone] = useState(false);
 
   const titleId = useId();
 
@@ -45,11 +53,6 @@ export function NotesModal() {
   const panelRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
-  // Reset position when modal opens
-  useEffect(() => {
-    if (isOpen) setPosition(null);
-  }, [isOpen]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -59,7 +62,6 @@ export function NotesModal() {
 
   // Focus trap
   useEffect(() => {
-    if (!isOpen) return;
     const panel = panelRef.current;
     if (!panel) return;
 
@@ -85,7 +87,7 @@ export function NotesModal() {
     };
     document.addEventListener("keydown", handleFocusTrap);
     return () => document.removeEventListener("keydown", handleFocusTrap);
-  }, [isOpen]);
+  }, []);
 
   // Drag handler
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -119,9 +121,26 @@ export function NotesModal() {
     document.addEventListener("pointerup", cleanup);
   }, []);
 
+  const handleExportAppBugs = useCallback(async () => {
+    try {
+      const { markdown, count } = await getClient().exportAppBugs();
+      await navigator.clipboard.writeText(markdown);
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "app-bugs.md";
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportDone(true);
+      setTimeout(() => setExportDone(false), 2000);
+    } catch (err) {
+      console.error("Failed to export app bugs:", err);
+    }
+  }, []);
+
   // Escape to close
   useEffect(() => {
-    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -130,9 +149,7 @@ export function NotesModal() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, closeNotes]);
-
-  if (!isOpen) return null;
+  }, [closeNotes]);
 
   const panelStyle: React.CSSProperties = position
     ? { left: position.x, top: position.y }
@@ -169,6 +186,19 @@ export function NotesModal() {
             Notes
           </h2>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleExportAppBugs}
+              className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              title="Export App Bugs for Claude Code — copies to clipboard and downloads .md"
+              aria-label="Export App Bugs"
+            >
+              {exportDone ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+            </button>
             <button
               type="button"
               onClick={() => {
