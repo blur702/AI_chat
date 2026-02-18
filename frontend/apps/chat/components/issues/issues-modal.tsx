@@ -125,12 +125,14 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
       draggingRef.current = false;
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", cleanup);
+      document.removeEventListener("pointercancel", cleanup);
       dragCleanupRef.current = null;
     };
 
     dragCleanupRef.current = cleanup;
     document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", cleanup);
+    document.addEventListener("pointercancel", cleanup);
   }, []);
 
   useEffect(() => {
