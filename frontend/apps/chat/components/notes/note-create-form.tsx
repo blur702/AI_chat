@@ -55,6 +55,7 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
       />
       <div className="flex flex-wrap items-center gap-2">
         <select
+          aria-label="Note category"
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
           className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
@@ -68,6 +69,7 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
         </select>
 
         <select
+          aria-label="Note project"
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
           className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"

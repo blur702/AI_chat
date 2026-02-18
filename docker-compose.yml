@@ -184,7 +184,7 @@ services:
       - image_outputs:/data/comfyui_outputs
       - studio_media:/data/studio_media
       - ${DRUPAL_LOCAL_PATH:-./drupal-local}:/drupal-local:rw
-      - ${DRUPAL_VPS_KEY_FILE:?Set DRUPAL_VPS_KEY_FILE in .env}:/run/secrets/vps_ssh_key:ro
+      - ${DRUPAL_VPS_KEY_FILE:-/dev/null}:/run/secrets/vps_ssh_key:ro
     networks:
       - workstation-network
       - workstation-preview-network

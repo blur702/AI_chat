@@ -388,9 +388,12 @@ export function useStudioMedia(projectId: string) {
 
   // Track created object URLs for cleanup on unmount
   const createdUrlsRef = useRef<Set<string>>(new Set());
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       createdUrlsRef.current.clear();
     };
@@ -420,6 +423,10 @@ export function useStudioMedia(projectId: string) {
 
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
+    if (!isMountedRef.current) {
+      URL.revokeObjectURL(url);
+      throw new Error("Component unmounted during media fetch");
+    }
     createdUrlsRef.current.add(url);
     return url;
   }, []);
@@ -469,6 +476,9 @@ export function useStudioExport(projectId: string) {
 
   // Keep a ref to the polling interval so we can clear it on unmount or cancel.
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track download URLs for cleanup on unmount
+  const downloadUrlsRef = useRef<Set<string>>(new Set());
+  const exportMountedRef = useRef(true);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current !== null) {
@@ -479,8 +489,12 @@ export function useStudioExport(projectId: string) {
 
   // Clean up on unmount.
   useEffect(() => {
+    exportMountedRef.current = true;
     return () => {
+      exportMountedRef.current = false;
       stopPolling();
+      downloadUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      downloadUrlsRef.current.clear();
     };
   }, [stopPolling]);
 
@@ -610,13 +624,27 @@ export function useStudioExport(projectId: string) {
       }
 
       const blob = await response.blob();
-      return URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
+      if (!exportMountedRef.current) {
+        URL.revokeObjectURL(url);
+        throw new Error("Component unmounted during download");
+      }
+      downloadUrlsRef.current.add(url);
+      return url;
     } catch (err) {
-      setError(extractErrorMessage(err, "Failed to download export"));
+      if (exportMountedRef.current) {
+        setError(extractErrorMessage(err, "Failed to download export"));
+      }
       throw err;
     } finally {
-      setDownloading(false);
+      if (exportMountedRef.current) setDownloading(false);
     }
+  }, []);
+
+  /** Revoke a previously created download URL to free memory. */
+  const revokeDownloadUrl = useCallback((url: string) => {
+    URL.revokeObjectURL(url);
+    downloadUrlsRef.current.delete(url);
   }, []);
 
   return {
@@ -628,5 +656,6 @@ export function useStudioExport(projectId: string) {
     fetchExportStatus,
     cancelPolling,
     downloadExport,
+    revokeDownloadUrl,
   };
 }

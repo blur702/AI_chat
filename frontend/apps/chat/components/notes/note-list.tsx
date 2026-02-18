@@ -94,25 +94,11 @@ export function NoteList({
             <NoteItem
               key={note.id}
               note={note}
-              onUpdate={async (id, data) => {
-                await onUpdate(id, data);
-              }}
-              onDelete={async (id) => {
-                await onDelete(id);
-              }}
-              onComplete={async (id) => {
-                await onComplete(id);
-              }}
-              onArchive={async (id) => {
-                await onArchive(id);
-              }}
-              onPromoteToIssue={
-                onPromoteToIssue
-                  ? async (id) => {
-                      await onPromoteToIssue(id);
-                    }
-                  : undefined
-              }
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+              onComplete={onComplete}
+              onArchive={onArchive}
+              onPromoteToIssue={onPromoteToIssue}
             />
           ))}
         </div>

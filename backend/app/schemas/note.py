@@ -1,8 +1,10 @@
 """Pydantic schemas for notes and note categories."""
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+NoteStatus = Literal["active", "completed", "archived"]
 
 
 # ---- Note Category Schemas ----
@@ -51,7 +53,7 @@ class NoteUpdateRequest(BaseModel):
     body: Optional[str] = Field(default=None, max_length=50000)
     project_id: Optional[str] = None
     category_id: Optional[str] = None
-    status: Optional[str] = Field(default=None, pattern=r"^(active|completed|archived)$")
+    status: Optional[NoteStatus] = None
     pinned: Optional[bool] = None
 
 
@@ -59,7 +61,7 @@ class NoteResponse(BaseModel):
     id: str
     title: Optional[str] = None
     body: str = ""
-    status: str = "active"
+    status: NoteStatus = "active"
     pinned: bool = False
     project_id: Optional[str] = None
     project_name: Optional[str] = None

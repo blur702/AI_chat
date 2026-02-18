@@ -27,16 +27,22 @@ export default function StudioPage() {
       const res = await fetch("/api/studio/projects", {
         credentials: "include",
       });
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(data.projects || []);
+      if (res.status === 401) {
+        router.push(`/login?returnTo=${encodeURIComponent("/studio")}`);
+        return;
       }
+      if (!res.ok) {
+        console.error("Failed to load projects:", res.status);
+        return;
+      }
+      const data = await res.json();
+      setProjects(data.projects || []);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchProjects();

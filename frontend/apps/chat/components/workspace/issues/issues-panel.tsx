@@ -89,6 +89,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
 
       <div className="flex items-center gap-1.5 border-b px-4 py-2">
         <select
+          aria-label="Filter by severity"
           className="h-7 rounded-md border bg-background px-2 text-xs"
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value)}
@@ -100,6 +101,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
           <option value="low">Low</option>
         </select>
         <select
+          aria-label="Filter by status"
           className="h-7 rounded-md border bg-background px-2 text-xs"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}

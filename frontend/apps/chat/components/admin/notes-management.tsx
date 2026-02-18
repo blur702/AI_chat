@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "@workstation/api";
 import type { NoteResponse } from "@workstation/api/types";
 import { Badge, Button } from "@workstation/ui";
@@ -12,6 +12,7 @@ export function NotesManagement() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
@@ -21,17 +22,23 @@ export function NotesManagement() {
         status: statusFilter === "all" ? undefined : statusFilter,
         limit: 200,
       });
+      if (cancelledRef.current) return;
       setNotes(res.notes);
       setTotal(res.count);
     } catch (err) {
+      if (cancelledRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
-      setLoading(false);
+      if (!cancelledRef.current) setLoading(false);
     }
   }, [statusFilter]);
 
   useEffect(() => {
+    cancelledRef.current = false;
     fetchNotes();
+    return () => {
+      cancelledRef.current = true;
+    };
   }, [fetchNotes]);
 
   const handleDelete = async (id: string) => {
@@ -56,6 +63,7 @@ export function NotesManagement() {
         </div>
         <div className="flex items-center gap-2">
           <select
+            aria-label="Filter notes by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
@@ -82,12 +90,12 @@ export function NotesManagement() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-3 py-2 text-left font-medium">Title</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Category</th>
-                <th className="px-3 py-2 text-left font-medium">Project</th>
-                <th className="px-3 py-2 text-left font-medium">Created</th>
-                <th className="px-3 py-2 text-right font-medium">Actions</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">Title</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">Status</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">Category</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">Project</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">Created</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>

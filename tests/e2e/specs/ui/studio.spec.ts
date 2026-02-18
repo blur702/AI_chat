@@ -14,11 +14,16 @@ test.describe("Video Studio — full e2e", () => {
   });
 
   test.afterAll(async ({ request }) => {
+    if (projectIds.length === 0) return;
+    try {
+      await request.post("/api/auth/login", {
+        data: { identifier: ADMIN_ID, password: ADMIN_PW },
+      });
+    } catch {
+      return; // Can't cleanup without auth
+    }
     for (const id of projectIds) {
       try {
-        await request.post("/api/auth/login", {
-          data: { identifier: ADMIN_ID, password: ADMIN_PW },
-        });
         await request.delete(`/api/studio/projects/${id}`, {
           headers: { Origin: ORIGIN },
         });

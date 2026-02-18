@@ -303,7 +303,7 @@ async def export_app_bugs(
     lines = [
         "# App Bugs to Fix\n",
         f"{len(bugs)} bug(s) reported in the AICHAT workstation app. Fix each one.",
-        f"Codebase root: {os.environ.get('CODEBASE_ROOT', 'D:\\\\AICHAT')}\n",
+        "Codebase root: `/app`\n",
     ]
     for i, bug in enumerate(bugs, 1):
         title = bug.title or "Untitled"

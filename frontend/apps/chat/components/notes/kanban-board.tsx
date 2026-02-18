@@ -63,18 +63,22 @@ export function KanbanBoard({
       // Same column — no-op
       if ((sourceNote.project_id ?? null) === targetProjectId) return;
 
-      if (shiftHeld) {
-        // Copy
-        await onCreateNote({
-          title: sourceNote.title ?? undefined,
-          body: sourceNote.body,
-          project_id: targetProjectId,
-          category_id: sourceNote.category_id ?? undefined,
-          pinned: sourceNote.pinned,
-        });
-      } else {
-        // Move
-        await onUpdateNote(noteId, { project_id: targetProjectId });
+      try {
+        if (shiftHeld) {
+          // Copy
+          await onCreateNote({
+            title: sourceNote.title ?? undefined,
+            body: sourceNote.body,
+            project_id: targetProjectId,
+            category_id: sourceNote.category_id ?? undefined,
+            pinned: sourceNote.pinned,
+          });
+        } else {
+          // Move
+          await onUpdateNote(noteId, { project_id: targetProjectId });
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") console.warn("Drag operation failed:", err);
       }
     },
     [notes, shiftHeld, onUpdateNote, onCreateNote],
