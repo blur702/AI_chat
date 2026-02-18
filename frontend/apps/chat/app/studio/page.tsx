@@ -138,10 +138,17 @@ export default function StudioPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {projects.map((project) => (
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   key={project.id}
                   onClick={() => router.push(`/studio/${project.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/studio/${project.id}`);
+                    }
+                  }}
                   className="group relative w-full cursor-pointer rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md"
                 >
                   <div className="mb-3 flex aspect-video items-center justify-center rounded bg-muted">
@@ -166,21 +173,15 @@ export default function StudioPage() {
                       {project.status}
                     </span>
                   </div>
-                  <span
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
+                    aria-label="Delete project"
                     onClick={(e) => handleDelete(project.id, e)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleDelete(project.id, e as unknown as React.MouseEvent);
-                      }
-                    }}
                     className="absolute right-3 top-3 rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </span>
-                </button>
+                  </button>
+                </div>
               ))}
             </div>
           )}

@@ -45,7 +45,7 @@ function isAdminTab(tab: string): boolean {
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const { userId, role } = useAuth();
+  const { userId, role, isLoading: authLoading } = useAuth();
   const isAdmin = role === "admin";
 
   // Derive initial tab from URL (supports ?tab=admin-system etc.)
@@ -88,7 +88,7 @@ export default function SettingsPage() {
     if (userId) fetchResourcePreference(userId);
   }, [userId, fetchResourcePreference]);
 
-  const isLoading = userLoading || preferencesLoading;
+  const isLoading = authLoading || userLoading || preferencesLoading;
 
   const handleAdminRefresh = () => {
     adminData.refreshMetrics();
@@ -108,7 +108,7 @@ export default function SettingsPage() {
         <div className="mb-6">
           <h1 className="text-sm font-semibold">{t("settingsTitle")}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Manage your profile, preferences, and configuration.
+            {t("settingsDescription")}
           </p>
         </div>
 
@@ -133,13 +133,13 @@ export default function SettingsPage() {
               {isAdmin && (
                 <>
                   <Separator orientation="vertical" className="mx-1 h-5" />
-                  <TabsTrigger value="admin-system">System</TabsTrigger>
-                  <TabsTrigger value="admin-users">Users</TabsTrigger>
-                  <TabsTrigger value="admin-audit">Audit Logs</TabsTrigger>
-                  <TabsTrigger value="admin-help">Help Topics</TabsTrigger>
-                  <TabsTrigger value="admin-images">Image Models</TabsTrigger>
-                  <TabsTrigger value="admin-notes">Notes</TabsTrigger>
-                  <TabsTrigger value="admin-vram">VRAM</TabsTrigger>
+                  <TabsTrigger value="admin-system">{t("adminSystem")}</TabsTrigger>
+                  <TabsTrigger value="admin-users">{t("adminUsers")}</TabsTrigger>
+                  <TabsTrigger value="admin-audit">{t("adminAuditLogs")}</TabsTrigger>
+                  <TabsTrigger value="admin-help">{t("adminHelpTopics")}</TabsTrigger>
+                  <TabsTrigger value="admin-images">{t("adminImageModels")}</TabsTrigger>
+                  <TabsTrigger value="admin-notes">{t("adminNotes")}</TabsTrigger>
+                  <TabsTrigger value="admin-vram">{t("adminVram")}</TabsTrigger>
                 </>
               )}
             </TabsList>
