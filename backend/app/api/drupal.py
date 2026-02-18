@@ -1357,9 +1357,9 @@ async def create_content_type(
         f"langcode: en\n"
         f"status: true\n"
         f"dependencies: {{}}\n"
-        f"name: {shlex.quote(body.label)}\n"
+        f"name: '{body.label.replace(chr(39), chr(39)+chr(39))}'\n"
         f"type: {body.machine_name}\n"
-        f"description: {shlex.quote(body.description)}\n"
+        f"description: '{body.description.replace(chr(39), chr(39)+chr(39))}'\n"
         f"help: ''\n"
         f"new_revision: true\n"
         f"preview_mode: 1\n"
@@ -1485,9 +1485,9 @@ async def scaffold_theme(
 
     # Generate and write files
     info_yml = (
-        f"name: '{body.name}'\n"
+        f"name: '{body.name.replace(chr(39), chr(39)+chr(39))}'\n"
         f"type: theme\n"
-        f"description: '{body.description}'\n"
+        f"description: '{body.description.replace(chr(39), chr(39)+chr(39))}'\n"
         f"base theme: {body.base_theme}\n"
         f"core_version_requirement: ^10 || ^11\n"
         f"libraries:\n"
