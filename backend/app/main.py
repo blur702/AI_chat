@@ -51,6 +51,7 @@ from app.api.prompt_presets import router as prompt_presets_router
 from app.api.drupal_local import router as drupal_local_router
 from app.api.palettes import router as palettes_router
 from app.api.tool_approvals import router as tool_approvals_router
+from app.api.studio import router as studio_router
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -386,6 +387,7 @@ app = FastAPI(
         {"name": "drupal-local", "description": "Local Drupal development environment operations."},
         {"name": "palettes", "description": "Color palette generation and theme management."},
         {"name": "system-prompts", "description": "System prompt CRUD and per-conversation prompt assignment."},
+        {"name": "studio", "description": "Video Studio -- project CRUD, media upload, timeline editing, and FFmpeg export."},
     ],
 )
 
@@ -453,6 +455,7 @@ app.include_router(prompt_presets_router, prefix="/api", tags=["image"])
 app.include_router(drupal_local_router, prefix="/api", tags=["drupal-local"])
 app.include_router(palettes_router, prefix="/api", tags=["palettes"])
 app.include_router(tool_approvals_router, prefix="/api", tags=["tools"])
+app.include_router(studio_router, prefix="/api", tags=["studio"])
 
 
 @app.exception_handler(Exception)

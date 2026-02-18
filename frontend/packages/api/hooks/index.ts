@@ -72,3 +72,12 @@ export type { UseKBBuilderReturn, ChunkSettings } from "./use-kb-builder";
 export { useOnlineStatus } from "./use-online-status";
 export { usePolling } from "./use-polling";
 export type { UsePollingOptions, UsePollingReturn } from "./use-polling";
+export { useStudioProjects, useStudioProject, useStudioMedia, useStudioExport } from "./use-studio";
+export type {
+  StudioProject,
+  MediaAsset,
+  VideoExportStatus,
+  StudioProjectCreateRequest,
+  StudioProjectUpdateRequest,
+  ExportStartRequest,
+} from "./use-studio";

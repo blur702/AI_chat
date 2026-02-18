@@ -91,9 +91,21 @@ export interface ComfyUIStartResponse {
   health_status?: string | null;
 }
 
+export interface ImageModelInfo {
+  filename: string;
+  model_type: "sd15" | "sdxl";
+}
+
+export interface LoraInfo {
+  filename: string;
+  model_type: "sd15" | "sdxl" | "both";
+}
+
 export interface ImageGenerationOptionsResponse {
   models: string[];
+  model_details: ImageModelInfo[];
   loras: string[];
+  lora_details: LoraInfo[];
   samplers: string[];
   schedulers: string[];
   workflows: WorkflowType[];

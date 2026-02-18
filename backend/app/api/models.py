@@ -170,7 +170,7 @@ async def load_model(
 
     event_bus = kernel.get_service("event_bus")
     if event_bus:
-        await event_bus.publish(MODEL_LOADING, {
+        await event_bus.publish_event(MODEL_LOADING, {
             "model": body.model_name,
             "action": "loading",
         }, severity=INFO, source="models_api")
@@ -182,7 +182,7 @@ async def load_model(
         raise HTTPException(status_code=502, detail=f"Failed to load model '{body.model_name}'")
 
     if event_bus:
-        await event_bus.publish(MODEL_LOADED, {
+        await event_bus.publish_event(MODEL_LOADED, {
             "model": body.model_name,
             "action": "loaded",
         }, severity=INFO, source="models_api")
@@ -215,7 +215,7 @@ async def unload_model(
 
     event_bus = kernel.get_service("event_bus")
     if event_bus:
-        await event_bus.publish(MODEL_UNLOADED, {
+        await event_bus.publish_event(MODEL_UNLOADED, {
             "model": body.model_name,
             "action": "unloaded",
         }, severity=INFO, source="models_api")
@@ -245,7 +245,7 @@ async def pull_model(
     async def generate():
         try:
             if event_bus:
-                await event_bus.publish(MODEL_PULLING, {
+                await event_bus.publish_event(MODEL_PULLING, {
                     "model": body.model_name,
                     "action": "pulling",
                     "status": "started",
@@ -273,7 +273,7 @@ async def pull_model(
             yield f"data: {json.dumps(done)}\n\n"
 
             if event_bus:
-                await event_bus.publish(MODEL_PULLING, {
+                await event_bus.publish_event(MODEL_PULLING, {
                     "model": body.model_name,
                     "action": "pulled",
                     "status": "completed",

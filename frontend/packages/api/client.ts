@@ -209,7 +209,8 @@ export class WorkstationClient {
 
   private async request<T>(
     path: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs?: number,
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -222,7 +223,7 @@ export class WorkstationClient {
 
     // Add timeout via AbortController
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), this.requestTimeoutMs);
+    const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs ?? this.requestTimeoutMs);
 
     // If the caller passed a signal, forward its abort to our controller
     if (options.signal) {
@@ -798,7 +799,7 @@ export class WorkstationClient {
     return this.request("/api/models/load", {
       method: "POST",
       body: JSON.stringify({ model_name: modelName, keep_alive: keepAlive }),
-    });
+    }, 120_000);
   }
 
   /** Unload an Ollama model from GPU memory to free VRAM. */
@@ -806,7 +807,7 @@ export class WorkstationClient {
     return this.request("/api/models/unload", {
       method: "POST",
       body: JSON.stringify({ model_name: modelName }),
-    });
+    }, 120_000);
   }
 
   /** Permanently delete an Ollama model from local storage. */

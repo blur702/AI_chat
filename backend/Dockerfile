@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     libmagic1 \
     tesseract-ocr \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder
@@ -33,6 +34,10 @@ RUN groupadd --gid 1000 appuser \
 COPY . .
 
 RUN chown -R appuser:appuser /app
+
+# Create output directories (volume mount targets)
+RUN mkdir -p /data/comfyui_outputs /data/studio_media \
+    && chown appuser:appuser /data/comfyui_outputs /data/studio_media
 
 # Install Playwright Chromium: system deps as root, browser as appuser.
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/.playwright-browsers

@@ -32,6 +32,10 @@ IMAGE_GENERATION_STARTED = "image_generation_started"
 IMAGE_GENERATION_PROGRESS = "image_generation_progress"
 IMAGE_GENERATION_COMPLETED = "image_generation_completed"
 IMAGE_GENERATION_FAILED = "image_generation_failed"
+VIDEO_EXPORT_STARTED = "video_export_started"
+VIDEO_EXPORT_PROGRESS = "video_export_progress"
+VIDEO_EXPORT_COMPLETED = "video_export_completed"
+VIDEO_EXPORT_FAILED = "video_export_failed"
 
 # Severity Levels
 INFO = "info"
@@ -67,6 +71,10 @@ ALL_EVENT_TYPES = [
     IMAGE_GENERATION_PROGRESS,
     IMAGE_GENERATION_COMPLETED,
     IMAGE_GENERATION_FAILED,
+    VIDEO_EXPORT_STARTED,
+    VIDEO_EXPORT_PROGRESS,
+    VIDEO_EXPORT_COMPLETED,
+    VIDEO_EXPORT_FAILED,
 ]
 
 # All severity levels for validation
@@ -105,6 +113,10 @@ __all__ = [
     "IMAGE_GENERATION_PROGRESS",
     "IMAGE_GENERATION_COMPLETED",
     "IMAGE_GENERATION_FAILED",
+    "VIDEO_EXPORT_STARTED",
+    "VIDEO_EXPORT_PROGRESS",
+    "VIDEO_EXPORT_COMPLETED",
+    "VIDEO_EXPORT_FAILED",
     # Severity levels
     "INFO",
     "WARNING",

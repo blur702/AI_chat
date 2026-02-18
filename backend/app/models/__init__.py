@@ -31,6 +31,7 @@ from app.models.resource import Resource
 from app.models.system_prompt import SystemPrompt
 from app.models.user import User
 from app.models.user_preference import UserPreference
+from app.models.video_project import MediaAsset, VideoExport, VideoProject
 from app.models.utils import hash_password, verify_password
 from app.models.ui_component import UIComponent
 from app.models.yolo_edit import YoloEdit
@@ -64,6 +65,9 @@ __all__ = [
     "UIComponent",
     "User",
     "UserPreference",
+    "MediaAsset",
+    "VideoExport",
+    "VideoProject",
     "YoloEdit",
     "hash_password",
     "verify_password",

@@ -201,11 +201,27 @@ class ComfyUIStartResponse(BaseModel):
     health_status: Optional[str] = None
 
 
+class ModelInfo(BaseModel):
+    """Checkpoint model with inferred type metadata."""
+
+    filename: str
+    model_type: str = Field(description="sd15 or sdxl")
+
+
+class LoraInfo(BaseModel):
+    """LoRA with inferred type compatibility."""
+
+    filename: str
+    model_type: str = Field(description="sd15, sdxl, or both")
+
+
 class ImageGenerationOptionsResponse(BaseModel):
     """Discoverable generation options from ComfyUI object info."""
 
     models: List[str] = Field(default_factory=list)
+    model_details: List[ModelInfo] = Field(default_factory=list)
     loras: List[str] = Field(default_factory=list)
+    lora_details: List[LoraInfo] = Field(default_factory=list)
     samplers: List[str] = Field(default_factory=list)
     schedulers: List[str] = Field(default_factory=list)
     upscale_models: List[str] = Field(default_factory=list)

@@ -12,9 +12,11 @@
 
 set -euo pipefail
 
-CONTAINER="workstation-comfyui-1"
+CONTAINER="workstation-comfyui"
 COMFY_BASE="/comfy/mnt/ComfyUI/models"
-TEMP_DIR="${TMPDIR:-/tmp}/comfyui_models"
+# Use a subdirectory in the project for temp downloads (avoids git bash /tmp path issues on Windows)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMP_DIR="${SCRIPT_DIR}/../.model_downloads"
 
 CATEGORY="${1:-all}"
 if [[ "$CATEGORY" == "--category" ]]; then
@@ -38,7 +40,7 @@ download() {
 
   echo "  [download] $name ..."
   mkdir -p "$(dirname "$dest")"
-  if ! wget -q --show-progress -O "$dest.tmp" "$url"; then
+  if ! curl -L --retry 3 --retry-delay 5 --retry-all-errors -C - --progress-bar --ssl-no-revoke -o "$dest.tmp" "$url"; then
     echo "  [error] Failed to download $name"
     rm -f "$dest.tmp"
     return 1
@@ -55,9 +57,12 @@ copy_to_container() {
   fi
 
   echo "  Copying to $container_path ..."
-  docker exec "$CONTAINER" mkdir -p "$container_path"
-  docker cp "$src_dir/." "${CONTAINER}:${container_path}/"
-  docker exec "$CONTAINER" chown -R 1024:1024 "$container_path"
+  MSYS_NO_PATHCONV=1 docker exec "$CONTAINER" mkdir -p "$container_path"
+  # docker cp needs the source path without MSYS conversion; use realpath for Windows compat
+  local real_src
+  real_src="$(cd "$src_dir" && pwd -W 2>/dev/null || pwd)"
+  docker cp "$real_src/." "${CONTAINER}:${container_path}/"
+  MSYS_NO_PATHCONV=1 docker exec -u root "$CONTAINER" chown -R 1024:1024 "$container_path"
 }
 
 # ─── Checkpoints ───────────────────────────────────────────────────────
@@ -107,15 +112,15 @@ download_loras() {
     "$lora_dir/lcm_lora_sdxl.safetensors"
 
   download \
-    "https://huggingface.co/lordjia/DetailTweakerXL/resolve/main/add-detail-xl.safetensors" \
+    "https://huggingface.co/PvDeep/Add-Detail-XL/resolve/main/add-detail-xl.safetensors" \
     "$lora_dir/add_detail_xl.safetensors"
 
   download \
-    "https://huggingface.co/lordjia/add_more_details/resolve/main/add_more_details.safetensors" \
+    "https://huggingface.co/OedoSoldier/detail-tweaker-lora/resolve/main/add_detail.safetensors" \
     "$lora_dir/add_more_details_sd15.safetensors"
 
   download \
-    "https://huggingface.co/lordjia/film_grain_style/resolve/main/FilmVelvia3.safetensors" \
+    "https://huggingface.co/JCTN/lora/resolve/main/FilmVelvia3.safetensors" \
     "$lora_dir/film_grain.safetensors"
 
   copy_to_container "$lora_dir" "$COMFY_BASE/loras"
@@ -201,7 +206,7 @@ echo "Category:  $CATEGORY"
 echo ""
 
 # Verify container is running
-if ! docker inspect "$CONTAINER" &>/dev/null; then
+if ! MSYS_NO_PATHCONV=1 docker inspect "$CONTAINER" &>/dev/null; then
   echo "ERROR: Container '$CONTAINER' not found. Start the stack first:"
   echo "  docker compose up -d"
   exit 1

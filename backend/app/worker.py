@@ -1986,6 +1986,145 @@ async def verify_plan_phase_task(ctx, phase_id: str) -> dict:
             pass
 
 
+async def export_video_task(ctx, export_id: str) -> dict:
+    """Render a video project timeline to MP4 via FFmpeg."""
+    import time
+
+    import redis.asyncio as aioredis
+
+    from app.database import AsyncSessionLocal
+    from app.kernel.event_bus import EventBus
+    from app.kernel.event_types import (
+        VIDEO_EXPORT_COMPLETED,
+        VIDEO_EXPORT_FAILED,
+        VIDEO_EXPORT_PROGRESS,
+        VIDEO_EXPORT_STARTED,
+    )
+    from app.models.video_project import VideoExport
+    from app.services.ffmpeg_service import generate_interactive_html, render_timeline
+    from sqlalchemy import select
+
+    export_uuid = UUID(export_id)
+    logger.info("Starting video export for %s", export_id)
+
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    redis_client = aioredis.from_url(redis_url, decode_responses=True)
+    event_bus = None
+
+    try:
+        event_bus = EventBus(
+            session_factory=AsyncSessionLocal, redis_client=redis_client
+        )
+        await event_bus.startup()
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(VideoExport).where(VideoExport.id == export_uuid)
+            )
+            export = result.scalar_one_or_none()
+            if export is None:
+                logger.error("VideoExport %s not found", export_id)
+                return {"export_id": export_id, "status": "failed"}
+
+            export.status = "processing"
+            await db.commit()
+
+            project_id = str(export.video_project_id)
+            timeline_data = export.timeline_snapshot or {}
+            settings = timeline_data.get("settings", {})
+
+            await event_bus.publish_event(
+                event_type=VIDEO_EXPORT_STARTED,
+                event_data={"export_id": export_id, "project_id": project_id},
+                severity="info",
+                source="worker",
+            )
+
+            async def progress_callback(percent: int):
+                export.progress_percent = percent
+                await db.commit()
+                await event_bus.publish_event(
+                    event_type=VIDEO_EXPORT_PROGRESS,
+                    event_data={
+                        "export_id": export_id,
+                        "project_id": project_id,
+                        "progress_percent": percent,
+                    },
+                    severity="info",
+                    source="worker",
+                )
+
+            try:
+                export_format = export.format or "mp4"
+
+                if export_format == "html":
+                    output_path = await generate_interactive_html(
+                        timeline_data=timeline_data,
+                        project_id=project_id,
+                        export_id=export_id,
+                        settings=settings,
+                        progress_callback=progress_callback,
+                    )
+                else:
+                    output_path = await render_timeline(
+                        timeline_data=timeline_data,
+                        project_id=project_id,
+                        export_id=export_id,
+                        settings=settings,
+                        progress_callback=progress_callback,
+                    )
+
+                file_size = os.path.getsize(output_path) if os.path.isfile(output_path) else 0
+                export.status = "completed"
+                export.file_path = output_path
+                export.file_size_bytes = file_size
+                export.progress_percent = 100
+                await db.commit()
+
+                await event_bus.publish_event(
+                    event_type=VIDEO_EXPORT_COMPLETED,
+                    event_data={
+                        "export_id": export_id,
+                        "project_id": project_id,
+                        "file_size_bytes": file_size,
+                    },
+                    severity="info",
+                    source="worker",
+                )
+
+                return {"export_id": export_id, "status": "completed", "file_size": file_size}
+
+            except Exception as exc:
+                logger.exception("Video export failed for %s: %s", export_id, exc)
+                export.status = "failed"
+                export.error_message = str(exc)[:1000]
+                await db.commit()
+
+                await event_bus.publish_event(
+                    event_type=VIDEO_EXPORT_FAILED,
+                    event_data={
+                        "export_id": export_id,
+                        "project_id": project_id,
+                        "error": str(exc)[:200],
+                    },
+                    severity="error",
+                    source="worker",
+                )
+
+                return {"export_id": export_id, "status": "failed"}
+
+    finally:
+        if event_bus:
+            try:
+                await event_bus.shutdown()
+            except Exception:
+                pass
+        try:
+            await redis_client.aclose()
+        except Exception:
+            pass
+
+
 class WorkerSettings:
     """ARQ Worker settings."""
     redis_settings = get_redis_settings()
@@ -2001,6 +2140,7 @@ class WorkerSettings:
         import_website_project_task,
         verify_plan_phase_task,
         bulk_ingest_kb_task,
+        export_video_task,
     ]
     max_jobs = 20
     job_timeout = 600

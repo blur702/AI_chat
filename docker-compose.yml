@@ -14,6 +14,7 @@ volumes:
   comfyui_models:
   drupal_data:
   drupal_db_data:
+  studio_media:
   searxng_data:
 
 services:
@@ -150,6 +151,7 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
+      STUDIO_MEDIA_DIR: /data/studio_media
       SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
       DESKTOP_CONTROL_ENABLED: ${DESKTOP_CONTROL_ENABLED:-false}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
@@ -179,6 +181,7 @@ services:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - image_outputs:/data/comfyui_outputs
+      - studio_media:/data/studio_media
       - ${DRUPAL_LOCAL_PATH:-./drupal-local}:/drupal-local:rw
     networks:
       - workstation-network
@@ -219,9 +222,11 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs
+      STUDIO_MEDIA_DIR: /data/studio_media
     volumes:
       - ./backend:/app
       - image_outputs:/data/comfyui_outputs
+      - studio_media:/data/studio_media
     networks:
       - workstation-network
     depends_on:

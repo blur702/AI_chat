@@ -57,6 +57,10 @@ mss>=9.0.0
 # SSH (VPS operations for Drupal staging)
 asyncssh>=2.14.0
 
+# Video/FFmpeg
+ffmpeg-python>=0.2.0
+openai-whisper>=20231117
+
 # Utilities
 python-multipart>=0.0.6
 python-dotenv>=1.0.0

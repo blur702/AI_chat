@@ -3,12 +3,13 @@
 import { Input } from "@workstation/ui";
 import { FieldHelp } from "@/components/help/field-help";
 import { LoraStack } from "./lora-stack";
-import type { LoraConfig } from "@workstation/api/types";
+import type { LoraConfig, ImageModelInfo } from "@workstation/api/types";
 
 interface ModelTabContentProps {
   modelName: string;
   onModelChange: (value: string) => void;
   models: string[];
+  modelDetails?: ImageModelInfo[];
   optionsLoading: boolean;
   samplerName: string;
   onSamplerChange: (value: string) => void;
@@ -28,6 +29,7 @@ export function ModelTabContent({
   modelName,
   onModelChange,
   models,
+  modelDetails,
   optionsLoading,
   samplerName,
   onSamplerChange,
@@ -56,9 +58,13 @@ export function ModelTabContent({
             onChange={(e) => onModelChange(e.target.value)}
             className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
           >
-            {models.map((model) => (
-              <option key={model} value={model}>{model}</option>
-            ))}
+            {models.map((model) => {
+              const detail = modelDetails?.find((d) => d.filename === model);
+              const typeLabel = detail ? (detail.model_type === "sdxl" ? " [SDXL]" : " [SD 1.5]") : "";
+              return (
+                <option key={model} value={model}>{model}{typeLabel}</option>
+              );
+            })}
           </select>
         ) : (
           <Input

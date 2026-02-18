@@ -6,7 +6,8 @@ import { getClient } from "@workstation/api";
 import { useAuth, useImageGeneration, useProject, useServiceStatus, useSettings } from "@workstation/api/hooks";
 import type { ImageGenerationOptionsResponse, UserPreferences } from "@workstation/api/types";
 import { Button } from "@workstation/ui";
-import { Layers } from "lucide-react";
+import { ArrowLeft, Layers } from "lucide-react";
+import Link from "next/link";
 import { GenerationForm } from "@/components/workspace/image-gen/generation-form";
 import { ImageGallery } from "@/components/workspace/image-gen/image-gallery";
 import { ContextEditorFullscreen } from "@/components/context/context-editor-fullscreen";
@@ -156,6 +157,14 @@ export default function ImageGenerationPage() {
 
   return (
     <div className="h-full overflow-auto p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Link href={`/workspace/${projectId}`}>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Workspace
+          </Button>
+        </Link>
+      </div>
       <div className="flex flex-col md:flex-row gap-4 h-full">
         <div className="w-full md:w-[380px] md:shrink-0 overflow-auto">
           <GenerationForm

@@ -163,7 +163,6 @@ export function GenerationForm({
         : "checking comfyui";
 
   const models = imageOptions?.models ?? [];
-  const loraOptions = imageOptions?.loras ?? [];
   const samplerOptions = imageOptions?.samplers ?? ["euler"];
   const schedulerOptions = imageOptions?.schedulers ?? ["normal"];
 
@@ -188,6 +187,22 @@ export function GenerationForm({
   const [projectSystemContextInput, setProjectSystemContextInput] = useState(projectSystemContext ?? "");
   const [projectSystemContextSaving, setProjectSystemContextSaving] = useState(false);
   const [projectSystemContextMsg, setProjectSystemContextMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Infer model type from selected model name for LoRA filtering
+  const selectedModelType = useMemo(() => {
+    const name = form.model_name?.toLowerCase() ?? "";
+    if (name.includes("xl") || name.includes("sdxl")) return "sdxl";
+    return "sd15";
+  }, [form.model_name]);
+
+  // Filter LoRAs to only show those compatible with the selected model type
+  const loraOptions = useMemo(() => {
+    const details = imageOptions?.lora_details;
+    if (!details || details.length === 0) return imageOptions?.loras ?? [];
+    return details
+      .filter((l) => l.model_type === "both" || l.model_type === selectedModelType)
+      .map((l) => l.filename);
+  }, [imageOptions, selectedModelType]);
 
   const upload = useImageUpload();
   const { clear: clearStorage } = useFormPersistence(projectId, form, setForm, prefsDefaults);
@@ -429,6 +444,7 @@ export function GenerationForm({
               modelName={form.model_name}
               onModelChange={(v) => setForm((prev) => ({ ...prev, model_name: v }))}
               models={models}
+              modelDetails={imageOptions?.model_details}
               optionsLoading={optionsLoading}
               samplerName={form.sampler_name}
               onSamplerChange={(v) => setForm((prev) => ({ ...prev, sampler_name: v }))}

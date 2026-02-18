@@ -126,7 +126,7 @@ class ComfyUIClient(HttpKernelService):
         data = resp.json()
         return data.get(node_class, {}) if isinstance(data, dict) else {}
 
-    async def get_generation_options(self) -> Dict[str, List[str]]:
+    async def get_generation_options(self) -> Dict[str, Any]:
         """Discover checkpoints, LoRAs, samplers, and schedulers."""
         checkpoints: List[str] = []
         loras: List[str] = []
@@ -166,13 +166,39 @@ class ComfyUIClient(HttpKernelService):
         if not schedulers:
             schedulers = ["normal"]
 
+        # Build typed metadata for models and LoRAs
+        model_details = [
+            {"filename": m, "model_type": self._infer_checkpoint_type(m)}
+            for m in checkpoints
+        ]
+        lora_details = [
+            {"filename": l, "model_type": self._infer_lora_type(l)}
+            for l in loras
+        ]
+
         return {
             "models": checkpoints,
+            "model_details": model_details,
             "loras": loras,
+            "lora_details": lora_details,
             "samplers": samplers,
             "schedulers": schedulers,
             "upscale_models": upscale_models,
         }
+
+    @staticmethod
+    def _infer_lora_type(lora_name: str) -> str:
+        """Infer LoRA compatibility from filename. Returns sd15, sdxl, or both."""
+        if not lora_name:
+            return "both"
+        name_lower = lora_name.lower()
+        has_xl = "xl" in name_lower or "sdxl" in name_lower
+        has_sd15 = "sd15" in name_lower or "sd1.5" in name_lower or "1.5" in name_lower
+        if has_xl and not has_sd15:
+            return "sdxl"
+        if has_sd15 and not has_xl:
+            return "sd15"
+        return "both"
 
     # -- Workflow Templates --------------------------------------------------
 
