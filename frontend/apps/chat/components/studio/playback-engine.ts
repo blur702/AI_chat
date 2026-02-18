@@ -16,16 +16,9 @@ export class PlaybackEngine {
   private rafId: number | null = null;
   private elements = new Map<string, HTMLElement>();
   private blobUrls = new Map<string, string>();
-  private authToken: string | null = null;
-
   constructor(container: HTMLDivElement, onTimeUpdate: () => void) {
     this.container = container;
     this.onTimeUpdate = onTimeUpdate;
-    try {
-      this.authToken = localStorage.getItem("auth_token");
-    } catch {
-      // SSR or private browsing
-    }
   }
 
   setTimeline(timeline: TimelineData) {
@@ -124,11 +117,9 @@ export class PlaybackEngine {
     const cached = this.blobUrls.get(assetId);
     if (cached) return cached;
 
-    const headers: Record<string, string> = {};
-    if (this.authToken) {
-      headers["Authorization"] = `Bearer ${this.authToken}`;
-    }
-    const res = await fetch(`/api/studio/media/${assetId}/file`, { headers });
+    const res = await fetch(`/api/studio/media/${assetId}/file`, {
+      credentials: "include",
+    });
     if (!res.ok) throw new Error(`Failed to fetch media ${assetId}: ${res.status}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

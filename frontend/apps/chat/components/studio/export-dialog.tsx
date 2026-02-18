@@ -34,14 +34,11 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
     setProgress(0);
     setError(null);
 
-    const token = localStorage.getItem("auth_token");
     try {
       const res = await fetch(`/api/studio/projects/${projectId}/export`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format }),
       });
 
@@ -62,12 +59,10 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
   useEffect(() => {
     if (!exportId || status !== "exporting") return;
 
-    const token = localStorage.getItem("auth_token");
-
     const poll = async () => {
       try {
         const res = await fetch(`/api/studio/exports/${exportId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
         if (!res.ok) return;
 
@@ -98,11 +93,10 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
 
   const handleDownload = useCallback(async () => {
     if (!exportId) return;
-    const token = localStorage.getItem("auth_token");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
     try {
-      const res = await fetch(`/api/studio/exports/${exportId}/download`, { headers });
+      const res = await fetch(`/api/studio/exports/${exportId}/download`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

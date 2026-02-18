@@ -83,13 +83,12 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
     setTranscribing(true);
     setError(null);
 
-    const token = localStorage.getItem("auth_token");
     try {
       const res = await fetch(
         `/api/studio/projects/${projectId}/transcribe?media_asset_id=${selectedAssetId}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         },
       );
 

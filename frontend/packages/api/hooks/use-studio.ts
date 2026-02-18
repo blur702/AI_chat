@@ -85,22 +85,8 @@ export interface ExportStartRequest {
 async function uploadFormData<T>(path: string, formData: FormData): Promise<T> {
   const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
-  // Retrieve token from the singleton client's token storage.
-  // The client stores the token in memory; we read it from localStorage as a
-  // fallback since the client only exposes setToken(), not getToken().
-  let token: string | null = null;
-  if (typeof window !== "undefined") {
-    token = localStorage.getItem("auth_token");
-  }
-
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers,
     credentials: "include",
     body: formData,
   });
@@ -409,19 +395,9 @@ export function useStudioMedia(projectId: string) {
   const getMediaFileUrl = useCallback(async (mediaId: string): Promise<string> => {
     const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
-    let token: string | null = null;
-    if (typeof window !== "undefined") {
-      token = localStorage.getItem("auth_token");
-    }
-
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
     const response = await fetch(
       `${baseUrl}/api/studio/media/${encodeURIComponent(mediaId)}/file`,
-      { headers, credentials: "include" },
+      { credentials: "include" },
     );
 
     if (!response.ok) {
@@ -594,19 +570,9 @@ export function useStudioExport(projectId: string) {
 
       const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
-      let token: string | null = null;
-      if (typeof window !== "undefined") {
-        token = localStorage.getItem("auth_token");
-      }
-
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
       const response = await fetch(
         `${baseUrl}/api/studio/exports/${encodeURIComponent(exportId)}/download`,
-        { headers, credentials: "include" },
+        { credentials: "include" },
       );
 
       if (!response.ok) {

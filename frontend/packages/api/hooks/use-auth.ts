@@ -12,6 +12,7 @@ interface AuthState {
   username: string | null;
   screenName: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -48,6 +49,7 @@ function stateFromPayload(token: string, payload: Record<string, unknown>): Auth
     username: (payload.username as string) || null,
     screenName: (payload.screen_name as string) || null,
     isAuthenticated: true,
+    isLoading: false,
   };
 }
 
@@ -64,6 +66,7 @@ function stateFromUser(user: {
     username: user.username,
     screenName: user.screen_name ?? user.username,
     isAuthenticated: true,
+    isLoading: false,
   };
 }
 
@@ -74,6 +77,7 @@ const emptyState: AuthState = {
   username: null,
   screenName: null,
   isAuthenticated: false,
+  isLoading: true,
 };
 
 /**
@@ -89,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = await getClient().getCurrentUser();
         setState(stateFromUser(user));
       } catch {
-        setState(emptyState);
+        setState({ ...emptyState, isLoading: false });
       }
     };
     void restoreSession();
@@ -121,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             username: response.username,
             screenName: response.screen_name,
             isAuthenticated: true,
+            isLoading: false,
           });
         }
         return true;

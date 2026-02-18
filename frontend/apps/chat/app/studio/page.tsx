@@ -24,9 +24,8 @@ export default function StudioPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("auth_token");
       const res = await fetch("/api/studio/projects", {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (res.ok) {
         const data = await res.json();
@@ -46,19 +45,24 @@ export default function StudioPage() {
   const handleCreate = async () => {
     setCreating(true);
     try {
-      const token = localStorage.getItem("auth_token");
       const res = await fetch("/api/studio/projects", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Untitled Project" }),
       });
-      if (res.ok) {
-        const project = await res.json();
-        router.push(`/studio/${project.id}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Failed to create project:", res.status, err);
+        if (res.status === 401) {
+          router.push(`/login?returnTo=${encodeURIComponent("/studio")}`);
+        }
+        return;
       }
+      const project = await res.json();
+      router.push(`/studio/${project.id}`);
+    } catch (err) {
+      console.error("Create project error:", err);
     } finally {
       setCreating(false);
     }
@@ -67,10 +71,9 @@ export default function StudioPage() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Delete this project?")) return;
-    const token = localStorage.getItem("auth_token");
     await fetch(`/api/studio/projects/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     setProjects((prev) => prev.filter((p) => p.id !== id));
   };

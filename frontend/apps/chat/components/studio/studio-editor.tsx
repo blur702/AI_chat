@@ -26,12 +26,11 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
     let cancelled = false;
 
     async function load() {
-      const token = localStorage.getItem("auth_token");
-      const headers = { Authorization: `Bearer ${token}` };
+      const fetchOpts = { credentials: "include" as RequestCredentials };
 
       try {
         // Fetch project
-        const projRes = await fetch(`/api/studio/projects/${projectId}`, { headers });
+        const projRes = await fetch(`/api/studio/projects/${projectId}`, fetchOpts);
         if (!projRes.ok) return;
         const project = await projRes.json();
 
@@ -45,7 +44,7 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
         markClean();
 
         // Fetch media
-        const mediaRes = await fetch(`/api/studio/projects/${projectId}/media`, { headers });
+        const mediaRes = await fetch(`/api/studio/projects/${projectId}/media`, fetchOpts);
         if (mediaRes.ok) {
           const mediaData = await mediaRes.json();
           setMediaAssets(mediaData.assets || []);
@@ -66,14 +65,11 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
   // Save handler
   const handleSave = useCallback(async () => {
     const state = useStudioStore.getState();
-    const token = localStorage.getItem("auth_token");
     try {
       await fetch(`/api/studio/projects/${projectId}`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: state.projectName,
           timeline_data: state.timeline,

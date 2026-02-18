@@ -77,7 +77,6 @@ export function MediaBin({ projectId }: MediaBinProps) {
       if (!files || files.length === 0) return;
       setUploading(true);
 
-      const token = localStorage.getItem("auth_token");
       for (const file of Array.from(files)) {
         const formData = new FormData();
         formData.append("file", file);
@@ -85,7 +84,7 @@ export function MediaBin({ projectId }: MediaBinProps) {
         try {
           const res = await fetch(`/api/studio/projects/${projectId}/media`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
             body: formData,
           });
           if (res.ok) {
@@ -105,11 +104,10 @@ export function MediaBin({ projectId }: MediaBinProps) {
 
   const handleDelete = useCallback(
     async (mediaId: string) => {
-      const token = localStorage.getItem("auth_token");
       try {
         await fetch(`/api/studio/media/${mediaId}`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
         removeMediaAsset(mediaId);
       } catch {

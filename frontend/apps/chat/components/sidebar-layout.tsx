@@ -21,7 +21,7 @@ export function SidebarLayout({ children, mobileTitle = "AI Workstation" }: Side
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const { isMobile } = useBreakpoint();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const projectId = useProjectId();
@@ -49,12 +49,12 @@ export function SidebarLayout({ children, mobileTitle = "AI Workstation" }: Side
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
     }
-  }, [isAuthenticated, router, pathname]);
+  }, [isAuthenticated, isLoading, router, pathname]);
 
-  if (!isAuthenticated) return null;
+  if (isLoading || !isAuthenticated) return null;
 
   return (
     <div className="flex h-[calc(100vh-2.5rem)] flex-col">

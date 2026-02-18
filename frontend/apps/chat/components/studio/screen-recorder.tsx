@@ -50,10 +50,9 @@ export function ScreenRecorder({ projectId, onDone, onCancel }: ScreenRecorderPr
         formData.append("file", file);
 
         try {
-          const token = localStorage.getItem("auth_token");
           const res = await fetch(`/api/studio/projects/${projectId}/recordings`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
             body: formData,
           });
           if (res.ok) {
