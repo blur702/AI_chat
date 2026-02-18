@@ -82,14 +82,8 @@ export interface ExportStartRequest {
 // Internal helper – multipart upload via fetch (rawFetch is private on client)
 // ---------------------------------------------------------------------------
 
-async function uploadFormData<T>(
-  path: string,
-  formData: FormData
-): Promise<T> {
-  const baseUrl =
-    typeof process !== "undefined"
-      ? (process.env.NEXT_PUBLIC_API_URL ?? "")
-      : "";
+async function uploadFormData<T>(path: string, formData: FormData): Promise<T> {
+  const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
   // Retrieve token from the singleton client's token storage.
   // The client stores the token in memory; we read it from localStorage as a
@@ -143,9 +137,7 @@ export function useStudioProjects() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await getClient().get<{ projects: StudioProject[] }>(
-        "/api/studio/projects"
-      );
+      const { data } = await getClient().get<{ projects: StudioProject[] }>("/api/studio/projects");
       setProjects(data.projects ?? (data as any));
     } catch (err) {
       setError(extractErrorMessage(err, "Failed to load studio projects"));
@@ -159,14 +151,12 @@ export function useStudioProjects() {
   }, [refresh]);
 
   const createProject = useCallback(
-    async (
-      data: StudioProjectCreateRequest
-    ): Promise<StudioProject> => {
+    async (data: StudioProjectCreateRequest): Promise<StudioProject> => {
       try {
         setError(null);
         const { data: project } = await getClient().post<StudioProject>(
           "/api/studio/projects",
-          data
+          data,
         );
         await refresh();
         return project;
@@ -175,22 +165,19 @@ export function useStudioProjects() {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
-  const deleteProject = useCallback(
-    async (projectId: string): Promise<void> => {
-      try {
-        setError(null);
-        await getClient().delete(`/api/studio/projects/${encodeURIComponent(projectId)}`);
-        setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      } catch (err) {
-        setError(extractErrorMessage(err, "Failed to delete studio project"));
-        throw err;
-      }
-    },
-    []
-  );
+  const deleteProject = useCallback(async (projectId: string): Promise<void> => {
+    try {
+      setError(null);
+      await getClient().delete(`/api/studio/projects/${encodeURIComponent(projectId)}`);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    } catch (err) {
+      setError(extractErrorMessage(err, "Failed to delete studio project"));
+      throw err;
+    }
+  }, []);
 
   return {
     projects,
@@ -226,7 +213,7 @@ export function useStudioProject(projectId: string) {
       setLoading(true);
       setError(null);
       const { data } = await getClient().get<StudioProject>(
-        `/api/studio/projects/${encodeURIComponent(projectId)}`
+        `/api/studio/projects/${encodeURIComponent(projectId)}`,
       );
       setProject(data);
     } catch (err) {
@@ -246,7 +233,7 @@ export function useStudioProject(projectId: string) {
         setError(null);
         const { data } = await getClient().put<StudioProject>(
           `/api/studio/projects/${encodeURIComponent(projectId)}`,
-          updates
+          updates,
         );
         setProject(data);
         return data;
@@ -255,7 +242,7 @@ export function useStudioProject(projectId: string) {
         throw err;
       }
     },
-    [projectId]
+    [projectId],
   );
 
   /**
@@ -266,7 +253,7 @@ export function useStudioProject(projectId: string) {
     async (timelineData: any): Promise<StudioProject> => {
       return updateProject({ timeline_data: timelineData });
     },
-    [updateProject]
+    [updateProject],
   );
 
   return {
@@ -305,7 +292,7 @@ export function useStudioMedia(projectId: string) {
       setLoading(true);
       setError(null);
       const { data } = await getClient().get<{ assets: MediaAsset[] }>(
-        `/api/studio/projects/${encodeURIComponent(projectId)}/media`
+        `/api/studio/projects/${encodeURIComponent(projectId)}/media`,
       );
       setAssets(data.assets ?? (data as any));
     } catch (err) {
@@ -327,10 +314,7 @@ export function useStudioMedia(projectId: string) {
    * @param mediaType - Optional explicit media type override ("video" | "audio" | "image").
    */
   const uploadMedia = useCallback(
-    async (
-      file: File,
-      mediaType?: "video" | "audio" | "image"
-    ): Promise<MediaAsset> => {
+    async (file: File, mediaType?: "video" | "audio" | "image"): Promise<MediaAsset> => {
       try {
         setError(null);
         setUploading(true);
@@ -344,7 +328,7 @@ export function useStudioMedia(projectId: string) {
 
         const asset = await uploadFormData<MediaAsset>(
           `/api/studio/projects/${encodeURIComponent(projectId)}/media`,
-          formData
+          formData,
         );
 
         setUploadProgress(100);
@@ -358,7 +342,7 @@ export function useStudioMedia(projectId: string) {
         setUploadProgress(0);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   /**
@@ -378,12 +362,12 @@ export function useStudioMedia(projectId: string) {
         const formData = new FormData();
         formData.append(
           "file",
-          file instanceof File ? file : new File([file], filename, { type: file.type })
+          file instanceof File ? file : new File([file], filename, { type: file.type }),
         );
 
         const asset = await uploadFormData<MediaAsset>(
           `/api/studio/projects/${encodeURIComponent(projectId)}/recordings`,
-          formData
+          formData,
         );
 
         setUploadProgress(100);
@@ -397,7 +381,7 @@ export function useStudioMedia(projectId: string) {
         setUploadProgress(0);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   /**
@@ -405,21 +389,16 @@ export function useStudioMedia(projectId: string) {
    *
    * @param mediaId - The UUID of the asset to remove.
    */
-  const deleteAsset = useCallback(
-    async (mediaId: string): Promise<void> => {
-      try {
-        setError(null);
-        await getClient().delete(
-          `/api/studio/media/${encodeURIComponent(mediaId)}`
-        );
-        setAssets((prev) => prev.filter((a) => a.id !== mediaId));
-      } catch (err) {
-        setError(extractErrorMessage(err, "Failed to delete media asset"));
-        throw err;
-      }
-    },
-    []
-  );
+  const deleteAsset = useCallback(async (mediaId: string): Promise<void> => {
+    try {
+      setError(null);
+      await getClient().delete(`/api/studio/media/${encodeURIComponent(mediaId)}`);
+      setAssets((prev) => prev.filter((a) => a.id !== mediaId));
+    } catch (err) {
+      setError(extractErrorMessage(err, "Failed to delete media asset"));
+      throw err;
+    }
+  }, []);
 
   /**
    * Build the authenticated URL for streaming or downloading a media file.
@@ -427,39 +406,31 @@ export function useStudioMedia(projectId: string) {
    *
    * @param mediaId - The UUID of the media asset to stream.
    */
-  const getMediaFileUrl = useCallback(
-    async (mediaId: string): Promise<string> => {
-      const baseUrl =
-        typeof process !== "undefined"
-          ? (process.env.NEXT_PUBLIC_API_URL ?? "")
-          : "";
+  const getMediaFileUrl = useCallback(async (mediaId: string): Promise<string> => {
+    const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
-      let token: string | null = null;
-      if (typeof window !== "undefined") {
-        token = localStorage.getItem("auth_token");
-      }
+    let token: string | null = null;
+    if (typeof window !== "undefined") {
+      token = localStorage.getItem("auth_token");
+    }
 
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
-      const response = await fetch(
-        `${baseUrl}/api/studio/media/${encodeURIComponent(mediaId)}/file`,
-        { headers, credentials: "include" }
-      );
+    const response = await fetch(
+      `${baseUrl}/api/studio/media/${encodeURIComponent(mediaId)}/file`,
+      { headers, credentials: "include" },
+    );
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch media file (${response.status}): ${response.statusText}`
-        );
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch media file (${response.status}): ${response.statusText}`);
+    }
 
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
-    },
-    []
-  );
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }, []);
 
   return {
     assets,
@@ -525,7 +496,7 @@ export function useStudioExport(projectId: string) {
       pollIntervalRef.current = setInterval(async () => {
         try {
           const { data } = await getClient().get<VideoExportStatus>(
-            `/api/studio/exports/${encodeURIComponent(exportId)}`
+            `/api/studio/exports/${encodeURIComponent(exportId)}`,
           );
           setExportStatus(data);
 
@@ -542,7 +513,7 @@ export function useStudioExport(projectId: string) {
         }
       }, EXPORT_POLL_INTERVAL_MS);
     },
-    [stopPolling]
+    [stopPolling],
   );
 
   /**
@@ -550,23 +521,20 @@ export function useStudioExport(projectId: string) {
    *
    * @param exportId - The UUID of the export job to query.
    */
-  const fetchExportStatus = useCallback(
-    async (exportId: string): Promise<VideoExportStatus> => {
-      try {
-        setError(null);
-        const { data } = await getClient().get<VideoExportStatus>(
-          `/api/studio/exports/${encodeURIComponent(exportId)}`
-        );
-        setExportStatus(data);
-        return data;
-      } catch (err) {
-        const msg = extractErrorMessage(err, "Failed to fetch export status");
-        setError(msg);
-        throw err;
-      }
-    },
-    []
-  );
+  const fetchExportStatus = useCallback(async (exportId: string): Promise<VideoExportStatus> => {
+    try {
+      setError(null);
+      const { data } = await getClient().get<VideoExportStatus>(
+        `/api/studio/exports/${encodeURIComponent(exportId)}`,
+      );
+      setExportStatus(data);
+      return data;
+    } catch (err) {
+      const msg = extractErrorMessage(err, "Failed to fetch export status");
+      setError(msg);
+      throw err;
+    }
+  }, []);
 
   /**
    * Submit a new export job for the project and begin polling for its status.
@@ -584,7 +552,7 @@ export function useStudioExport(projectId: string) {
 
         const { data } = await getClient().post<VideoExportStatus>(
           `/api/studio/projects/${encodeURIComponent(projectId)}/export`,
-          options
+          options,
         );
 
         setExportStatus(data);
@@ -603,7 +571,7 @@ export function useStudioExport(projectId: string) {
         setLoading(false);
       }
     },
-    [projectId, pollExportStatus, stopPolling]
+    [projectId, pollExportStatus, stopPolling],
   );
 
   /**
@@ -619,51 +587,45 @@ export function useStudioExport(projectId: string) {
    *
    * @param exportId - The UUID of the completed export to download.
    */
-  const downloadExport = useCallback(
-    async (exportId: string): Promise<string> => {
-      try {
-        setError(null);
-        setDownloading(true);
+  const downloadExport = useCallback(async (exportId: string): Promise<string> => {
+    try {
+      setError(null);
+      setDownloading(true);
 
-        const baseUrl =
-          typeof process !== "undefined"
-            ? (process.env.NEXT_PUBLIC_API_URL ?? "")
-            : "";
+      const baseUrl = typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "") : "";
 
-        let token: string | null = null;
-        if (typeof window !== "undefined") {
-          token = localStorage.getItem("auth_token");
-        }
-
-        const headers: Record<string, string> = {};
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(
-          `${baseUrl}/api/studio/exports/${encodeURIComponent(exportId)}/download`,
-          { headers, credentials: "include" }
-        );
-
-        if (!response.ok) {
-          if (response.status === 401 && typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-          const text = await response.text().catch(() => response.statusText);
-          throw new Error(`Download failed (${response.status}): ${text}`);
-        }
-
-        const blob = await response.blob();
-        return URL.createObjectURL(blob);
-      } catch (err) {
-        setError(extractErrorMessage(err, "Failed to download export"));
-        throw err;
-      } finally {
-        setDownloading(false);
+      let token: string | null = null;
+      if (typeof window !== "undefined") {
+        token = localStorage.getItem("auth_token");
       }
-    },
-    []
-  );
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(
+        `${baseUrl}/api/studio/exports/${encodeURIComponent(exportId)}/download`,
+        { headers, credentials: "include" },
+      );
+
+      if (!response.ok) {
+        if (response.status === 401 && typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        const text = await response.text().catch(() => response.statusText);
+        throw new Error(`Download failed (${response.status}): ${text}`);
+      }
+
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      setError(extractErrorMessage(err, "Failed to download export"));
+      throw err;
+    } finally {
+      setDownloading(false);
+    }
+  }, []);
 
   return {
     exportStatus,

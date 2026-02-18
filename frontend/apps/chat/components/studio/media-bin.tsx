@@ -2,14 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Button } from "@workstation/ui";
-import {
-  Upload,
-  Film,
-  Music,
-  Image as ImageIcon,
-  Trash2,
-  Monitor,
-} from "lucide-react";
+import { Upload, Film, Music, Image as ImageIcon, Trash2, Monitor } from "lucide-react";
 import { useStudioStore } from "./use-studio-store";
 import { ScreenRecorder } from "./screen-recorder";
 import { useDraggable } from "@dnd-kit/core";
@@ -32,11 +25,11 @@ function DraggableMediaItem({
 
   const icon =
     asset.media_type === "video" ? (
-      <Film className="w-4 h-4 text-blue-400" />
+      <Film className="h-4 w-4 text-blue-400" />
     ) : asset.media_type === "audio" ? (
-      <Music className="w-4 h-4 text-green-400" />
+      <Music className="h-4 w-4 text-green-400" />
     ) : (
-      <ImageIcon className="w-4 h-4 text-yellow-400" />
+      <ImageIcon className="h-4 w-4 text-yellow-400" />
     );
 
   return (
@@ -44,13 +37,13 @@ function DraggableMediaItem({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`group flex items-center gap-2 p-2 rounded hover:bg-muted cursor-grab ${
+      className={`group flex cursor-grab items-center gap-2 rounded p-2 hover:bg-muted ${
         isDragging ? "opacity-50" : ""
       }`}
     >
       {icon}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs truncate">{asset.filename}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs">{asset.filename}</p>
         {asset.duration_seconds != null && (
           <p className="text-[10px] text-muted-foreground">
             {Math.floor(asset.duration_seconds / 60)}:
@@ -65,9 +58,9 @@ function DraggableMediaItem({
           e.stopPropagation();
           onDelete(asset.id);
         }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+        className="rounded p-1 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
       >
-        <Trash2 className="w-3 h-3" />
+        <Trash2 className="h-3 w-3" />
       </button>
     </div>
   );
@@ -107,7 +100,7 @@ export function MediaBin({ projectId }: MediaBinProps) {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [projectId, addMediaAsset]
+    [projectId, addMediaAsset],
   );
 
   const handleDelete = useCallback(
@@ -123,7 +116,7 @@ export function MediaBin({ projectId }: MediaBinProps) {
         // ignore
       }
     },
-    [removeMediaAsset]
+    [removeMediaAsset],
   );
 
   const handleRecordingDone = useCallback(
@@ -131,13 +124,13 @@ export function MediaBin({ projectId }: MediaBinProps) {
       addMediaAsset(asset);
       setShowRecorder(false);
     },
-    [addMediaAsset]
+    [addMediaAsset],
   );
 
   return (
-    <div className="h-full flex flex-col border-r bg-card">
-      <div className="p-2 border-b">
-        <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+    <div className="flex h-full flex-col border-r bg-card">
+      <div className="border-b p-2">
+        <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
           Media Library
         </h3>
         <div className="flex gap-1">
@@ -148,7 +141,7 @@ export function MediaBin({ projectId }: MediaBinProps) {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            <Upload className="w-3 h-3 mr-1" />
+            <Upload className="mr-1 h-3 w-3" />
             {uploading ? "..." : "Upload"}
           </Button>
           <Button
@@ -158,7 +151,7 @@ export function MediaBin({ projectId }: MediaBinProps) {
             onClick={() => setShowRecorder(true)}
             title="Record screen"
           >
-            <Monitor className="w-3 h-3" />
+            <Monitor className="h-3 w-3" />
           </Button>
         </div>
         <input
@@ -173,17 +166,13 @@ export function MediaBin({ projectId }: MediaBinProps) {
 
       <div className="flex-1 overflow-y-auto p-1">
         {mediaAssets.length === 0 ? (
-          <div className="text-center py-8 text-xs text-muted-foreground">
-            <Upload className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            <Upload className="mx-auto mb-2 h-8 w-8 opacity-30" />
             Upload or record media to get started
           </div>
         ) : (
           mediaAssets.map((asset) => (
-            <DraggableMediaItem
-              key={asset.id}
-              asset={asset}
-              onDelete={handleDelete}
-            />
+            <DraggableMediaItem key={asset.id} asset={asset} onDelete={handleDelete} />
           ))
         )}
       </div>

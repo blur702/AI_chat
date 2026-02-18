@@ -2,12 +2,20 @@
 
 import { useCallback } from "react";
 import { Button } from "@workstation/ui";
-import { Plus, ZoomIn, ZoomOut, Film, Music, Type, Image as ImageIcon, Captions } from "lucide-react";
+import {
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Film,
+  Music,
+  Type,
+  Image as ImageIcon,
+  Captions,
+} from "lucide-react";
 import { useStudioStore } from "../use-studio-store";
 
 export function TimelineControls() {
-  const { pixelsPerSecond, setPixelsPerSecond, addTrack, timeline } =
-    useStudioStore();
+  const { pixelsPerSecond, setPixelsPerSecond, addTrack, timeline } = useStudioStore();
 
   const zoomIn = useCallback(() => {
     setPixelsPerSecond(pixelsPerSecond * 1.3);
@@ -18,8 +26,8 @@ export function TimelineControls() {
   }, [pixelsPerSecond, setPixelsPerSecond]);
 
   return (
-    <div className="h-8 border-b flex items-center gap-1 px-2 shrink-0 bg-card">
-      <span className="text-[10px] text-muted-foreground mr-1">Tracks:</span>
+    <div className="flex h-8 shrink-0 items-center gap-1 border-b bg-card px-2">
+      <span className="mr-1 text-[10px] text-muted-foreground">Tracks:</span>
 
       <Button
         variant="ghost"
@@ -28,7 +36,7 @@ export function TimelineControls() {
         onClick={() => addTrack("video")}
         title="Add video track"
       >
-        <Film className="w-3 h-3 mr-1" />
+        <Film className="mr-1 h-3 w-3" />
         Video
       </Button>
 
@@ -39,7 +47,7 @@ export function TimelineControls() {
         onClick={() => addTrack("audio")}
         title="Add audio track"
       >
-        <Music className="w-3 h-3 mr-1" />
+        <Music className="mr-1 h-3 w-3" />
         Audio
       </Button>
 
@@ -50,7 +58,7 @@ export function TimelineControls() {
         onClick={() => addTrack("text")}
         title="Add text track"
       >
-        <Type className="w-3 h-3 mr-1" />
+        <Type className="mr-1 h-3 w-3" />
         Text
       </Button>
 
@@ -61,7 +69,7 @@ export function TimelineControls() {
         onClick={() => addTrack("image")}
         title="Add image track"
       >
-        <ImageIcon className="w-3 h-3 mr-1" />
+        <ImageIcon className="mr-1 h-3 w-3" />
         Image
       </Button>
 
@@ -72,7 +80,7 @@ export function TimelineControls() {
         onClick={() => addTrack("subtitle", "Subtitles")}
         title="Add subtitle track"
       >
-        <Captions className="w-3 h-3 mr-1" />
+        <Captions className="mr-1 h-3 w-3" />
         Subtitles
       </Button>
 
@@ -82,30 +90,18 @@ export function TimelineControls() {
         {timeline.tracks.length} track{timeline.tracks.length !== 1 ? "s" : ""}
       </span>
 
-      <div className="h-4 w-px bg-border mx-1" />
+      <div className="mx-1 h-4 w-px bg-border" />
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-6 w-6 p-0"
-        onClick={zoomOut}
-        title="Zoom out"
-      >
-        <ZoomOut className="w-3 h-3" />
+      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={zoomOut} title="Zoom out">
+        <ZoomOut className="h-3 w-3" />
       </Button>
 
-      <span className="text-[10px] text-muted-foreground w-8 text-center">
+      <span className="w-8 text-center text-[10px] text-muted-foreground">
         {Math.round(pixelsPerSecond)}
       </span>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-6 w-6 p-0"
-        onClick={zoomIn}
-        title="Zoom in"
-      >
-        <ZoomIn className="w-3 h-3" />
+      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={zoomIn} title="Zoom in">
+        <ZoomIn className="h-3 w-3" />
       </Button>
     </div>
   );

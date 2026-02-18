@@ -160,7 +160,7 @@ export class ApiError extends Error {
     public status: number,
     public statusText: string,
     public body?: unknown,
-    public retryAfter?: number
+    public retryAfter?: number,
   ) {
     super(`API Error ${status}: ${statusText}`);
     this.name = "ApiError";
@@ -223,7 +223,10 @@ export class WorkstationClient {
 
     // Add timeout via AbortController
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs ?? this.requestTimeoutMs);
+    const timeoutId = setTimeout(
+      () => timeoutController.abort(),
+      timeoutMs ?? this.requestTimeoutMs,
+    );
 
     // If the caller passed a signal, forward its abort to our controller
     if (options.signal) {
@@ -244,7 +247,11 @@ export class WorkstationClient {
 
             // On 401, clear token and redirect to login
             // Skip redirect when already on /login or for the login endpoint itself
-            if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
+            if (
+              response.status === 401 &&
+              typeof window !== "undefined" &&
+              !path.endsWith("/auth/login")
+            ) {
               this.token = null;
               if (!window.location.pathname.startsWith("/login")) {
                 window.location.href = "/login";
@@ -266,7 +273,7 @@ export class WorkstationClient {
                       status: 429,
                       retryAfter: retryAfterSec,
                     },
-                  })
+                  }),
                 );
               }
 
@@ -279,11 +286,18 @@ export class WorkstationClient {
             }
 
             // Emit API error event for toast consumption
-            if (typeof window !== "undefined" && response.status >= 400 && response.status !== 401) {
+            if (
+              typeof window !== "undefined" &&
+              response.status >= 400 &&
+              response.status !== 401
+            ) {
               window.dispatchEvent(
                 new CustomEvent("api-error", {
-                  detail: { message: `${response.status}: ${response.statusText}`, status: response.status },
-                })
+                  detail: {
+                    message: `${response.status}: ${response.statusText}`,
+                    status: response.status,
+                  },
+                }),
               );
             }
 
@@ -334,10 +348,7 @@ export class WorkstationClient {
    * but does NOT assume JSON request/response. Use for FormData uploads
    * and Blob downloads. Includes timeout and basic retry for 429/5xx.
    */
-  private async rawFetch(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<Response> {
+  private async rawFetch(path: string, options: RequestInit = {}): Promise<Response> {
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
     };
@@ -365,7 +376,11 @@ export class WorkstationClient {
         });
 
         if (!response.ok) {
-          if (response.status === 401 && typeof window !== "undefined" && !path.endsWith("/auth/login")) {
+          if (
+            response.status === 401 &&
+            typeof window !== "undefined" &&
+            !path.endsWith("/auth/login")
+          ) {
             this.token = null;
             if (!window.location.pathname.startsWith("/login")) {
               window.location.href = "/login";
@@ -503,7 +518,10 @@ export class WorkstationClient {
   }
 
   /** Change the authenticated user's password, requiring the current password for verification. */
-  async changePassword(currentPassword: string, newPassword: string): Promise<PasswordChangeResponse> {
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<PasswordChangeResponse> {
     return this.request("/api/auth/change-password", {
       method: "POST",
       body: JSON.stringify({
@@ -526,9 +544,7 @@ export class WorkstationClient {
   }
 
   /** Check whether a resource preemption is required before loading a new model. */
-  async checkPreemption(
-    data: PreemptionCheckRequest
-  ): Promise<PreemptionCheckResponse> {
+  async checkPreemption(data: PreemptionCheckRequest): Promise<PreemptionCheckResponse> {
     return this.request("/api/resources/check-preemption", {
       method: "POST",
       body: JSON.stringify(data),
@@ -536,9 +552,7 @@ export class WorkstationClient {
   }
 
   /** Submit a user decision to offload a model from GPU memory. */
-  async submitOffloadDecision(
-    data: OffloadDecisionRequest
-  ): Promise<OffloadDecisionResponse> {
+  async submitOffloadDecision(data: OffloadDecisionRequest): Promise<OffloadDecisionResponse> {
     return this.request("/api/resources/offload", {
       method: "POST",
       body: JSON.stringify(data),
@@ -546,9 +560,7 @@ export class WorkstationClient {
   }
 
   /** Reload a previously offloaded resource back into GPU memory. */
-  async reloadResource(
-    data: ReloadRequest
-  ): Promise<OffloadDecisionResponse> {
+  async reloadResource(data: ReloadRequest): Promise<OffloadDecisionResponse> {
     return this.request("/api/resources/reload", {
       method: "POST",
       body: JSON.stringify(data),
@@ -571,9 +583,7 @@ export class WorkstationClient {
   // Operations
 
   /** Persist the state of a long-running operation so it can be resumed or inspected. */
-  async saveOperationState(
-    data: OperationStateRequest
-  ): Promise<OperationStateResponse> {
+  async saveOperationState(data: OperationStateRequest): Promise<OperationStateResponse> {
     return this.request("/api/operations/state", {
       method: "POST",
       body: JSON.stringify(data),
@@ -581,17 +591,12 @@ export class WorkstationClient {
   }
 
   /** Retrieve the persisted state for a specific operation by ID. */
-  async getOperationState(
-    operationId: string
-  ): Promise<OperationStateResponse> {
+  async getOperationState(operationId: string): Promise<OperationStateResponse> {
     return this.request(`/api/operations/state/${operationId}`);
   }
 
   /** List recent operations with optional pagination. */
-  async listOperations(
-    limit?: number,
-    offset?: number
-  ): Promise<OperationListResponse> {
+  async listOperations(limit?: number, offset?: number): Promise<OperationListResponse> {
     const params = new URLSearchParams();
     if (limit !== undefined) params.set("limit", String(limit));
     if (offset !== undefined) params.set("offset", String(offset));
@@ -686,7 +691,7 @@ export class WorkstationClient {
   /** Partially update conversation state fields for a chat session. */
   async updateConversationState(
     chatId: string,
-    updates: Record<string, unknown>
+    updates: Record<string, unknown>,
   ): Promise<ConversationState> {
     return this.request(`/api/context/conversations/${chatId}`, {
       method: "PATCH",
@@ -755,7 +760,10 @@ export class WorkstationClient {
   }
 
   /** Update metadata or configuration for an existing project. */
-  async updateProject(projectId: string, data: ProjectUpdateRequest): Promise<ProjectUpdateResponse> {
+  async updateProject(
+    projectId: string,
+    data: ProjectUpdateRequest,
+  ): Promise<ProjectUpdateResponse> {
     return this.request(`/api/projects/${projectId}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -775,7 +783,10 @@ export class WorkstationClient {
   }
 
   /** Persist updated UI/UX preferences for a given user. */
-  async updateUserPreferences(userId: string, data: UserPreferencesUpdateRequest): Promise<UserPreferences> {
+  async updateUserPreferences(
+    userId: string,
+    data: UserPreferencesUpdateRequest,
+  ): Promise<UserPreferences> {
     return this.request(`/api/context/user/${userId}/preferences`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -796,18 +807,26 @@ export class WorkstationClient {
 
   /** Load an Ollama model into GPU memory, optionally specifying a keep-alive duration. */
   async loadOllamaModel(modelName: string, keepAlive?: string): Promise<ModelActionResponse> {
-    return this.request("/api/models/load", {
-      method: "POST",
-      body: JSON.stringify({ model_name: modelName, keep_alive: keepAlive }),
-    }, 120_000);
+    return this.request(
+      "/api/models/load",
+      {
+        method: "POST",
+        body: JSON.stringify({ model_name: modelName, keep_alive: keepAlive }),
+      },
+      120_000,
+    );
   }
 
   /** Unload an Ollama model from GPU memory to free VRAM. */
   async unloadOllamaModel(modelName: string): Promise<ModelActionResponse> {
-    return this.request("/api/models/unload", {
-      method: "POST",
-      body: JSON.stringify({ model_name: modelName }),
-    }, 120_000);
+    return this.request(
+      "/api/models/unload",
+      {
+        method: "POST",
+        body: JSON.stringify({ model_name: modelName }),
+      },
+      120_000,
+    );
   }
 
   /** Permanently delete an Ollama model from local storage. */
@@ -911,10 +930,7 @@ export class WorkstationClient {
   }
 
   /** Record token usage for a completed chat turn. */
-  async trackTokenUsage(
-    chatId: string,
-    data: TokenUsageRequest
-  ): Promise<TokenUsageResponse> {
+  async trackTokenUsage(chatId: string, data: TokenUsageRequest): Promise<TokenUsageResponse> {
     return this.request(`/api/context/conversations/${chatId}/tokens`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -955,7 +971,10 @@ export class WorkstationClient {
   }
 
   /** Replace the content or metadata of an existing system prompt. */
-  async updateSystemPrompt(promptId: string, data: SystemPromptUpdateRequest): Promise<SystemPrompt> {
+  async updateSystemPrompt(
+    promptId: string,
+    data: SystemPromptUpdateRequest,
+  ): Promise<SystemPrompt> {
     return this.request(`/api/context/system-prompts/${encodeURIComponent(promptId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -990,7 +1009,10 @@ export class WorkstationClient {
   }
 
   /** Replace the content or metadata of an existing context snippet. */
-  async updateSnippet(snippetId: string, data: ContextSnippetUpdateRequest): Promise<ContextSnippet> {
+  async updateSnippet(
+    snippetId: string,
+    data: ContextSnippetUpdateRequest,
+  ): Promise<ContextSnippet> {
     return this.request(`/api/context/snippets/${encodeURIComponent(snippetId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1020,7 +1042,10 @@ export class WorkstationClient {
   }
 
   /** Update the name or colour values of an existing saved palette. */
-  async updatePalette(paletteId: string, data: SavedPaletteUpdateRequest): Promise<SavedPaletteResponse> {
+  async updatePalette(
+    paletteId: string,
+    data: SavedPaletteUpdateRequest,
+  ): Promise<SavedPaletteResponse> {
     return this.request(`/api/palettes/${encodeURIComponent(paletteId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1037,16 +1062,23 @@ export class WorkstationClient {
   // Compaction Status
 
   /** Poll the status of a background context-compaction job. */
-  async getCompactionStatus(chatId: string, compactionId: string): Promise<CompactionStatusResponse> {
+  async getCompactionStatus(
+    chatId: string,
+    compactionId: string,
+  ): Promise<CompactionStatusResponse> {
     return this.request(
-      `/api/context/conversations/${chatId}/compactions/${encodeURIComponent(compactionId)}/status`
+      `/api/context/conversations/${chatId}/compactions/${encodeURIComponent(compactionId)}/status`,
     );
   }
 
   // Message Actions
 
   /** Partially update a message (e.g. edit content, add a rating). */
-  async updateMessage(chatId: string, messageId: string, data: MessageUpdateRequest): Promise<MessageUpdateResponse> {
+  async updateMessage(
+    chatId: string,
+    messageId: string,
+    data: MessageUpdateRequest,
+  ): Promise<MessageUpdateResponse> {
     return this.request(`/api/context/conversations/${chatId}/messages/${messageId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -1061,7 +1093,9 @@ export class WorkstationClient {
   }
 
   /** Trigger an asynchronous context-compaction (summarisation) job for a chat. */
-  async triggerCompaction(chatId: string): Promise<{ status: string; compaction_id?: string; reason?: string }> {
+  async triggerCompaction(
+    chatId: string,
+  ): Promise<{ status: string; compaction_id?: string; reason?: string }> {
     return this.request(`/api/context/conversations/${chatId}/compact`, {
       method: "POST",
     });
@@ -1072,7 +1106,9 @@ export class WorkstationClient {
     const params = new URLSearchParams();
     if (model) params.set("model", model);
     const query = params.toString();
-    return this.request(`/api/context/conversations/${chatId}/token-breakdown${query ? `?${query}` : ""}`);
+    return this.request(
+      `/api/context/conversations/${chatId}/token-breakdown${query ? `?${query}` : ""}`,
+    );
   }
 
   /** Return the fully assembled context payload that will be sent to the LLM on the next turn. */
@@ -1080,11 +1116,17 @@ export class WorkstationClient {
     const params = new URLSearchParams();
     if (model) params.set("model", model);
     const query = params.toString();
-    return this.request(`/api/context/conversations/${chatId}/assembled-context${query ? `?${query}` : ""}`);
+    return this.request(
+      `/api/context/conversations/${chatId}/assembled-context${query ? `?${query}` : ""}`,
+    );
   }
 
   /** Edit the human-readable summary text attached to a compaction record. */
-  async updateCompactionSummary(chatId: string, compactionId: string, summary: string): Promise<{ id: string; summary: string; status: string }> {
+  async updateCompactionSummary(
+    chatId: string,
+    compactionId: string,
+    summary: string,
+  ): Promise<{ id: string; summary: string; status: string }> {
     return this.request(`/api/context/conversations/${chatId}/compactions/${compactionId}`, {
       method: "PATCH",
       body: JSON.stringify({ summary }),
@@ -1092,7 +1134,10 @@ export class WorkstationClient {
   }
 
   /** Persist per-chat custom instructions that are injected into the system prompt. */
-  async updateChatInstructions(chatId: string, instructions: string): Promise<{ id: string; chat_instructions: string }> {
+  async updateChatInstructions(
+    chatId: string,
+    instructions: string,
+  ): Promise<{ id: string; chat_instructions: string }> {
     return this.request(`/api/context/conversations/${chatId}/chat-instructions`, {
       method: "PATCH",
       body: JSON.stringify({ chat_instructions: instructions }),
@@ -1225,7 +1270,11 @@ export class WorkstationClient {
   // Tool approval
 
   /** Approve or deny a pending tool-call that requires explicit user consent before execution. */
-  async submitToolApproval(callId: string, approved: boolean, modifiedArguments?: Record<string, unknown>): Promise<{ call_id: string; status: string }> {
+  async submitToolApproval(
+    callId: string,
+    approved: boolean,
+    modifiedArguments?: Record<string, unknown>,
+  ): Promise<{ call_id: string; status: string }> {
     return this.request("/api/tool-approvals", {
       method: "POST",
       body: JSON.stringify({
@@ -1250,11 +1299,7 @@ export class WorkstationClient {
   }
 
   /** Create a new file at the specified path inside the sandbox container. */
-  async createFile(
-    projectId: string,
-    path: string,
-    content?: string
-  ): Promise<FileNode> {
+  async createFile(projectId: string, path: string, content?: string): Promise<FileNode> {
     if (!path || !path.trim()) {
       throw new ApiError(400, "File path cannot be empty");
     }
@@ -1265,10 +1310,7 @@ export class WorkstationClient {
   }
 
   /** Create a new directory at the specified path inside the sandbox container. */
-  async createDirectory(
-    projectId: string,
-    path: string
-  ): Promise<FileNode> {
+  async createDirectory(projectId: string, path: string): Promise<FileNode> {
     return this.request(`/api/sandbox/${projectId}/directories`, {
       method: "POST",
       body: JSON.stringify({ path }),
@@ -1276,11 +1318,7 @@ export class WorkstationClient {
   }
 
   /** Overwrite the content of an existing file inside the sandbox. */
-  async updateFile(
-    projectId: string,
-    path: string,
-    content: string
-  ): Promise<FileNode> {
+  async updateFile(projectId: string, path: string, content: string): Promise<FileNode> {
     return this.request(`/api/sandbox/${projectId}/files`, {
       method: "PUT",
       body: JSON.stringify({ path, content }),
@@ -1288,11 +1326,7 @@ export class WorkstationClient {
   }
 
   /** Rename or move a file within the sandbox container. */
-  async renameFile(
-    projectId: string,
-    oldPath: string,
-    newPath: string
-  ): Promise<FileNode> {
+  async renameFile(projectId: string, oldPath: string, newPath: string): Promise<FileNode> {
     if (!newPath || !newPath.trim()) {
       throw new ApiError(400, "New file path cannot be empty");
     }
@@ -1321,7 +1355,7 @@ export class WorkstationClient {
   async createAutomationAction(
     projectId: string,
     actionType: string,
-    actionData?: Record<string, unknown>
+    actionData?: Record<string, unknown>,
   ): Promise<AutomationAction> {
     return this.request("/api/automation/actions", {
       method: "POST",
@@ -1336,33 +1370,27 @@ export class WorkstationClient {
   /** List automation actions for a project, optionally filtered by approval or execution state. */
   async listAutomationActions(
     projectId: string,
-    filters?: { approved?: boolean; executed?: boolean }
+    filters?: { approved?: boolean; executed?: boolean },
   ): Promise<AutomationActionListResponse> {
     const params = new URLSearchParams();
-    if (filters?.approved !== undefined)
-      params.set("approved", String(filters.approved));
-    if (filters?.executed !== undefined)
-      params.set("executed", String(filters.executed));
+    if (filters?.approved !== undefined) params.set("approved", String(filters.approved));
+    if (filters?.executed !== undefined) params.set("executed", String(filters.executed));
     return this.request(`/api/automation/actions/${projectId}?${params}`);
   }
 
   /** Mark an automation action as approved, optionally supplying modified action data. */
   async approveAutomationAction(
     actionId: string,
-    modifiedData?: Record<string, unknown>
+    modifiedData?: Record<string, unknown>,
   ): Promise<AutomationAction> {
     return this.request(`/api/automation/actions/${actionId}/approve`, {
       method: "PUT",
-      body: JSON.stringify(
-        modifiedData !== undefined ? { action_data: modifiedData } : {}
-      ),
+      body: JSON.stringify(modifiedData !== undefined ? { action_data: modifiedData } : {}),
     });
   }
 
   /** Run an approved automation action immediately. */
-  async executeAutomationAction(
-    actionId: string
-  ): Promise<AutomationActionExecuteResponse> {
+  async executeAutomationAction(actionId: string): Promise<AutomationActionExecuteResponse> {
     return this.request(`/api/automation/actions/${actionId}/execute`, {
       method: "POST",
     });
@@ -1380,12 +1408,11 @@ export class WorkstationClient {
   /** List the history of autonomous file edits made by the agent in a project. */
   async listYoloEdits(
     projectId: string,
-    filters?: { limit?: number; offset?: number; undo_performed?: boolean }
+    filters?: { limit?: number; offset?: number; undo_performed?: boolean },
   ): Promise<YoloEditListResponse> {
     const params = new URLSearchParams();
     if (filters?.limit !== undefined) params.set("limit", String(filters.limit));
-    if (filters?.offset !== undefined)
-      params.set("offset", String(filters.offset));
+    if (filters?.offset !== undefined) params.set("offset", String(filters.offset));
     if (filters?.undo_performed !== undefined)
       params.set("undo_performed", String(filters.undo_performed));
     return this.request(`/api/yolo/edits/${projectId}?${params}`);
@@ -1406,9 +1433,7 @@ export class WorkstationClient {
   // Image Generation
 
   /** Enqueue an image generation job via ComfyUI and return the resulting job record. */
-  async generateImage(
-    data: ImageGenerationRequest
-  ): Promise<ImageGenerationResponse> {
+  async generateImage(data: ImageGenerationRequest): Promise<ImageGenerationResponse> {
     const payload: ImageGenerationRequest = {
       project_id: data.project_id,
       workflow_type: data.workflow_type,
@@ -1458,7 +1483,7 @@ export class WorkstationClient {
     projectId?: string,
     skip?: number,
     limit?: number,
-    status?: string
+    status?: string,
   ): Promise<ImageGenerationListResponse> {
     const params = new URLSearchParams();
     if (projectId) params.set("project_id", projectId);
@@ -1473,7 +1498,7 @@ export class WorkstationClient {
   /** Download a generated image file as a `Blob` for local save or preview. */
   async downloadImage(jobId: string, filename: string): Promise<Blob> {
     const response = await this.rawFetch(
-      `/api/image/download/${encodeURIComponent(jobId)}/${encodeURIComponent(filename)}`
+      `/api/image/download/${encodeURIComponent(jobId)}/${encodeURIComponent(filename)}`,
     );
     return response.blob();
   }
@@ -1552,7 +1577,10 @@ export class WorkstationClient {
   }
 
   /** Replace the definition of an existing UI component. */
-  async updateUIComponent(componentId: string, data: UIComponentUpdateRequest): Promise<UIComponentInfo> {
+  async updateUIComponent(
+    componentId: string,
+    data: UIComponentUpdateRequest,
+  ): Promise<UIComponentInfo> {
     return this.request(`/api/ui-components/${encodeURIComponent(componentId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -1569,7 +1597,10 @@ export class WorkstationClient {
   // Docker Export
 
   /** Build a Docker image from a project's sandbox and return the image metadata. */
-  async exportAsDocker(projectId: string, data: DockerExportRequest): Promise<DockerExportResponse> {
+  async exportAsDocker(
+    projectId: string,
+    data: DockerExportRequest,
+  ): Promise<DockerExportResponse> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/export-docker`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -1579,7 +1610,7 @@ export class WorkstationClient {
   /** Download the built Docker image as a `.tar` archive `Blob`. */
   async downloadDockerTar(projectId: string, imageId: string): Promise<Blob> {
     const response = await this.rawFetch(
-      `/api/projects/${encodeURIComponent(projectId)}/export-docker/${encodeURIComponent(imageId)}/download`
+      `/api/projects/${encodeURIComponent(projectId)}/export-docker/${encodeURIComponent(imageId)}/download`,
     );
     return response.blob();
   }
@@ -1595,9 +1626,7 @@ export class WorkstationClient {
   }
 
   /** Scrape a website and create a project from the downloaded content. */
-  async importFromWebsite(
-    data: WebsiteImportRequest
-  ): Promise<WebsiteImportResponse> {
+  async importFromWebsite(data: WebsiteImportRequest): Promise<WebsiteImportResponse> {
     return this.request("/api/projects/import/website", {
       method: "POST",
       body: JSON.stringify(data),
@@ -1609,13 +1638,12 @@ export class WorkstationClient {
     name: string,
     file: File,
     installDeps?: boolean,
-    path?: string
+    path?: string,
   ): Promise<ArchiveUploadResponse> {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("file", file);
-    if (installDeps !== undefined)
-      formData.append("install_deps", String(installDeps));
+    if (installDeps !== undefined) formData.append("install_deps", String(installDeps));
     if (path) formData.append("path", path);
 
     const response = await this.rawFetch("/api/projects/import/upload", {
@@ -1627,9 +1655,7 @@ export class WorkstationClient {
 
   /** Poll the progress of an ongoing project import job. */
   async getImportStatus(importId: string): Promise<ImportStatusResponse> {
-    return this.request(
-      `/api/projects/import/${encodeURIComponent(importId)}/status`
-    );
+    return this.request(`/api/projects/import/${encodeURIComponent(importId)}/status`);
   }
 
   /** Run heuristic detection to identify the project's primary language and framework. */
@@ -1641,18 +1667,14 @@ export class WorkstationClient {
 
   /** Export a project's sandbox filesystem as a downloadable zip archive `Blob`. */
   async exportProject(projectId: string): Promise<Blob> {
-    const response = await this.rawFetch(
-      `/api/projects/${encodeURIComponent(projectId)}/export`,
-      { method: "POST" }
-    );
+    const response = await this.rawFetch(`/api/projects/${encodeURIComponent(projectId)}/export`, {
+      method: "POST",
+    });
     return response.blob();
   }
 
   /** Duplicate an existing project into a new project with a different name. */
-  async cloneProject(
-    projectId: string,
-    data: CloneProjectRequest
-  ): Promise<CloneProjectResponse> {
+  async cloneProject(projectId: string, data: CloneProjectRequest): Promise<CloneProjectResponse> {
     return this.request(`/api/projects/${encodeURIComponent(projectId)}/clone`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -1660,31 +1682,23 @@ export class WorkstationClient {
   }
 
   /** Create a named filesystem snapshot of the project's current sandbox state. */
-  async createSnapshot(
-    projectId: string,
-    data: SnapshotCreateRequest
-  ): Promise<SnapshotInfo> {
-    return this.request(
-      `/api/projects/${encodeURIComponent(projectId)}/snapshots`,
-      { method: "POST", body: JSON.stringify(data) }
-    );
+  async createSnapshot(projectId: string, data: SnapshotCreateRequest): Promise<SnapshotInfo> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/snapshots`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   /** List all named snapshots for a project. */
   async listSnapshots(projectId: string): Promise<SnapshotListResponse> {
-    return this.request(
-      `/api/projects/${encodeURIComponent(projectId)}/snapshots`
-    );
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/snapshots`);
   }
 
   /** Roll back a project's sandbox to a previously saved snapshot. */
-  async restoreSnapshot(
-    projectId: string,
-    name: string
-  ): Promise<SnapshotRestoreResponse> {
+  async restoreSnapshot(projectId: string, name: string): Promise<SnapshotRestoreResponse> {
     return this.request(
       `/api/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(name)}/restore`,
-      { method: "POST" }
+      { method: "POST" },
     );
   }
 
@@ -1692,7 +1706,7 @@ export class WorkstationClient {
   async deleteSnapshot(projectId: string, name: string): Promise<void> {
     return this.request(
       `/api/projects/${encodeURIComponent(projectId)}/snapshots/${encodeURIComponent(name)}`,
-      { method: "DELETE" }
+      { method: "DELETE" },
     );
   }
 
@@ -1701,7 +1715,7 @@ export class WorkstationClient {
   /** Register a remote Drupal site with a project by providing its connection credentials. */
   async connectDrupalSite(
     projectId: string,
-    data: DrupalConnectRequest
+    data: DrupalConnectRequest,
   ): Promise<DrupalConnectResponse> {
     return this.request(`/api/drupal/${encodeURIComponent(projectId)}/connect`, {
       method: "POST",
@@ -1727,10 +1741,7 @@ export class WorkstationClient {
   }
 
   /** Execute a Drush CLI command against the connected Drupal site. */
-  async runDrush(
-    projectId: string,
-    command: string
-  ): Promise<DrushCommandResponse> {
+  async runDrush(projectId: string, command: string): Promise<DrushCommandResponse> {
     return this.request(`/api/drupal/${encodeURIComponent(projectId)}/drush`, {
       method: "POST",
       body: JSON.stringify({ command } satisfies DrushCommandRequest),
@@ -1753,18 +1764,14 @@ export class WorkstationClient {
 
   /** Fetch the current sync status (ahead/behind, dirty files) between local and remote Drupal. */
   async getDrupalSyncStatus(projectId: string): Promise<SyncStatus> {
-    return this.request(
-      `/api/drupal/${encodeURIComponent(projectId)}/sync-status`
-    );
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/sync-status`);
   }
 
   // Drupal Staging (SSH-based clone/push)
 
   /** Fetch the status of the local Drupal staging environment for a project. */
   async getDrupalStagingStatus(projectId: string): Promise<StagingStatus> {
-    return this.request(
-      `/api/drupal/${encodeURIComponent(projectId)}/staging-status`
-    );
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/staging-status`);
   }
 
   /** Clone the production Drupal database and files into the local staging environment via SSH. */
@@ -1798,21 +1805,14 @@ export class WorkstationClient {
   }
 
   /** List the available content types defined on the connected Drupal site. */
-  async getDrupalContentTypes(
-    projectId: string
-  ): Promise<DrupalContentType[]> {
-    return this.request(
-      `/api/drupal/${encodeURIComponent(projectId)}/content-types`
-    );
+  async getDrupalContentTypes(projectId: string): Promise<DrupalContentType[]> {
+    return this.request(`/api/drupal/${encodeURIComponent(projectId)}/content-types`);
   }
 
   /** List nodes of a specific content-type bundle from the connected Drupal site. */
-  async listDrupalContent(
-    projectId: string,
-    bundle: string
-  ): Promise<DrupalNodeListResponse> {
+  async listDrupalContent(projectId: string, bundle: string): Promise<DrupalNodeListResponse> {
     return this.request(
-      `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}`
+      `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}`,
     );
   }
 
@@ -1820,11 +1820,11 @@ export class WorkstationClient {
   async createDrupalNode(
     projectId: string,
     bundle: string,
-    data: DrupalNodeCreateRequest
+    data: DrupalNodeCreateRequest,
   ): Promise<DrupalNode> {
     return this.request(
       `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}`,
-      { method: "POST", body: JSON.stringify(data) }
+      { method: "POST", body: JSON.stringify(data) },
     );
   }
 
@@ -1833,28 +1833,24 @@ export class WorkstationClient {
     projectId: string,
     bundle: string,
     nodeUuid: string,
-    data: DrupalNodeUpdateRequest
+    data: DrupalNodeUpdateRequest,
   ): Promise<DrupalNode> {
     return this.request(
       `/api/drupal/${encodeURIComponent(projectId)}/content/${encodeURIComponent(bundle)}/${encodeURIComponent(nodeUuid)}`,
-      { method: "PATCH", body: JSON.stringify(data) }
+      { method: "PATCH", body: JSON.stringify(data) },
     );
   }
 
   // Knowledge Base
 
   /** Fetch paginated text chunks that belong to a specific KB source document. */
-  async getKBChunks(
-    sourceId: string,
-    skip?: number,
-    limit?: number
-  ): Promise<KBChunk[]> {
+  async getKBChunks(sourceId: string, skip?: number, limit?: number): Promise<KBChunk[]> {
     const params = new URLSearchParams();
     if (skip !== undefined) params.set("skip", String(skip));
     if (limit !== undefined) params.set("limit", String(limit));
     const query = params.toString();
     return this.request(
-      `/api/kb/chunks/${encodeURIComponent(sourceId)}${query ? `?${query}` : ""}`
+      `/api/kb/chunks/${encodeURIComponent(sourceId)}${query ? `?${query}` : ""}`,
     );
   }
 
@@ -1906,7 +1902,10 @@ export class WorkstationClient {
   }
 
   /** Extract and preview text from a file using OCR or vision before ingestion (wizard step 2). */
-  async extractPreviewKB(file: File, method?: "ocr" | "vision"): Promise<import("./types").KBExtractPreviewResponse> {
+  async extractPreviewKB(
+    file: File,
+    method?: "ocr" | "vision",
+  ): Promise<import("./types").KBExtractPreviewResponse> {
     const formData = new FormData();
     formData.append("file", file);
     const query = method ? `?method=${method}` : "";
@@ -1918,7 +1917,9 @@ export class WorkstationClient {
   }
 
   /** Preview how extracted text will be split into chunks given the specified chunking parameters. */
-  async chunkPreviewKB(data: import("./types").KBChunkPreviewRequest): Promise<import("./types").KBChunkPreviewResponse> {
+  async chunkPreviewKB(
+    data: import("./types").KBChunkPreviewRequest,
+  ): Promise<import("./types").KBChunkPreviewResponse> {
     return this.request("/api/kb/chunk-preview", {
       method: "POST",
       body: JSON.stringify(data),
@@ -1931,7 +1932,9 @@ export class WorkstationClient {
   }
 
   /** Trigger batch embedding and vector-store ingestion for a set of uploaded KB files. */
-  async bulkIngestKB(data: import("./types").KBBulkIngestRequest): Promise<import("./types").KBBulkIngestResponse> {
+  async bulkIngestKB(
+    data: import("./types").KBBulkIngestRequest,
+  ): Promise<import("./types").KBBulkIngestResponse> {
     return this.request("/api/kb/bulk-ingest", {
       method: "POST",
       body: JSON.stringify(data),
@@ -1984,7 +1987,10 @@ export class WorkstationClient {
   }
 
   /** Update a user's role, active status, or other admin-controlled fields. */
-  async updateUserAsAdmin(userId: string, data: AdminUserUpdateRequest): Promise<AdminUserUpdateResponse> {
+  async updateUserAsAdmin(
+    userId: string,
+    data: AdminUserUpdateRequest,
+  ): Promise<AdminUserUpdateResponse> {
     return this.request(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2021,10 +2027,7 @@ export class WorkstationClient {
   }
 
   /** Export the admin audit log as a downloadable CSV or JSON `Blob`. */
-  async exportAuditLogs(
-    params?: AuditLogFilters,
-    format: "csv" | "json" = "csv"
-  ): Promise<Blob> {
+  async exportAuditLogs(params?: AuditLogFilters, format: "csv" | "json" = "csv"): Promise<Blob> {
     const searchParams = new URLSearchParams();
     searchParams.set("format", format);
     if (params) {
@@ -2039,9 +2042,7 @@ export class WorkstationClient {
       if (params.order) searchParams.set("order", params.order);
     }
 
-    const response = await this.rawFetch(
-      `/api/admin/users/audit-logs/export?${searchParams}`
-    );
+    const response = await this.rawFetch(`/api/admin/users/audit-logs/export?${searchParams}`);
     return response.blob();
   }
 
@@ -2061,7 +2062,9 @@ export class WorkstationClient {
   }
 
   /** Create a new help topic entry (admin only). */
-  async createHelpTopic(data: import("./types").HelpTopicCreateRequest): Promise<import("./types").HelpTopic> {
+  async createHelpTopic(
+    data: import("./types").HelpTopicCreateRequest,
+  ): Promise<import("./types").HelpTopic> {
     return this.request("/api/help", {
       method: "POST",
       body: JSON.stringify(data),
@@ -2069,7 +2072,10 @@ export class WorkstationClient {
   }
 
   /** Update an existing help topic's content or metadata (admin only). */
-  async updateHelpTopic(topicId: string, data: import("./types").HelpTopicUpdateRequest): Promise<import("./types").HelpTopic> {
+  async updateHelpTopic(
+    topicId: string,
+    data: import("./types").HelpTopicUpdateRequest,
+  ): Promise<import("./types").HelpTopic> {
     return this.request(`/api/help/${encodeURIComponent(topicId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2115,7 +2121,10 @@ export class WorkstationClient {
   }
 
   /** Replace the content or metadata of an existing prompt preset. */
-  async updatePromptPreset(presetId: string, data: PromptPresetUpdate): Promise<PromptPresetResponse> {
+  async updatePromptPreset(
+    presetId: string,
+    data: PromptPresetUpdate,
+  ): Promise<PromptPresetResponse> {
     return this.request(`/api/prompt-presets/${encodeURIComponent(presetId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -2146,7 +2155,10 @@ export class WorkstationClient {
   }
 
   /** Write updated content to a file in the local Drupal installation. */
-  async updateDrupalLocalFile(path: string, content: string): Promise<{ path: string; size: number }> {
+  async updateDrupalLocalFile(
+    path: string,
+    content: string,
+  ): Promise<{ path: string; size: number }> {
     return this.request("/api/drupal-local/files/content", {
       method: "PUT",
       body: JSON.stringify({ path, content }),
@@ -2154,7 +2166,10 @@ export class WorkstationClient {
   }
 
   /** Create a new file in the local Drupal installation. */
-  async createDrupalLocalFile(path: string, content?: string): Promise<{ path: string; name: string; type: string }> {
+  async createDrupalLocalFile(
+    path: string,
+    content?: string,
+  ): Promise<{ path: string; name: string; type: string }> {
     return this.request("/api/drupal-local/files", {
       method: "POST",
       body: JSON.stringify({ path, content: content ?? "" }),
@@ -2162,7 +2177,9 @@ export class WorkstationClient {
   }
 
   /** Create a new directory in the local Drupal installation. */
-  async createDrupalLocalDirectory(path: string): Promise<{ path: string; name: string; type: string }> {
+  async createDrupalLocalDirectory(
+    path: string,
+  ): Promise<{ path: string; name: string; type: string }> {
     return this.request("/api/drupal-local/files/directory", {
       method: "POST",
       body: JSON.stringify({ path }),
@@ -2176,7 +2193,10 @@ export class WorkstationClient {
   }
 
   /** Rename or move a file within the local Drupal installation. */
-  async renameDrupalLocalFile(oldPath: string, newPath: string): Promise<{ path: string; name: string; type: string }> {
+  async renameDrupalLocalFile(
+    oldPath: string,
+    newPath: string,
+  ): Promise<{ path: string; name: string; type: string }> {
     return this.request("/api/drupal-local/files/rename", {
       method: "POST",
       body: JSON.stringify({ old_path: oldPath, new_path: newPath }),
@@ -2202,7 +2222,9 @@ export class WorkstationClient {
   }
 
   /** Scaffold a new custom Drupal module with boilerplate files. */
-  async scaffoldDrupalLocalModule(data: import("./types").DrupalLocalModuleScaffoldRequest): Promise<import("./types").DrupalLocalModuleScaffoldResponse> {
+  async scaffoldDrupalLocalModule(
+    data: import("./types").DrupalLocalModuleScaffoldRequest,
+  ): Promise<import("./types").DrupalLocalModuleScaffoldResponse> {
     return this.request("/api/drupal-local/scaffold/module", {
       method: "POST",
       body: JSON.stringify(data),
@@ -2230,7 +2252,9 @@ export class WorkstationClient {
   }
 
   /** Generate a colour palette from a seed colour or description using the AI palette service. */
-  async generatePalette(data: import("./types").PaletteGenerateRequest): Promise<import("./types").PaletteResponse> {
+  async generatePalette(
+    data: import("./types").PaletteGenerateRequest,
+  ): Promise<import("./types").PaletteResponse> {
     return this.request("/api/drupal-local/palette/generate", {
       method: "POST",
       body: JSON.stringify(data),

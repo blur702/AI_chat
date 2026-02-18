@@ -82,7 +82,7 @@ export function TimelineClipBlock({
       document.addEventListener("mousemove", handleMove);
       document.addEventListener("mouseup", handleUp);
     },
-    [clip, trackId, pixelsPerSecond, locked, updateClip]
+    [clip, trackId, pixelsPerSecond, locked, updateClip],
   );
 
   const left = clip.start_time * pixelsPerSecond;
@@ -94,7 +94,7 @@ export function TimelineClipBlock({
       e.stopPropagation();
       selectClip(clip.id, trackId);
     },
-    [clip.id, trackId, selectClip]
+    [clip.id, trackId, selectClip],
   );
 
   // Display label
@@ -111,26 +111,24 @@ export function TimelineClipBlock({
     <div
       ref={setNodeRef}
       {...(locked ? {} : { ...listeners, ...attributes })}
-      className={`absolute top-1 bottom-1 rounded border text-[10px] text-white/90 cursor-grab select-none flex items-center overflow-hidden ${
+      className={`absolute bottom-1 top-1 flex cursor-grab select-none items-center overflow-hidden rounded border text-[10px] text-white/90 ${
         CLIP_COLORS[clipType] || CLIP_COLORS.video
-      } ${isSelected ? "ring-2 ring-white/60" : ""} ${
-        isDragging ? "opacity-50 z-50" : "z-10"
-      }`}
+      } ${isSelected ? "ring-2 ring-white/60" : ""} ${isDragging ? "z-50 opacity-50" : "z-10"}`}
       style={{ left, width }}
       onClick={handleClick}
     >
       {/* Left trim handle */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-white/30 z-20"
+        className="absolute bottom-0 left-0 top-0 z-20 w-1.5 cursor-col-resize hover:bg-white/30"
         onMouseDown={(e) => handleTrimStart("left", e)}
       />
 
       {/* Clip content */}
-      <span className="px-2 truncate pointer-events-none">{label}</span>
+      <span className="pointer-events-none truncate px-2">{label}</span>
 
       {/* Right trim handle */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-white/30 z-20"
+        className="absolute bottom-0 right-0 top-0 z-20 w-1.5 cursor-col-resize hover:bg-white/30"
         onMouseDown={(e) => handleTrimStart("right", e)}
       />
     </div>

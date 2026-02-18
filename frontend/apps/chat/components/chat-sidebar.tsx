@@ -26,7 +26,7 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette, ImageIcon } from "lucide-react";
+import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette, ImageIcon, Film, ShieldCheck } from "lucide-react";
 import { useHelp } from "./help/help-provider";
 import { t } from "@/lib/i18n";
 
@@ -399,7 +399,10 @@ const SidebarContent = memo(function SidebarContent({
               <Link
                 href="/projects"
                 onClick={onChatSelect}
-                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/projects" && "bg-accent text-accent-foreground"
+                )}
               >
                 <Code2 className="h-4 w-4" aria-hidden="true" />
                 <span className="text-sm">{t("projects")}</span>
@@ -452,7 +455,10 @@ const SidebarContent = memo(function SidebarContent({
               <Link
                 href="/settings"
                 onClick={onChatSelect}
-                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/settings" && "bg-accent text-accent-foreground"
+                )}
               >
                 <Settings className="h-4 w-4" aria-hidden="true" />
                 <span className="text-sm">{t("settings")}</span>
@@ -485,7 +491,7 @@ const SidebarContent = memo(function SidebarContent({
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
-                href={`/workspace/${typeof window !== "undefined" ? localStorage.getItem("workstation_chat_project_id") ?? "" : ""}/image-gen`}
+                href={projectId ? `/workspace/${projectId}/image-gen` : "#"}
                 onClick={onChatSelect}
                 className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
@@ -495,6 +501,42 @@ const SidebarContent = memo(function SidebarContent({
             </TooltipTrigger>
             <TooltipContent side="right">
               <p>Generate and browse AI images</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/studio"
+                onClick={onChatSelect}
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/studio" && "bg-accent text-accent-foreground"
+                )}
+              >
+                <Film className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Studio</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Create e-learning videos with screen recordings</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/admin"
+                onClick={onChatSelect}
+                className={cn(
+                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  pathname === "/admin" && "bg-accent text-accent-foreground"
+                )}
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                <span className="text-sm">Admin</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>System administration and monitoring</p>
             </TooltipContent>
           </Tooltip>
           <Tooltip>

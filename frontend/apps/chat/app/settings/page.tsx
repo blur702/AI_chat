@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import {
-  Button,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -10,10 +9,9 @@ import {
   TooltipProvider,
 } from "@workstation/ui";
 import { useAuth, useSettings, useResources } from "@workstation/api/hooks";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { PromptLibrary } from "@/components/context/prompt-library";
 import { SnippetLibrary } from "@/components/context/snippet-library";
-import Link from "next/link";
 import { t } from "@/lib/i18n";
 
 import { ProfileTab } from "./tabs/profile-tab";
@@ -56,14 +54,12 @@ export default function SettingsPage() {
 
   return (
     <TooltipProvider delayDuration={300}>
-    <div className="flex min-h-screen flex-col p-8 max-w-3xl mx-auto w-full">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/chat">
-          <Button variant="ghost" size="icon" aria-label="Back to chat">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-bold">{t("settingsTitle")}</h1>
+    <div className="flex h-full flex-col overflow-auto p-6 md:p-8 max-w-3xl mx-auto w-full">
+      <div className="mb-6">
+        <h1 className="text-sm font-semibold">{t("settingsTitle")}</h1>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Manage your profile, preferences, and configuration.
+        </p>
       </div>
 
       {isLoading ? (
@@ -163,3 +159,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+

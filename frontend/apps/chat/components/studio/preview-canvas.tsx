@@ -8,8 +8,7 @@ import { PlaybackEngine } from "./playback-engine";
 export function PreviewCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PlaybackEngine | null>(null);
-  const { timeline, currentTime, isPlaying, setCurrentTime, setIsPlaying } =
-    useStudioStore();
+  const { timeline, currentTime, isPlaying, setCurrentTime, setIsPlaying } = useStudioStore();
 
   const settings = timeline.settings;
 
@@ -45,9 +44,9 @@ export function PreviewCanvas() {
   }, [currentTime, isPlaying]);
 
   return (
-    <div className="h-full flex flex-col bg-black/95">
+    <div className="flex h-full flex-col bg-black/95">
       {/* Video viewport */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden p-2">
+      <div className="flex flex-1 items-center justify-center overflow-hidden p-2">
         <div
           ref={containerRef}
           className="relative bg-black"

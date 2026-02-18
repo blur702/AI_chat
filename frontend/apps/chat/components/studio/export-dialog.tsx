@@ -96,14 +96,26 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
     };
   }, [exportId, status]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!exportId) return;
     const token = localStorage.getItem("auth_token");
-    // Open download in a new tab with auth
-    window.open(
-      `/api/studio/exports/${exportId}/download?token=${token}`,
-      "_blank"
-    );
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`/api/studio/exports/${exportId}/download`, { headers });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `export-${exportId}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Download failed silently
+    }
   }, [exportId]);
 
   const formatSize = (bytes: number | null) => {
@@ -113,15 +125,12 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-card rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="mx-4 w-full max-w-md rounded-lg bg-card p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold">Export Video</h3>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-muted text-muted-foreground"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -132,13 +141,13 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setFormat("mp4")}
-                  className={`flex items-center gap-2 p-3 rounded-lg border text-left text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
                     format === "mp4"
                       ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border hover:bg-muted text-muted-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  <FileVideo className="w-5 h-5 shrink-0" />
+                  <FileVideo className="h-5 w-5 shrink-0" />
                   <div>
                     <div className="font-medium">MP4 Video</div>
                     <div className="text-[10px] text-muted-foreground">Standard video file</div>
@@ -146,16 +155,18 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
                 </button>
                 <button
                   onClick={() => setFormat("html")}
-                  className={`flex items-center gap-2 p-3 rounded-lg border text-left text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
                     format === "html"
                       ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border hover:bg-muted text-muted-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  <Globe className="w-5 h-5 shrink-0" />
+                  <Globe className="h-5 w-5 shrink-0" />
                   <div>
                     <div className="font-medium">Interactive HTML</div>
-                    <div className="text-[10px] text-muted-foreground">Clickable links & overlays</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Clickable links & overlays
+                    </div>
                   </div>
                 </button>
               </div>
@@ -165,12 +176,12 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
                 ? "Renders all tracks to an MP4 video via FFmpeg."
                 : "Creates a self-contained HTML page with video playback and clickable text/link overlays."}
             </p>
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
               <Button onClick={startExport}>
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="mr-2 h-4 w-4" />
                 Start Export
               </Button>
             </div>
@@ -180,38 +191,34 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
         {status === "exporting" && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
               <span className="text-sm">Rendering video...</span>
             </div>
-            <div className="w-full bg-muted rounded-full h-2">
+            <div className="h-2 w-full rounded-full bg-muted">
               <div
-                className="bg-primary h-2 rounded-full transition-all duration-500"
+                className="h-2 rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              {progress}% complete
-            </p>
+            <p className="text-center text-xs text-muted-foreground">{progress}% complete</p>
           </div>
         )}
 
         {status === "completed" && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-green-500">
-              <CheckCircle className="w-5 h-5" />
+              <CheckCircle className="h-5 w-5" />
               <span className="text-sm font-medium">Export complete!</span>
             </div>
             {fileSize && (
-              <p className="text-xs text-muted-foreground">
-                File size: {formatSize(fileSize)}
-              </p>
+              <p className="text-xs text-muted-foreground">File size: {formatSize(fileSize)}</p>
             )}
-            <div className="flex gap-2 justify-end">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose}>
                 Close
               </Button>
               <Button onClick={handleDownload}>
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="mr-2 h-4 w-4" />
                 Download {format === "html" ? "HTML" : "MP4"}
               </Button>
             </div>
@@ -221,15 +228,11 @@ export function ExportDialog({ projectId, onClose }: ExportDialogProps) {
         {status === "failed" && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="w-5 h-5" />
+              <AlertCircle className="h-5 w-5" />
               <span className="text-sm font-medium">Export failed</span>
             </div>
-            {error && (
-              <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                {error}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
+            {error && <p className="rounded bg-muted p-2 text-xs text-muted-foreground">{error}</p>}
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose}>
                 Close
               </Button>

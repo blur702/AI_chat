@@ -2,10 +2,10 @@
 
 import { SidebarLayout } from "@/components/sidebar-layout";
 
-export default function PalettesLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <SidebarLayout mobileTitle="Palettes">{children}</SidebarLayout>;
+  return <SidebarLayout mobileTitle="Admin Dashboard">{children}</SidebarLayout>;
 }

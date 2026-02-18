@@ -10,6 +10,7 @@ Provides REST endpoints for:
 import logging
 import mimetypes
 import os
+import re
 import shutil
 from datetime import datetime, timezone
 from typing import Optional
@@ -52,6 +53,16 @@ from app.services.ffmpeg_service import (
 
 logger = logging.getLogger(__name__)
 
+MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+
+
+def _sanitize_filename(raw: str) -> str:
+    """Strip path components and dangerous characters from a user-supplied filename."""
+    name = os.path.basename(raw)
+    name = re.sub(r"[^\w.\-]", "_", name)
+    return name or "upload"
+
+
 router = APIRouter(prefix="/studio", tags=["studio"])
 
 
@@ -89,7 +100,7 @@ def _asset_to_response(asset: MediaAsset) -> MediaAssetResponse:
         width=asset.width,
         height=asset.height,
         thumbnail_path=asset.thumbnail_path,
-        metadata=asset.metadata,
+        metadata=asset.asset_metadata,
         created_at=str(asset.created_at) if asset.created_at else None,
     )
 
@@ -279,11 +290,12 @@ async def upload_media(
     # Create DB record first to get ID for storage path
     mime = file.content_type or mimetypes.guess_type(file.filename or "file")[0] or "application/octet-stream"
     media_type = get_media_type(mime)
+    safe_name = _sanitize_filename(file.filename or "upload")
 
     asset = MediaAsset(
         user_id=user_id,
         video_project_id=project.id,
-        filename=file.filename or "upload",
+        filename=safe_name,
         file_path="",  # set after save
         media_type=media_type,
         mime_type=mime,
@@ -291,17 +303,26 @@ async def upload_media(
     db.add(asset)
     await db.flush()  # get ID
 
-    # Save file to disk
+    # Save file to disk in chunks to avoid memory exhaustion
     asset_id = str(asset.id)
     media_dir = get_project_media_dir(str(project_id), asset_id)
-    file_path = os.path.join(media_dir, asset.filename)
+    file_path = os.path.join(media_dir, safe_name)
 
-    content = await file.read()
+    total_bytes = 0
     with open(file_path, "wb") as f:
-        f.write(content)
+        while chunk := await file.read(1024 * 1024):  # 1 MB chunks
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                f.close()
+                os.remove(file_path)
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+                )
+            f.write(chunk)
 
     asset.file_path = file_path
-    asset.file_size_bytes = len(content)
+    asset.file_size_bytes = total_bytes
 
     # Probe metadata with ffprobe
     try:
@@ -309,7 +330,7 @@ async def upload_media(
         asset.duration_seconds = probe_data.get("duration")
         asset.width = probe_data.get("width")
         asset.height = probe_data.get("height")
-        asset.metadata = probe_data
+        asset.asset_metadata = probe_data
     except Exception as e:
         logger.warning("ffprobe failed for %s: %s", file_path, e)
 
@@ -444,40 +465,49 @@ async def upload_recording(
     project = await _get_project_for_user(project_id, user_id, db)
 
     mime = file.content_type or "video/webm"
-    filename = file.filename or "recording.webm"
+    safe_name = _sanitize_filename(file.filename or "recording.webm")
 
     asset = MediaAsset(
         user_id=user_id,
         video_project_id=project.id,
-        filename=filename,
+        filename=safe_name,
         file_path="",
         media_type="video",
         mime_type=mime,
-        metadata={"source": "screen_recording"},
+        asset_metadata={"source": "screen_recording"},
     )
     db.add(asset)
     await db.flush()
 
     asset_id = str(asset.id)
     media_dir = get_project_media_dir(str(project_id), asset_id)
-    file_path = os.path.join(media_dir, filename)
+    file_path = os.path.join(media_dir, safe_name)
 
-    content = await file.read()
+    total_bytes = 0
     with open(file_path, "wb") as f:
-        f.write(content)
+        while chunk := await file.read(1024 * 1024):
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                f.close()
+                os.remove(file_path)
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+                )
+            f.write(chunk)
 
     asset.file_path = file_path
-    asset.file_size_bytes = len(content)
+    asset.file_size_bytes = total_bytes
 
     try:
         probe_data = await probe_media(file_path)
         asset.duration_seconds = probe_data.get("duration")
         asset.width = probe_data.get("width")
         asset.height = probe_data.get("height")
-        if asset.metadata:
-            asset.metadata.update(probe_data)
+        if asset.asset_metadata:
+            asset.asset_metadata = {**asset.asset_metadata, **probe_data}
         else:
-            asset.metadata = probe_data
+            asset.asset_metadata = probe_data
     except Exception as e:
         logger.warning("ffprobe failed for recording: %s", e)
 

@@ -35,7 +35,7 @@ export function TimelinePanel() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
-    })
+    }),
   );
 
   // Handle drop from media bin → timeline or clip reposition
@@ -55,7 +55,10 @@ export function TimelinePanel() {
         if (!track) return;
 
         // Only allow compatible types
-        if (asset.media_type !== track.type && !(asset.media_type === "video" && track.type === "image")) {
+        if (
+          asset.media_type !== track.type &&
+          !(asset.media_type === "video" && track.type === "image")
+        ) {
           return;
         }
 
@@ -97,14 +100,14 @@ export function TimelinePanel() {
         }
       }
     },
-    [timeline, pixelsPerSecond, addClip, moveClip, selectClip]
+    [timeline, pixelsPerSecond, addClip, moveClip, selectClip],
   );
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       setScrollLeft(e.currentTarget.scrollLeft);
     },
-    [setScrollLeft]
+    [setScrollLeft],
   );
 
   // Click on empty area to seek
@@ -115,7 +118,7 @@ export function TimelinePanel() {
       const time = x / pixelsPerSecond;
       setCurrentTime(Math.max(0, time));
     },
-    [pixelsPerSecond, scrollLeft, setCurrentTime]
+    [pixelsPerSecond, scrollLeft, setCurrentTime],
   );
 
   // Compute timeline width
@@ -128,28 +131,20 @@ export function TimelinePanel() {
   const timelineWidth = maxTime * pixelsPerSecond;
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={pointerWithin}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="h-full flex flex-col bg-card border-t">
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+      <div className="flex h-full flex-col border-t bg-card">
         {/* Controls bar */}
         <TimelineControls />
 
         {/* Scrollable timeline area */}
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-auto"
-          onScroll={handleScroll}
-        >
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
           <div style={{ width: timelineWidth, minHeight: "100%" }}>
             {/* Ruler */}
             <TimelineRuler width={timelineWidth} />
 
             {/* Playhead line */}
             <div
-              className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
+              className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-red-500"
               style={{
                 left: currentTime * pixelsPerSecond,
               }}
@@ -162,9 +157,7 @@ export function TimelinePanel() {
                   Add a track to get started. Drag media from the library onto tracks.
                 </div>
               ) : (
-                timeline.tracks.map((track) => (
-                  <TimelineTrack key={track.id} track={track} />
-                ))
+                timeline.tracks.map((track) => <TimelineTrack key={track.id} track={track} />)
               )}
             </div>
           </div>

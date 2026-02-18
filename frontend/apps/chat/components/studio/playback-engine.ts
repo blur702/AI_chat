@@ -15,10 +15,17 @@ export class PlaybackEngine {
   private startWallTime = 0;
   private rafId: number | null = null;
   private elements = new Map<string, HTMLElement>();
+  private blobUrls = new Map<string, string>();
+  private authToken: string | null = null;
 
   constructor(container: HTMLDivElement, onTimeUpdate: () => void) {
     this.container = container;
     this.onTimeUpdate = onTimeUpdate;
+    try {
+      this.authToken = localStorage.getItem("auth_token");
+    } catch {
+      // SSR or private browsing
+    }
   }
 
   setTimeline(timeline: TimelineData) {
@@ -71,6 +78,9 @@ export class PlaybackEngine {
     this.pause();
     this.elements.forEach((el) => el.remove());
     this.elements.clear();
+    // Revoke all blob URLs to free memory
+    this.blobUrls.forEach((url) => URL.revokeObjectURL(url));
+    this.blobUrls.clear();
   }
 
   // -------------------------------------------------------------------
@@ -109,6 +119,23 @@ export class PlaybackEngine {
     return max;
   }
 
+  /** Fetch a media file with auth and return a blob URL. */
+  private async fetchMediaBlobUrl(assetId: string): Promise<string> {
+    const cached = this.blobUrls.get(assetId);
+    if (cached) return cached;
+
+    const headers: Record<string, string> = {};
+    if (this.authToken) {
+      headers["Authorization"] = `Bearer ${this.authToken}`;
+    }
+    const res = await fetch(`/api/studio/media/${assetId}/file`, { headers });
+    if (!res.ok) throw new Error(`Failed to fetch media ${assetId}: ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    this.blobUrls.set(assetId, url);
+    return url;
+  }
+
   private rebuildElements() {
     // Remove old elements
     this.elements.forEach((el) => el.remove());
@@ -132,15 +159,11 @@ export class PlaybackEngine {
     }
   }
 
-  private createElementForClip(
-    clip: TimelineClip,
-    track: TimelineTrack
-  ): HTMLElement | null {
+  private createElementForClip(clip: TimelineClip, track: TimelineTrack): HTMLElement | null {
     const type = clip.type || track.type;
 
     if (type === "video" && clip.media_asset_id) {
       const video = document.createElement("video");
-      video.src = `/api/studio/media/${clip.media_asset_id}/file`;
       video.preload = "auto";
       video.muted = track.muted;
       video.playsInline = true;
@@ -150,16 +173,22 @@ export class PlaybackEngine {
       const props = clip.properties;
       video.style.opacity = String(props.opacity ?? 1);
       if (props.volume !== undefined) video.volume = props.volume;
+      // Load via authenticated fetch
+      this.fetchMediaBlobUrl(clip.media_asset_id).then((url) => {
+        video.src = url;
+      }).catch(() => {});
       return video;
     }
 
     if (type === "audio" && clip.media_asset_id) {
       const audio = document.createElement("audio");
-      audio.src = `/api/studio/media/${clip.media_asset_id}/file`;
       audio.preload = "auto";
       audio.muted = track.muted;
       const props = clip.properties;
       if (props.volume !== undefined) audio.volume = props.volume;
+      this.fetchMediaBlobUrl(clip.media_asset_id).then((url) => {
+        audio.src = url;
+      }).catch(() => {});
       return audio;
     }
 
@@ -184,7 +213,6 @@ export class PlaybackEngine {
 
     if (type === "image" && clip.media_asset_id) {
       const img = document.createElement("img");
-      img.src = `/api/studio/media/${clip.media_asset_id}/file`;
       img.style.objectFit = "contain";
       img.draggable = false;
       const props = clip.properties;
@@ -194,6 +222,9 @@ export class PlaybackEngine {
       img.style.top = `${pos.y * 100}%`;
       img.style.maxWidth = "100%";
       img.style.maxHeight = "100%";
+      this.fetchMediaBlobUrl(clip.media_asset_id).then((url) => {
+        img.src = url;
+      }).catch(() => {});
       return img;
     }
 
@@ -268,10 +299,7 @@ export class PlaybackEngine {
         const el = this.elements.get(clip.id);
         if (!el) continue;
 
-        if (
-          el instanceof HTMLVideoElement ||
-          el instanceof HTMLAudioElement
-        ) {
+        if (el instanceof HTMLVideoElement || el instanceof HTMLAudioElement) {
           const clipOffset = t - clip.start_time;
           const trimStart = clip.trim_start || 0;
           el.currentTime = Math.max(0, trimStart + clipOffset);

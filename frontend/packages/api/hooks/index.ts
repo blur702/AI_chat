@@ -2,7 +2,12 @@ export { useAsyncAction } from "./use-async-action";
 export { AuthProvider, useAuth } from "./use-auth";
 export { useWebSocket } from "./use-websocket";
 export { useResources } from "./use-resources";
-export type { UseResourcesReturn, ResourceSortField, ResourceSortOrder, ResourceStatusFilter } from "./use-resources";
+export type {
+  UseResourcesReturn,
+  ResourceSortField,
+  ResourceSortOrder,
+  ResourceStatusFilter,
+} from "./use-resources";
 export { useChats } from "./use-chats";
 export { useConversation } from "./use-conversation";
 export type { DraftOptions, ToolCallInfo } from "./use-conversation";
@@ -45,7 +50,11 @@ export { useContextDashboard } from "./use-context-dashboard";
 export type { UseContextDashboardReturn } from "./use-context-dashboard";
 export { useContextEditor } from "./use-context-editor";
 export type { UseContextEditorReturn, ContextSearchResult } from "./use-context-editor";
-export { useModelSwitcher, ACTIVE_MODEL_KEY, ACTIVE_MODEL_CHANGE_EVENT } from "./use-model-switcher";
+export {
+  useModelSwitcher,
+  ACTIVE_MODEL_KEY,
+  ACTIVE_MODEL_CHANGE_EVENT,
+} from "./use-model-switcher";
 export type { UseModelSwitcherReturn } from "./use-model-switcher";
 export { useSnippets } from "./use-snippets";
 export type { UseSnippetsReturn } from "./use-snippets";

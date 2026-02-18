@@ -88,82 +88,87 @@ export default function StudioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto p-8">
-        <div className="flex items-center justify-between mb-8">
+    <div className="flex h-full flex-col">
+      <div className="border-b px-4 py-3 md:px-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Video Studio</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-sm font-semibold">Video Studio</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Create e-learning videos with screen recordings, callouts, and narration
             </p>
           </div>
           <Button onClick={handleCreate} disabled={creating}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             {creating ? "Creating..." : "New Project"}
           </Button>
         </div>
+      </div>
 
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="mx-auto max-w-6xl">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-48 rounded-lg border bg-muted animate-pulse"
-              />
+              <div key={i} className="h-48 animate-pulse rounded-lg border bg-muted" />
             ))}
           </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-20 border rounded-lg bg-muted/30">
-            <Film className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
-            <p className="text-muted-foreground mb-4">
+          <div className="rounded-lg border bg-muted/30 py-20 text-center">
+            <Film className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
+            <h2 className="mb-2 text-xl font-semibold">No projects yet</h2>
+            <p className="mb-4 text-muted-foreground">
               Create your first video project to get started
             </p>
             <Button onClick={handleCreate} disabled={creating}>
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               New Project
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
-              <div
+              <button
+                type="button"
                 key={project.id}
                 onClick={() => router.push(`/studio/${project.id}`)}
-                className="group relative border rounded-lg p-4 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer bg-card"
+                className="group relative cursor-pointer rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md w-full"
               >
-                <div className="aspect-video rounded bg-muted mb-3 flex items-center justify-center">
-                  <Film className="w-10 h-10 text-muted-foreground/30" />
+                <div className="mb-3 flex aspect-video items-center justify-center rounded bg-muted">
+                  <Film className="h-10 w-10 text-muted-foreground/30" />
                 </div>
-                <h3 className="font-semibold truncate">{project.name}</h3>
+                <h3 className="truncate font-semibold">{project.name}</h3>
                 {project.description && (
-                  <p className="text-sm text-muted-foreground truncate mt-1">
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
                     {project.description}
                   </p>
                 )}
-                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
+                    <Clock className="h-3 w-3" />
                     {formatDuration(project.duration_seconds)}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
+                    <Calendar className="h-3 w-3" />
                     {formatDate(project.updated_at)}
                   </span>
-                  <span className="capitalize px-1.5 py-0.5 rounded bg-muted text-[10px]">
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] capitalize">
                     {project.status}
                   </span>
                 </div>
-                <button
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => handleDelete(project.id, e)}
-                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDelete(project.id, e as unknown as React.MouseEvent); } }}
+                  className="absolute right-3 top-3 rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                 >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+                  <Trash2 className="h-4 w-4" />
+                </span>
+              </button>
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

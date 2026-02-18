@@ -13,8 +13,7 @@ interface SubtitleSegment {
 }
 
 export function SubtitleEditor({ projectId }: { projectId: string }) {
-  const { timeline, addTrack, addClip, updateClip, removeClip, mediaAssets } =
-    useStudioStore();
+  const { timeline, addTrack, addClip, updateClip, removeClip, mediaAssets } = useStudioStore();
 
   const [transcribing, setTranscribing] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState<string>("");
@@ -22,8 +21,7 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
 
   // Find subtitle tracks and their clips
   const subtitleTracks = timeline.tracks.filter((t) => t.type === "subtitle");
-  const allSubtitleClips: Array<{ track: TimelineTrack; clip: TimelineClip }> =
-    [];
+  const allSubtitleClips: Array<{ track: TimelineTrack; clip: TimelineClip }> = [];
   for (const track of subtitleTracks) {
     for (const clip of track.clips) {
       allSubtitleClips.push({ track, clip });
@@ -33,7 +31,7 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
 
   // Audio/video assets available for transcription
   const transcribableAssets = mediaAssets.filter(
-    (a) => a.media_type === "video" || a.media_type === "audio"
+    (a) => a.media_type === "video" || a.media_type === "audio",
   );
 
   // Ensure a subtitle track exists, return its id
@@ -92,7 +90,7 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (!res.ok) {
@@ -144,23 +142,21 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className="h-full flex flex-col border-l bg-card">
-      <div className="p-3 border-b">
-        <h3 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
-          <Captions className="w-3.5 h-3.5" />
+    <div className="flex h-full flex-col border-l bg-card">
+      <div className="border-b p-3">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
+          <Captions className="h-3.5 w-3.5" />
           Subtitles
         </h3>
       </div>
 
       {/* Auto-transcribe section */}
-      <div className="p-3 border-b space-y-2">
-        <p className="text-[10px] font-medium text-muted-foreground">
-          Generate from audio
-        </p>
+      <div className="space-y-2 border-b p-3">
+        <p className="text-[10px] font-medium text-muted-foreground">Generate from audio</p>
         {transcribableAssets.length > 0 ? (
           <>
             <select
-              className="w-full h-7 text-xs rounded border bg-background px-2"
+              className="h-7 w-full rounded border bg-background px-2 text-xs"
               value={selectedAssetId}
               onChange={(e) => setSelectedAssetId(e.target.value)}
               disabled={transcribing}
@@ -175,26 +171,22 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
             <Button
               variant="outline"
               size="sm"
-              className="w-full h-7 text-xs"
+              className="h-7 w-full text-xs"
               onClick={handleTranscribe}
               disabled={!selectedAssetId || transcribing}
             >
               {transcribing ? (
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
-                <Wand2 className="w-3 h-3 mr-1" />
+                <Wand2 className="mr-1 h-3 w-3" />
               )}
               {transcribing ? "Transcribing..." : "Auto-Transcribe"}
             </Button>
           </>
         ) : (
-          <p className="text-[10px] text-muted-foreground">
-            Upload an audio or video file first
-          </p>
+          <p className="text-[10px] text-muted-foreground">Upload an audio or video file first</p>
         )}
-        {error && (
-          <p className="text-[10px] text-destructive">{error}</p>
-        )}
+        {error && <p className="text-[10px] text-destructive">{error}</p>}
       </div>
 
       {/* Subtitle list */}
@@ -206,7 +198,7 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
         ) : (
           <div className="divide-y">
             {allSubtitleClips.map(({ track, clip }) => (
-              <div key={clip.id} className="p-2 space-y-1 hover:bg-muted/50">
+              <div key={clip.id} className="space-y-1 p-2 hover:bg-muted/50">
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                   <span>{formatTime(clip.start_time)}</span>
                   <span>→</span>
@@ -214,14 +206,14 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
                   <div className="flex-1" />
                   <button
                     onClick={() => removeClip(track.id, clip.id)}
-                    className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     title="Delete subtitle"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
                 <textarea
-                  className="w-full text-xs rounded border bg-background px-2 py-1 resize-none h-10"
+                  className="h-10 w-full resize-none rounded border bg-background px-2 py-1 text-xs"
                   value={clip.properties.subtitle_text || ""}
                   onChange={(e) =>
                     updateClip(track.id, clip.id, {
@@ -271,14 +263,9 @@ export function SubtitleEditor({ projectId }: { projectId: string }) {
       </div>
 
       {/* Add button */}
-      <div className="p-2 border-t">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full h-7 text-xs"
-          onClick={addSubtitleClip}
-        >
-          <Plus className="w-3 h-3 mr-1" />
+      <div className="border-t p-2">
+        <Button variant="ghost" size="sm" className="h-7 w-full text-xs" onClick={addSubtitleClip}>
+          <Plus className="mr-1 h-3 w-3" />
           Add Subtitle
         </Button>
       </div>

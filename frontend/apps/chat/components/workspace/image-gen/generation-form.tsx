@@ -72,7 +72,12 @@ interface FormState {
   controlnet_strength: number;
 }
 
-type UploadField = "input_image" | "mask_image" | "target_image" | "reference_image" | "controlnet_image";
+type UploadField =
+  | "input_image"
+  | "mask_image"
+  | "target_image"
+  | "reference_image"
+  | "controlnet_image";
 
 type FormTab = "prompt" | "model" | "settings" | "images";
 
@@ -169,13 +174,16 @@ export function GenerationForm({
   const prefsDefaults = useMemo<Partial<FormState>>(() => {
     if (!userPreferences) return {};
     const d: Partial<FormState> = {};
-    if (userPreferences.imggen_default_workflow) d.workflow_type = userPreferences.imggen_default_workflow as WorkflowType;
+    if (userPreferences.imggen_default_workflow)
+      d.workflow_type = userPreferences.imggen_default_workflow as WorkflowType;
     if (userPreferences.imggen_default_width) d.width = userPreferences.imggen_default_width;
     if (userPreferences.imggen_default_height) d.height = userPreferences.imggen_default_height;
     if (userPreferences.imggen_default_steps) d.steps = userPreferences.imggen_default_steps;
-    if (userPreferences.imggen_default_cfg_scale) d.cfg_scale = userPreferences.imggen_default_cfg_scale;
+    if (userPreferences.imggen_default_cfg_scale)
+      d.cfg_scale = userPreferences.imggen_default_cfg_scale;
     if (userPreferences.imggen_default_prompt) d.prompt = userPreferences.imggen_default_prompt;
-    if (userPreferences.imggen_default_negative_prompt) d.negative_prompt = userPreferences.imggen_default_negative_prompt;
+    if (userPreferences.imggen_default_negative_prompt)
+      d.negative_prompt = userPreferences.imggen_default_negative_prompt;
     return d;
   }, [userPreferences]);
 
@@ -184,9 +192,14 @@ export function GenerationForm({
   const [formTab, setFormTab] = useState<FormTab>("prompt");
   const [showReferenceImage, setShowReferenceImage] = useState(() => !!form.reference_image);
   const [showControlNet, setShowControlNet] = useState(() => !!form.controlnet_image);
-  const [projectSystemContextInput, setProjectSystemContextInput] = useState(projectSystemContext ?? "");
+  const [projectSystemContextInput, setProjectSystemContextInput] = useState(
+    projectSystemContext ?? "",
+  );
   const [projectSystemContextSaving, setProjectSystemContextSaving] = useState(false);
-  const [projectSystemContextMsg, setProjectSystemContextMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [projectSystemContextMsg, setProjectSystemContextMsg] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // Infer model type from selected model name for LoRA filtering
   const selectedModelType = useMemo(() => {
@@ -207,7 +220,8 @@ export function GenerationForm({
   const upload = useImageUpload();
   const { clear: clearStorage } = useFormPersistence(projectId, form, setForm, prefsDefaults);
 
-  const { generate, generating, error, currentGeneration, cancelGeneration, generations } = hookState;
+  const { generate, generating, error, currentGeneration, cancelGeneration, generations } =
+    hookState;
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
   const galleryPickerFieldRef = useRef<UploadField>("input_image");
 
@@ -218,9 +232,18 @@ export function GenerationForm({
     setForm((prev) => {
       let changed = false;
       let next = prev;
-      if (!prev.model_name && models.length > 0) { next = { ...next, model_name: models[0] }; changed = true; }
-      if (!prev.sampler_name && samplerOptions.length > 0) { next = { ...next, sampler_name: samplerOptions[0] }; changed = true; }
-      if (!prev.scheduler && schedulerOptions.length > 0) { next = { ...next, scheduler: schedulerOptions[0] }; changed = true; }
+      if (!prev.model_name && models.length > 0) {
+        next = { ...next, model_name: models[0] };
+        changed = true;
+      }
+      if (!prev.sampler_name && samplerOptions.length > 0) {
+        next = { ...next, sampler_name: samplerOptions[0] };
+        changed = true;
+      }
+      if (!prev.scheduler && schedulerOptions.length > 0) {
+        next = { ...next, scheduler: schedulerOptions[0] };
+        changed = true;
+      }
       return changed ? next : prev;
     });
   }, [models, samplerOptions, schedulerOptions]);
@@ -242,12 +265,15 @@ export function GenerationForm({
     setGalleryPickerOpen(true);
   }, []);
 
-  const handleGallerySelect = useCallback((base64: string, filename: string) => {
-    const field = galleryPickerFieldRef.current;
-    handleFormUpload(field, base64);
-    upload.setPreviews((prev) => ({ ...prev, [field]: base64 }));
-    upload.setUploadNames((prev) => ({ ...prev, [field]: filename }));
-  }, [handleFormUpload, upload]);
+  const handleGallerySelect = useCallback(
+    (base64: string, filename: string) => {
+      const field = galleryPickerFieldRef.current;
+      handleFormUpload(field, base64);
+      upload.setPreviews((prev) => ({ ...prev, [field]: base64 }));
+      upload.setUploadNames((prev) => ({ ...prev, [field]: filename }));
+    },
+    [handleFormUpload, upload],
+  );
 
   const validate = (): boolean => {
     const nextErrors: Record<string, string> = {};
@@ -256,19 +282,30 @@ export function GenerationForm({
 
     if (!prompt) nextErrors.prompt = "Prompt is required.";
     if (prompt.length > 2000) nextErrors.prompt = "Prompt must be <= 2000 chars.";
-    if (negative.length > 2000) nextErrors.negative_prompt = "Negative prompt must be <= 2000 chars.";
-    if (form.width < 64 || form.width > 2048) nextErrors.width = "Width must be between 64 and 2048.";
-    if (form.height < 64 || form.height > 2048) nextErrors.height = "Height must be between 64 and 2048.";
+    if (negative.length > 2000)
+      nextErrors.negative_prompt = "Negative prompt must be <= 2000 chars.";
+    if (form.width < 64 || form.width > 2048)
+      nextErrors.width = "Width must be between 64 and 2048.";
+    if (form.height < 64 || form.height > 2048)
+      nextErrors.height = "Height must be between 64 and 2048.";
     if (form.steps < 1 || form.steps > 150) nextErrors.steps = "Steps must be between 1 and 150.";
-    if (form.cfg_scale < 1 || form.cfg_scale > 30) nextErrors.cfg_scale = "CFG scale must be between 1 and 30.";
-    if (form.denoise < 0 || form.denoise > 1) nextErrors.denoise = "Denoise must be between 0 and 1.";
-    if (form.morph_strength < 0 || form.morph_strength > 1) nextErrors.morph_strength = "Morph strength must be between 0 and 1.";
-    if (form.batch_size < 1 || form.batch_size > 8) nextErrors.batch_size = "Batch size must be between 1 and 8.";
+    if (form.cfg_scale < 1 || form.cfg_scale > 30)
+      nextErrors.cfg_scale = "CFG scale must be between 1 and 30.";
+    if (form.denoise < 0 || form.denoise > 1)
+      nextErrors.denoise = "Denoise must be between 0 and 1.";
+    if (form.morph_strength < 0 || form.morph_strength > 1)
+      nextErrors.morph_strength = "Morph strength must be between 0 and 1.";
+    if (form.batch_size < 1 || form.batch_size > 8)
+      nextErrors.batch_size = "Batch size must be between 1 and 8.";
 
-    if (form.workflow_type !== "text-to-image" && !form.input_image.trim()) nextErrors.input_image = "Input image is required.";
-    if (form.workflow_type === "inpainting" && !form.mask_image.trim()) nextErrors.mask_image = "Mask image is required for inpainting.";
-    if (form.workflow_type === "face-morph" && !form.target_image.trim()) nextErrors.target_image = "Target image is required for face morph.";
-    if (form.loras.some((l) => !l.name.trim())) nextErrors.loras = "Each LoRA entry needs a valid name.";
+    if (form.workflow_type !== "text-to-image" && !form.input_image.trim())
+      nextErrors.input_image = "Input image is required.";
+    if (form.workflow_type === "inpainting" && !form.mask_image.trim())
+      nextErrors.mask_image = "Mask image is required for inpainting.";
+    if (form.workflow_type === "face-morph" && !form.target_image.trim())
+      nextErrors.target_image = "Target image is required for face morph.";
+    if (form.loras.some((l) => !l.name.trim()))
+      nextErrors.loras = "Each LoRA entry needs a valid name.";
 
     setErrors(nextErrors);
 
@@ -285,12 +322,24 @@ export function GenerationForm({
       ...prev,
       prompt: preset.prompt_text,
       negative_prompt: preset.negative_prompt_text || "",
-      ...(preset.workflow_settings?.width ? { width: preset.workflow_settings.width as number } : {}),
-      ...(preset.workflow_settings?.height ? { height: preset.workflow_settings.height as number } : {}),
-      ...(preset.workflow_settings?.steps ? { steps: preset.workflow_settings.steps as number } : {}),
-      ...(preset.workflow_settings?.cfg_scale ? { cfg_scale: preset.workflow_settings.cfg_scale as number } : {}),
-      ...(preset.workflow_settings?.sampler_name ? { sampler_name: preset.workflow_settings.sampler_name as string } : {}),
-      ...(preset.workflow_settings?.model_name ? { model_name: preset.workflow_settings.model_name as string } : {}),
+      ...(preset.workflow_settings?.width
+        ? { width: preset.workflow_settings.width as number }
+        : {}),
+      ...(preset.workflow_settings?.height
+        ? { height: preset.workflow_settings.height as number }
+        : {}),
+      ...(preset.workflow_settings?.steps
+        ? { steps: preset.workflow_settings.steps as number }
+        : {}),
+      ...(preset.workflow_settings?.cfg_scale
+        ? { cfg_scale: preset.workflow_settings.cfg_scale as number }
+        : {}),
+      ...(preset.workflow_settings?.sampler_name
+        ? { sampler_name: preset.workflow_settings.sampler_name as string }
+        : {}),
+      ...(preset.workflow_settings?.model_name
+        ? { model_name: preset.workflow_settings.model_name as string }
+        : {}),
     }));
   };
 
@@ -319,10 +368,18 @@ export function GenerationForm({
       ...(form.workflow_type === "inpainting" ? { mask_image: form.mask_image.trim() } : {}),
       ...(form.workflow_type === "face-morph" ? { target_image: form.target_image.trim() } : {}),
       ...(form.reference_image.trim()
-        ? { reference_image: form.reference_image.trim(), reference_weight: form.reference_weight, reference_noise: form.reference_noise }
+        ? {
+            reference_image: form.reference_image.trim(),
+            reference_weight: form.reference_weight,
+            reference_noise: form.reference_noise,
+          }
         : {}),
       ...(form.controlnet_image.trim() && form.controlnet_type
-        ? { controlnet_image: form.controlnet_image.trim(), controlnet_type: form.controlnet_type, controlnet_strength: form.controlnet_strength }
+        ? {
+            controlnet_image: form.controlnet_image.trim(),
+            controlnet_type: form.controlnet_type,
+            controlnet_strength: form.controlnet_strength,
+          }
         : {}),
     };
 
@@ -349,7 +406,12 @@ export function GenerationForm({
   };
 
   const onUseDefaults = () => {
-    setForm({ ...DEFAULT_FORM, ...prefsDefaults, prompt: form.prompt, model_name: form.model_name });
+    setForm({
+      ...DEFAULT_FORM,
+      ...prefsDefaults,
+      prompt: form.prompt,
+      model_name: form.model_name,
+    });
     clearStorage();
   };
 
@@ -370,13 +432,21 @@ export function GenerationForm({
       <form onSubmit={onSubmit} className="space-y-3 rounded-md border p-4">
         {/* Header - always visible */}
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
             <Wand2 className="h-4 w-4" />
             Generate Image
           </h2>
           <div className="flex items-center gap-1.5">
-            {comfyuiAvailable && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="ComfyUI available" title="ComfyUI available" />}
-            {comfyuiStarting && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            {comfyuiAvailable && (
+              <span
+                className="h-2 w-2 rounded-full bg-emerald-500"
+                aria-label="ComfyUI available"
+                title="ComfyUI available"
+              />
+            )}
+            {comfyuiStarting && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
             <Badge variant="outline" className="text-[11px] capitalize">
               {currentGeneration ? currentGeneration.status : comfyuiBadgeLabel}
             </Badge>
@@ -385,7 +455,7 @@ export function GenerationForm({
 
         {/* ComfyUI warning */}
         {comfyuiAvailable === false && (
-          <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400 space-y-2">
+          <div className="space-y-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>
@@ -395,11 +465,29 @@ export function GenerationForm({
               </span>
             </div>
             {comfyuiStatusMessage && (
-              <p className="text-[11px] leading-relaxed text-yellow-800/90 dark:text-yellow-300/90">{comfyuiStatusMessage}</p>
+              <p className="text-[11px] leading-relaxed text-yellow-800/90 dark:text-yellow-300/90">
+                {comfyuiStatusMessage}
+              </p>
             )}
             <div>
-              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => { void onStartComfyui?.(); }} disabled={comfyuiStarting || !onStartComfyui}>
-                {comfyuiStarting ? (<><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Starting...</>) : "Start ComfyUI"}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  void onStartComfyui?.();
+                }}
+                disabled={comfyuiStarting || !onStartComfyui}
+              >
+                {comfyuiStarting ? (
+                  <>
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  "Start ComfyUI"
+                )}
               </Button>
             </div>
           </div>
@@ -407,12 +495,15 @@ export function GenerationForm({
 
         {/* Tabs */}
         <Tabs value={formTab} onValueChange={(v) => setFormTab(v as FormTab)}>
-          <TabsList className="grid grid-cols-4 w-full" aria-label="Image generation settings">
+          <TabsList className="grid w-full grid-cols-4" aria-label="Image generation settings">
             {(["prompt", "model", "settings", "images"] as const).map((tab) => (
-              <TabsTrigger key={tab} value={tab} className="relative capitalize text-xs">
+              <TabsTrigger key={tab} value={tab} className="relative text-xs capitalize">
                 {tab}
                 {errorTabSet.has(tab) && (
-                  <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive" aria-label={`${tab} tab has errors`} />
+                  <span
+                    className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
+                    aria-label={`${tab} tab has errors`}
+                  />
                 )}
               </TabsTrigger>
             ))}
@@ -429,7 +520,14 @@ export function GenerationForm({
               promptError={errors.prompt}
               negativePromptError={errors.negative_prompt}
               onPresetSelect={handlePresetSelect}
-              currentWorkflowSettings={{ width: form.width, height: form.height, steps: form.steps, cfg_scale: form.cfg_scale, sampler_name: form.sampler_name, model_name: form.model_name }}
+              currentWorkflowSettings={{
+                width: form.width,
+                height: form.height,
+                steps: form.steps,
+                cfg_scale: form.cfg_scale,
+                sampler_name: form.sampler_name,
+                model_name: form.model_name,
+              }}
               showProjectContext={!!onSaveProjectSystemContext}
               projectSystemContextInput={projectSystemContextInput}
               onProjectSystemContextChange={setProjectSystemContextInput}
@@ -455,9 +553,19 @@ export function GenerationForm({
               loras={form.loras}
               loraOptions={loraOptions}
               loraError={errors.loras}
-              onLoraAdd={() => setForm((prev) => ({ ...prev, loras: [...prev.loras, defaultLora(loraOptions)] }))}
-              onLoraUpdate={(i, next) => setForm((prev) => { const loras = [...prev.loras]; loras[i] = { ...loras[i], ...next }; return { ...prev, loras }; })}
-              onLoraRemove={(i) => setForm((prev) => ({ ...prev, loras: prev.loras.filter((_, idx) => idx !== i) }))}
+              onLoraAdd={() =>
+                setForm((prev) => ({ ...prev, loras: [...prev.loras, defaultLora(loraOptions)] }))
+              }
+              onLoraUpdate={(i, next) =>
+                setForm((prev) => {
+                  const loras = [...prev.loras];
+                  loras[i] = { ...loras[i], ...next };
+                  return { ...prev, loras };
+                })
+              }
+              onLoraRemove={(i) =>
+                setForm((prev) => ({ ...prev, loras: prev.loras.filter((_, idx) => idx !== i) }))
+              }
             />
           </TabsContent>
 
@@ -497,7 +605,12 @@ export function GenerationForm({
                 setForm((prev) => ({ ...prev, mask_image: dataUrl }));
                 upload.setPreviews((prev) => ({ ...prev, mask_image: dataUrl }));
                 upload.setUploadNames((prev) => ({ ...prev, mask_image: "editor-mask.png" }));
-                setErrors((prev) => { if (!prev.mask_image) return prev; const next = { ...prev }; delete next.mask_image; return next; });
+                setErrors((prev) => {
+                  if (!prev.mask_image) return prev;
+                  const next = { ...prev };
+                  delete next.mask_image;
+                  return next;
+                });
               }}
               onMaskClear={() => {
                 setForm((prev) => ({ ...prev, mask_image: "" }));
@@ -524,7 +637,10 @@ export function GenerationForm({
               referenceError={errors.reference_image}
               onReferenceDrop={upload.onDrop("reference_image", handleFormUpload)}
               onReferenceUpload={upload.onImageUpload("reference_image", handleFormUpload)}
-              onReferenceClear={() => { setForm((prev) => ({ ...prev, reference_image: "" })); upload.clearField("reference_image"); }}
+              onReferenceClear={() => {
+                setForm((prev) => ({ ...prev, reference_image: "" }));
+                upload.clearField("reference_image");
+              }}
               onReferenceWeightChange={(v) => setForm((prev) => ({ ...prev, reference_weight: v }))}
               onReferenceNoiseChange={(v) => setForm((prev) => ({ ...prev, reference_noise: v }))}
               showControlNet={showControlNet}
@@ -532,15 +648,29 @@ export function GenerationForm({
               controlnetImage={form.controlnet_image}
               controlnetType={form.controlnet_type}
               controlnetStrength={form.controlnet_strength}
-              controlnetTypes={imageOptions?.controlnet_types ?? ["canny", "depth", "openpose", "lineart", "scribble", "softedge"]}
+              controlnetTypes={
+                imageOptions?.controlnet_types ?? [
+                  "canny",
+                  "depth",
+                  "openpose",
+                  "lineart",
+                  "scribble",
+                  "softedge",
+                ]
+              }
               controlnetPreview={upload.previews.controlnet_image}
               controlnetUploadName={upload.uploadNames.controlnet_image}
               controlnetError={errors.controlnet_image}
               onControlnetDrop={upload.onDrop("controlnet_image", handleFormUpload)}
               onControlnetUpload={upload.onImageUpload("controlnet_image", handleFormUpload)}
-              onControlnetClear={() => { setForm((prev) => ({ ...prev, controlnet_image: "", controlnet_type: "" })); upload.clearField("controlnet_image"); }}
+              onControlnetClear={() => {
+                setForm((prev) => ({ ...prev, controlnet_image: "", controlnet_type: "" }));
+                upload.clearField("controlnet_image");
+              }}
               onControlnetTypeChange={(v) => setForm((prev) => ({ ...prev, controlnet_type: v }))}
-              onControlnetStrengthChange={(v) => setForm((prev) => ({ ...prev, controlnet_strength: v }))}
+              onControlnetStrengthChange={(v) =>
+                setForm((prev) => ({ ...prev, controlnet_strength: v }))
+              }
               onPickFromGallery={generations.length > 0 ? openGalleryPicker : undefined}
             />
           </TabsContent>
@@ -548,14 +678,14 @@ export function GenerationForm({
 
         {/* Errors - always visible */}
         {upload.uploadError && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>{upload.uploadError}</span>
           </div>
         )}
 
         {error && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>{error}</span>
           </div>
@@ -563,25 +693,57 @@ export function GenerationForm({
 
         {/* Action buttons - always visible */}
         <div className="flex items-center gap-2">
-          <Button type="submit" disabled={generating || comfyuiAvailable === false} className="flex-1">
-            {generating ? (<><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Generating...</>) : "Generate"}
+          <Button
+            type="submit"
+            disabled={generating || comfyuiAvailable === false}
+            className="flex-1"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              "Generate"
+            )}
           </Button>
           <Button type="button" variant="outline" onClick={onReset} disabled={generating}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" />Reset
+            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+            Reset
           </Button>
-          {generating && <Button type="button" variant="ghost" onClick={cancelGeneration}>Stop Polling</Button>}
+          {generating && (
+            <Button type="button" variant="ghost" onClick={cancelGeneration}>
+              Stop Polling
+            </Button>
+          )}
         </div>
 
         {(userPreferences || onSaveAsDefault) && (
-          <div className="flex items-center gap-2 pt-1 border-t">
+          <div className="flex items-center gap-2 border-t pt-1">
             {userPreferences && (
-              <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={onUseDefaults} disabled={generating}>
-                <RotateCcw className="h-3 w-3 mr-1" />Use defaults
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={onUseDefaults}
+                disabled={generating}
+              >
+                <RotateCcw className="mr-1 h-3 w-3" />
+                Use defaults
               </Button>
             )}
             {onSaveAsDefault && (
-              <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={onSaveCurrentAsDefault} disabled={generating}>
-                <Save className="h-3 w-3 mr-1" />Save as default
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={onSaveCurrentAsDefault}
+                disabled={generating}
+              >
+                <Save className="mr-1 h-3 w-3" />
+                Save as default
               </Button>
             )}
           </div>

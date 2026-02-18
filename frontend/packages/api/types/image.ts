@@ -1,8 +1,4 @@
-export type ImageGenerationStatus =
-  | "pending"
-  | "processing"
-  | "completed"
-  | "failed";
+export type ImageGenerationStatus = "pending" | "processing" | "completed" | "failed";
 
 export type WorkflowType =
   | "text-to-image"

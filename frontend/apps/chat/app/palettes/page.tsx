@@ -128,13 +128,16 @@ export default function PalettesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Palette Library</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex h-full flex-col">
+      <div className="border-b px-4 py-3 md:px-6">
+        <h1 className="text-sm font-semibold">Palette Library</h1>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Save palettes once and reuse them anywhere in your workflow.
         </p>
       </div>
+
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         <div className="rounded-md border p-3 space-y-2 h-fit">
@@ -284,6 +287,8 @@ export default function PalettesPage() {
           </div>
           {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
         </div>
+      </div>
+      </div>
       </div>
     </div>
   );

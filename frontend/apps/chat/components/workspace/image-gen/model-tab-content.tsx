@@ -48,7 +48,7 @@ export function ModelTabContent({
     <div className="space-y-4">
       {/* Model */}
       <div>
-        <label htmlFor="model-select" className="text-xs font-medium flex items-center gap-1">
+        <label htmlFor="model-select" className="flex items-center gap-1 text-xs font-medium">
           Model <FieldHelp slug="imagegen-model" tip="Checkpoint model used for generation" />
         </label>
         {models.length > 0 ? (
@@ -60,9 +60,16 @@ export function ModelTabContent({
           >
             {models.map((model) => {
               const detail = modelDetails?.find((d) => d.filename === model);
-              const typeLabel = detail ? (detail.model_type === "sdxl" ? " [SDXL]" : " [SD 1.5]") : "";
+              const typeLabel = detail
+                ? detail.model_type === "sdxl"
+                  ? " [SDXL]"
+                  : " [SD 1.5]"
+                : "";
               return (
-                <option key={model} value={model}>{model}{typeLabel}</option>
+                <option key={model} value={model}>
+                  {model}
+                  {typeLabel}
+                </option>
               );
             })}
           </select>
@@ -79,8 +86,9 @@ export function ModelTabContent({
       {/* Sampler + Scheduler */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="sampler-select" className="text-xs font-medium flex items-center gap-1">
-            Sampler <FieldHelp slug="imagegen-sampler" tip="Sampling algorithm (euler, dpmpp_2m, etc.)" />
+          <label htmlFor="sampler-select" className="flex items-center gap-1 text-xs font-medium">
+            Sampler{" "}
+            <FieldHelp slug="imagegen-sampler" tip="Sampling algorithm (euler, dpmpp_2m, etc.)" />
           </label>
           <select
             id="sampler-select"
@@ -89,13 +97,19 @@ export function ModelTabContent({
             className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
           >
             {samplerOptions.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="scheduler-select" className="text-xs font-medium flex items-center gap-1">
-            Scheduler <FieldHelp slug="imagegen-scheduler" tip="Noise schedule (normal, karras, exponential)" />
+          <label htmlFor="scheduler-select" className="flex items-center gap-1 text-xs font-medium">
+            Scheduler{" "}
+            <FieldHelp
+              slug="imagegen-scheduler"
+              tip="Noise schedule (normal, karras, exponential)"
+            />
           </label>
           <select
             id="scheduler-select"
@@ -104,7 +118,9 @@ export function ModelTabContent({
             className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
           >
             {schedulerOptions.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </div>

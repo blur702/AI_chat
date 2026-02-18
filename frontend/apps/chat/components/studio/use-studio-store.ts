@@ -137,10 +137,12 @@ const DEFAULT_TIMELINE: TimelineData = {
   tracks: [],
 };
 
-let trackCounter = 0;
-let clipCounter = 0;
-function nextTrackId() { return `track-${++trackCounter}-${Date.now()}`; }
-function nextClipId() { return `clip-${++clipCounter}-${Date.now()}`; }
+function nextTrackId() {
+  return `track-${crypto.randomUUID()}`;
+}
+function nextClipId() {
+  return `clip-${crypto.randomUUID()}`;
+}
 
 export const useStudioStore = create<StudioState>((set, get) => ({
   // Initial state
@@ -210,7 +212,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.map((t) =>
-          t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t
+          t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t,
         ),
       },
       isDirty: true,
@@ -225,11 +227,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           t.id === trackId
             ? {
                 ...t,
-                clips: t.clips.map((c) =>
-                  c.id === clipId ? { ...c, ...updates } : c
-                ),
+                clips: t.clips.map((c) => (c.id === clipId ? { ...c, ...updates } : c)),
               }
-            : t
+            : t,
         ),
       },
       isDirty: true,
@@ -241,9 +241,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.map((t) =>
-          t.id === trackId
-            ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
-            : t
+          t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
         ),
       },
       isDirty: true,
@@ -299,8 +297,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   // Media
   setMediaAssets: (assets) => set({ mediaAssets: assets }),
-  addMediaAsset: (asset) =>
-    set((state) => ({ mediaAssets: [asset, ...state.mediaAssets] })),
+  addMediaAsset: (asset) => set((state) => ({ mediaAssets: [asset, ...state.mediaAssets] })),
   removeMediaAsset: (id) =>
     set((state) => ({ mediaAssets: state.mediaAssets.filter((a) => a.id !== id) })),
 

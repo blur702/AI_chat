@@ -19,7 +19,7 @@ import {
   ACTIVE_MODEL_KEY,
   ACTIVE_MODEL_CHANGE_EVENT as MODE_EVENT,
 } from "@workstation/api/hooks";
-import { useProjectId } from "./use-project-id";
+import { useProjectId } from "@/app/hooks/use-project-id";
 
 const SIDEBAR_VIEW_KEY = "workstation_sidebar_view";
 
@@ -66,7 +66,10 @@ function McpWorkspace({ projectId }: { projectId: string }) {
     return () => window.removeEventListener(MODE_EVENT, handler);
   }, []);
 
-  const draftOptions = useMemo(() => ({ projectId, onChatCreated: handleChatCreated }), [projectId, handleChatCreated]);
+  const draftOptions = useMemo(
+    () => ({ projectId, onChatCreated: handleChatCreated }),
+    [projectId, handleChatCreated],
+  );
 
   const { chatMode, setChatMode, syncFromServer } = useChatMode(null);
   const {
@@ -111,19 +114,20 @@ function McpWorkspace({ projectId }: { projectId: string }) {
     (messageId: string, content: string) => {
       updateMessage(messageId, { content });
     },
-    [updateMessage]
+    [updateMessage],
   );
 
   const drupal = useDrupal(projectId);
   const previewUrl = drupal.stagingStatus?.preview_url || DEFAULT_PREVIEW_URL;
   const previewKey = useMemo(() => previewUrl, [previewUrl]);
 
+  const { refreshStaging } = drupal;
   useEffect(() => {
     const interval = setInterval(() => {
-      drupal.refreshStaging();
+      refreshStaging();
     }, 20000);
     return () => clearInterval(interval);
-  }, [drupal]);
+  }, [refreshStaging]);
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -145,7 +149,7 @@ function McpWorkspace({ projectId }: { projectId: string }) {
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <MessageThread
             messages={messages}
             compactions={conversation?.compactions}
@@ -170,23 +174,19 @@ function McpWorkspace({ projectId }: { projectId: string }) {
 
         <TokenUsageBar tokenUsage={tokenUsage} />
 
-        <ChatModeSelector
-          activeMode={chatMode}
-          onModeChange={setChatMode}
-          disabled={processing}
-        />
+        <ChatModeSelector activeMode={chatMode} onModeChange={setChatMode} disabled={processing} />
 
         <MessageInput onSend={sendMessage} processing={processing} onStop={cancelStream} />
       </div>
 
       {dashboardOpen && (
-        <div className="w-80 shrink-0 border-l bg-background overflow-hidden flex flex-col">
+        <div className="flex w-80 shrink-0 flex-col overflow-hidden border-l bg-background">
           <div className="flex border-b">
             <button
               onClick={() => switchView("dashboard")}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                 sidebarView === "dashboard"
-                  ? "text-foreground border-b-2 border-primary"
+                  ? "border-b-2 border-primary text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -196,7 +196,7 @@ function McpWorkspace({ projectId }: { projectId: string }) {
               onClick={() => switchView("editor")}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                 sidebarView === "editor"
-                  ? "text-foreground border-b-2 border-primary"
+                  ? "border-b-2 border-primary text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -225,7 +225,7 @@ function McpWorkspace({ projectId }: { projectId: string }) {
                 />
               )
             ) : (
-              <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+              <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
                 Send a message to start
               </div>
             )}
@@ -233,7 +233,7 @@ function McpWorkspace({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div className="w-96 shrink-0 border-l bg-slate-50 flex flex-col overflow-hidden">
+      <div className="flex w-96 shrink-0 flex-col overflow-hidden border-l bg-slate-50">
         <div className="flex items-center justify-between border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <span>Drupal Preview</span>
           <StagingControls
@@ -257,7 +257,7 @@ function McpWorkspace({ projectId }: { projectId: string }) {
           </div>
         )}
 
-        <div className="flex-1 min-h-0">
+        <div className="min-h-0 flex-1">
           <PreviewPane key={previewKey} defaultUrl={previewUrl} />
         </div>
       </div>

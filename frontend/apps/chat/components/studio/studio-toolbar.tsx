@@ -3,12 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "@workstation/ui";
-import {
-  ArrowLeft,
-  Save,
-  Download,
-  Monitor,
-} from "lucide-react";
+import { ArrowLeft, Save, Download, Monitor } from "lucide-react";
 import { useStudioStore } from "./use-studio-store";
 import { ExportDialog } from "./export-dialog";
 
@@ -35,14 +30,14 @@ export function StudioToolbar({ onSave, projectId }: StudioToolbarProps) {
 
   return (
     <>
-      <div className="h-12 border-b flex items-center gap-2 px-3 bg-card shrink-0">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => router.push("/studio")}
           title="Back to projects"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="h-4 w-4" />
         </Button>
 
         <div className="h-5 w-px bg-border" />
@@ -60,7 +55,7 @@ export function StudioToolbar({ onSave, projectId }: StudioToolbarProps) {
           />
         ) : (
           <button
-            className="text-sm font-medium hover:text-primary truncate max-w-[200px]"
+            className="max-w-[200px] truncate text-sm font-medium hover:text-primary"
             onClick={() => setEditingName(true)}
             title="Click to rename"
           >
@@ -68,9 +63,7 @@ export function StudioToolbar({ onSave, projectId }: StudioToolbarProps) {
           </button>
         )}
 
-        {isDirty && (
-          <span className="text-xs text-muted-foreground">(unsaved)</span>
-        )}
+        {isDirty && <span className="text-xs text-muted-foreground">(unsaved)</span>}
 
         <div className="flex-1" />
 
@@ -81,7 +74,7 @@ export function StudioToolbar({ onSave, projectId }: StudioToolbarProps) {
           disabled={saving || !isDirty}
           title="Save (Ctrl+S)"
         >
-          <Save className="w-4 h-4 mr-1" />
+          <Save className="mr-1 h-4 w-4" />
           {saving ? "Saving..." : "Save"}
         </Button>
 
@@ -91,17 +84,12 @@ export function StudioToolbar({ onSave, projectId }: StudioToolbarProps) {
           onClick={() => setShowExport(true)}
           title="Export video"
         >
-          <Download className="w-4 h-4 mr-1" />
+          <Download className="mr-1 h-4 w-4" />
           Export
         </Button>
       </div>
 
-      {showExport && (
-        <ExportDialog
-          projectId={projectId}
-          onClose={() => setShowExport(false)}
-        />
-      )}
+      {showExport && <ExportDialog projectId={projectId} onClose={() => setShowExport(false)} />}
     </>
   );
 }

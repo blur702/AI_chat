@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import {
-  Panel,
-  Group,
-  Separator,
-} from "react-resizable-panels";
+import { Panel, Group, Separator } from "react-resizable-panels";
 import { StudioToolbar } from "./studio-toolbar";
 import { MediaBin } from "./media-bin";
 import { PreviewCanvas } from "./preview-canvas";
@@ -20,13 +16,7 @@ interface StudioEditorProps {
 }
 
 export function StudioEditor({ projectId }: StudioEditorProps) {
-  const {
-    setProjectId,
-    setProjectName,
-    setTimeline,
-    setMediaAssets,
-    markClean,
-  } = useStudioStore();
+  const { setProjectId, setProjectName, setTimeline, setMediaAssets, markClean } = useStudioStore();
 
   const [loaded, setLoaded] = useState(false);
   const [rightTab, setRightTab] = useState<"properties" | "subtitles">("properties");
@@ -68,7 +58,9 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
     }
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [projectId, setProjectId, setProjectName, setTimeline, setMediaAssets, markClean]);
 
   // Save handler
@@ -108,14 +100,14 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
 
   if (!loaded) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading project...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <StudioToolbar onSave={handleSave} projectId={projectId} />
 
       <Group orientation="vertical" id="studio-main" className="flex-1">
@@ -127,24 +119,24 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
               <MediaBin projectId={projectId} />
             </Panel>
 
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
 
             {/* Center: Preview */}
             <Panel defaultSize={55} minSize={30}>
               <PreviewCanvas />
             </Panel>
 
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
 
             {/* Right: Properties / Subtitles */}
             <Panel defaultSize={25} minSize={15} maxSize={35}>
-              <div className="h-full flex flex-col">
-                <div className="flex border-b bg-card shrink-0">
+              <div className="flex h-full flex-col">
+                <div className="flex shrink-0 border-b bg-card">
                   <button
                     onClick={() => setRightTab("properties")}
                     className={`flex-1 px-3 py-1.5 text-[10px] font-medium transition-colors ${
                       rightTab === "properties"
-                        ? "text-foreground border-b-2 border-primary"
+                        ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -154,7 +146,7 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
                     onClick={() => setRightTab("subtitles")}
                     className={`flex-1 px-3 py-1.5 text-[10px] font-medium transition-colors ${
                       rightTab === "subtitles"
-                        ? "text-foreground border-b-2 border-primary"
+                        ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -173,7 +165,7 @@ export function StudioEditor({ projectId }: StudioEditorProps) {
           </Group>
         </Panel>
 
-        <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors" />
+        <Separator className="h-1 bg-border transition-colors hover:bg-primary/50" />
 
         {/* Bottom: Timeline */}
         <Panel defaultSize={40} minSize={20}>

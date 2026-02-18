@@ -35,29 +35,16 @@ export function TimelineRuler({ width }: TimelineRulerProps) {
     if (seconds < 1 && seconds > 0) {
       return `0.${Math.round(seconds * 10)}s`;
     }
-    return m > 0
-      ? `${m}:${s.toString().padStart(2, "0")}`
-      : `${s}s`;
+    return m > 0 ? `${m}:${s.toString().padStart(2, "0")}` : `${s}s`;
   };
 
   return (
-    <div
-      className="h-6 border-b bg-muted/50 relative select-none"
-      style={{ width }}
-    >
+    <div className="relative h-6 select-none border-b bg-muted/50" style={{ width }}>
       {marks.map((mark) => (
-        <div
-          key={mark.time}
-          className="absolute top-0"
-          style={{ left: mark.x }}
-        >
-          <div
-            className={`w-px ${
-              mark.major ? "h-6 bg-border" : "h-3 bg-border/50"
-            }`}
-          />
+        <div key={mark.time} className="absolute top-0" style={{ left: mark.x }}>
+          <div className={`w-px ${mark.major ? "h-6 bg-border" : "h-3 bg-border/50"}`} />
           {mark.major && (
-            <span className="absolute top-0.5 left-1 text-[9px] text-muted-foreground whitespace-nowrap">
+            <span className="absolute left-1 top-0.5 whitespace-nowrap text-[9px] text-muted-foreground">
               {formatTime(mark.time)}
             </span>
           )}

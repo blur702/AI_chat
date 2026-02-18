@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useAdmin } from "@workstation/api/hooks";
 import { AlertCircle, ShieldAlert } from "lucide-react";
@@ -17,7 +16,7 @@ import { ImageModelManagement } from "@/components/admin/image-model-management"
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, role } = useAuth();
+  const { role } = useAuth();
 
   const {
     metrics,
@@ -34,27 +33,16 @@ export default function AdminDashboardPage() {
     lastUpdated,
   } = useAdmin();
 
-  // Redirect unauthenticated users
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace("/");
-    }
-  }, [isAuthenticated, router]);
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
   // Block non-admin users
   if (role !== "admin") {
     return (
       <div className="flex h-full items-center justify-center p-8">
-        <div className="text-center space-y-3">
-          <ShieldAlert className="h-10 w-10 text-destructive mx-auto" />
+        <div className="space-y-3 text-center">
+          <ShieldAlert className="mx-auto h-10 w-10 text-destructive" />
           <h2 className="text-sm font-semibold">Access Denied</h2>
-          <p className="text-xs text-muted-foreground max-w-sm">
-            You do not have permission to view the admin dashboard.
-            Contact an administrator for access.
+          <p className="max-w-sm text-xs text-muted-foreground">
+            You do not have permission to view the admin dashboard. Contact an administrator for
+            access.
           </p>
           <Button variant="outline" size="sm" onClick={() => router.push("/")}>
             Go back
@@ -75,7 +63,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold">Admin Dashboard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Kernel metrics, service health, user management, and system diagnostics.
             </p>
           </div>
@@ -93,7 +81,7 @@ export default function AdminDashboardPage() {
               <TabsTrigger value="image-models">Image Models</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="system" className="space-y-6 mt-4">
+            <TabsContent value="system" className="mt-4 space-y-6">
               <RefreshControl
                 onRefresh={handleRefresh}
                 loading={loading}
@@ -114,10 +102,7 @@ export default function AdminDashboardPage() {
               <QuickStats metrics={metrics} />
               <EventStats />
               <SystemMetrics metrics={metrics} />
-              <ServiceHealth
-                debugInfo={debugInfo}
-                getServiceDebug={getServiceDebug}
-              />
+              <ServiceHealth debugInfo={debugInfo} getServiceDebug={getServiceDebug} />
             </TabsContent>
 
             <TabsContent value="users" className="mt-4">

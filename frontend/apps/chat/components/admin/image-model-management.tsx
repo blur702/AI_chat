@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Skeleton } from "@workstation/ui";
 import { Download, HardDrive, Layers, RefreshCcw, Cpu } from "lucide-react";
 import { getClient } from "@workstation/api";
-import type { ImageGenerationOptionsResponse, ImageModelInfo, LoraInfo } from "@workstation/api/types";
+import type {
+  ImageGenerationOptionsResponse,
+  ImageModelInfo,
+  LoraInfo,
+} from "@workstation/api/types";
 
 export function ImageModelManagement() {
   const [options, setOptions] = useState<ImageGenerationOptionsResponse | null>(null);
@@ -29,9 +33,32 @@ export function ImageModelManagement() {
   }, [fetchOptions]);
 
   const typeBadge = (type: string) => {
-    if (type === "sdxl") return <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-600 border-purple-300">SDXL</Badge>;
-    if (type === "sd15") return <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-600 border-blue-300">SD 1.5</Badge>;
-    return <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 border-green-300">Both</Badge>;
+    if (type === "sdxl")
+      return (
+        <Badge
+          variant="outline"
+          className="border-purple-300 bg-purple-500/10 px-1.5 py-0 text-[10px] text-purple-600"
+        >
+          SDXL
+        </Badge>
+      );
+    if (type === "sd15")
+      return (
+        <Badge
+          variant="outline"
+          className="border-blue-300 bg-blue-500/10 px-1.5 py-0 text-[10px] text-blue-600"
+        >
+          SD 1.5
+        </Badge>
+      );
+    return (
+      <Badge
+        variant="outline"
+        className="border-green-300 bg-green-500/10 px-1.5 py-0 text-[10px] text-green-600"
+      >
+        Both
+      </Badge>
+    );
   };
 
   if (loading) {
@@ -51,7 +78,7 @@ export function ImageModelManagement() {
           {error}
         </div>
         <Button variant="outline" size="sm" onClick={fetchOptions}>
-          <RefreshCcw className="h-3.5 w-3.5 mr-1.5" />
+          <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
           Retry
         </Button>
       </div>
@@ -73,13 +100,15 @@ export function ImageModelManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Image Generation Models</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Models discovered from ComfyUI. To add more models, run{" "}
-            <code className="text-[10px] bg-muted px-1 py-0.5 rounded">bash scripts/download_models.sh</code>
+            <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
+              bash scripts/download_models.sh
+            </code>
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchOptions}>
-          <RefreshCcw className="h-3.5 w-3.5 mr-1.5" />
+          <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
           Refresh
         </Button>
       </div>
@@ -94,20 +123,22 @@ export function ImageModelManagement() {
         </div>
 
         {modelDetails.length === 0 ? (
-          <p className="text-xs text-muted-foreground pl-6">No checkpoints found. Download models first.</p>
+          <p className="pl-6 text-xs text-muted-foreground">
+            No checkpoints found. Download models first.
+          </p>
         ) : (
           <div className="grid gap-2">
             {sd15Models.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-blue-600 pl-6">SD 1.5 Models</p>
+                <p className="pl-6 text-[11px] font-medium text-blue-600">SD 1.5 Models</p>
                 {sd15Models.map((m) => (
                   <ModelRow key={m.filename} model={m} typeBadge={typeBadge} />
                 ))}
               </div>
             )}
             {sdxlModels.length > 0 && (
-              <div className="space-y-1.5 mt-2">
-                <p className="text-[11px] font-medium text-purple-600 pl-6">SDXL Models</p>
+              <div className="mt-2 space-y-1.5">
+                <p className="pl-6 text-[11px] font-medium text-purple-600">SDXL Models</p>
                 {sdxlModels.map((m) => (
                   <ModelRow key={m.filename} model={m} typeBadge={typeBadge} />
                 ))}
@@ -127,12 +158,15 @@ export function ImageModelManagement() {
         </div>
 
         {loraDetails.length === 0 ? (
-          <p className="text-xs text-muted-foreground pl-6">No LoRAs found.</p>
+          <p className="pl-6 text-xs text-muted-foreground">No LoRAs found.</p>
         ) : (
           <div className="space-y-1.5">
             {loraDetails.map((l) => (
-              <div key={l.filename} className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs">
-                <span className="flex-1 font-mono truncate">{l.filename}</span>
+              <div
+                key={l.filename}
+                className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
+              >
+                <span className="flex-1 truncate font-mono">{l.filename}</span>
                 {typeBadge(l.model_type)}
               </div>
             ))}
@@ -151,7 +185,7 @@ export function ImageModelManagement() {
           </div>
           <div className="space-y-1.5">
             {upscaleModels.map((name) => (
-              <div key={name} className="rounded-md border px-3 py-2 text-xs font-mono truncate">
+              <div key={name} className="truncate rounded-md border px-3 py-2 font-mono text-xs">
                 {name}
               </div>
             ))}
@@ -160,25 +194,25 @@ export function ImageModelManagement() {
       )}
 
       {/* Summary */}
-      <div className="rounded-md border p-3 space-y-2">
+      <div className="space-y-2 rounded-md border p-3">
         <div className="flex items-center gap-2">
           <Cpu className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-xs font-semibold">Summary</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          <div className="text-center p-2 rounded bg-muted/50">
+        <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+          <div className="rounded bg-muted/50 p-2 text-center">
             <p className="text-lg font-bold">{modelDetails.length}</p>
             <p className="text-muted-foreground">Checkpoints</p>
           </div>
-          <div className="text-center p-2 rounded bg-muted/50">
+          <div className="rounded bg-muted/50 p-2 text-center">
             <p className="text-lg font-bold">{loraDetails.length}</p>
             <p className="text-muted-foreground">LoRAs</p>
           </div>
-          <div className="text-center p-2 rounded bg-muted/50">
+          <div className="rounded bg-muted/50 p-2 text-center">
             <p className="text-lg font-bold">{upscaleModels.length}</p>
             <p className="text-muted-foreground">Upscalers</p>
           </div>
-          <div className="text-center p-2 rounded bg-muted/50">
+          <div className="rounded bg-muted/50 p-2 text-center">
             <p className="text-lg font-bold">{samplers.length}</p>
             <p className="text-muted-foreground">Samplers</p>
           </div>
@@ -188,10 +222,16 @@ export function ImageModelManagement() {
   );
 }
 
-function ModelRow({ model, typeBadge }: { model: ImageModelInfo; typeBadge: (type: string) => React.ReactNode }) {
+function ModelRow({
+  model,
+  typeBadge,
+}: {
+  model: ImageModelInfo;
+  typeBadge: (type: string) => React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs ml-6">
-      <span className="flex-1 font-mono truncate">{model.filename}</span>
+    <div className="ml-6 flex items-center gap-2 rounded-md border px-3 py-2 text-xs">
+      <span className="flex-1 truncate font-mono">{model.filename}</span>
       {typeBadge(model.model_type)}
     </div>
   );

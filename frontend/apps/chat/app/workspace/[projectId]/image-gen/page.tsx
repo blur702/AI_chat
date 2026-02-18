@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { getClient } from "@workstation/api";
-import { useAuth, useImageGeneration, useProject, useServiceStatus, useSettings } from "@workstation/api/hooks";
+import {
+  useAuth,
+  useImageGeneration,
+  useProject,
+  useServiceStatus,
+  useSettings,
+} from "@workstation/api/hooks";
 import type { ImageGenerationOptionsResponse, UserPreferences } from "@workstation/api/types";
 import { Button } from "@workstation/ui";
 import { ArrowLeft, Layers } from "lucide-react";
@@ -42,12 +48,12 @@ export default function ImageGenerationPage() {
       }
     }
     fetchChatId();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
-  const comfyuiService = services.find(
-    (s) => s.name === "comfyui_client"
-  );
+  const comfyuiService = services.find((s) => s.name === "comfyui_client");
   const comfyuiAvailable = comfyuiService?.detail?.healthy;
   const comfyuiHealthMessage = comfyuiService?.detail?.message ?? null;
 
@@ -55,12 +61,12 @@ export default function ImageGenerationPage() {
     async (defaults: Partial<UserPreferences>) => {
       await updatePreferences(defaults);
     },
-    [updatePreferences]
+    [updatePreferences],
   );
 
   const projectImageSystemContext = useMemo(
     () => String((project?.settings?.imggen_system_prompt as string | undefined) ?? ""),
-    [project?.settings]
+    [project?.settings],
   );
 
   const handleSaveProjectImageContext = useCallback(
@@ -77,7 +83,7 @@ export default function ImageGenerationPage() {
         settings: nextSettings,
       });
     },
-    [project?.settings, updateProject]
+    [project?.settings, updateProject],
   );
 
   const loadGenerationOptions = useCallback(async () => {
@@ -145,11 +151,17 @@ export default function ImageGenerationPage() {
     if (startingComfyUI && comfyuiStartupMessage) return comfyuiStartupMessage;
     if (!comfyuiAvailable && comfyuiHealthMessage) return comfyuiHealthMessage;
     return null;
-  }, [comfyuiAvailable, comfyuiHealthMessage, comfyuiStartupError, comfyuiStartupMessage, startingComfyUI]);
+  }, [
+    comfyuiAvailable,
+    comfyuiHealthMessage,
+    comfyuiStartupError,
+    comfyuiStartupMessage,
+    startingComfyUI,
+  ]);
 
   if (!userId || preferencesLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading settings...</p>
       </div>
     );
@@ -157,7 +169,7 @@ export default function ImageGenerationPage() {
 
   return (
     <div className="h-full overflow-auto p-4">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="mb-3 flex items-center gap-2">
         <Link href={`/workspace/${projectId}`}>
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -165,8 +177,8 @@ export default function ImageGenerationPage() {
           </Button>
         </Link>
       </div>
-      <div className="flex flex-col md:flex-row gap-4 h-full">
-        <div className="w-full md:w-[380px] md:shrink-0 overflow-auto">
+      <div className="flex h-full flex-col gap-4 md:flex-row">
+        <div className="w-full overflow-auto md:w-[380px] md:shrink-0">
           <GenerationForm
             projectId={projectId}
             hookState={imageHook}
@@ -196,17 +208,13 @@ export default function ImageGenerationPage() {
             </div>
           )}
         </div>
-        <div className="flex-1 min-w-0 overflow-auto rounded-md border p-4">
+        <div className="min-w-0 flex-1 overflow-auto rounded-md border p-4">
           <ImageGallery projectId={projectId} hookState={imageHook} />
         </div>
       </div>
 
       {chatId && (
-        <ContextEditorFullscreen
-          chatId={chatId}
-          open={showContext}
-          onOpenChange={setShowContext}
-        />
+        <ContextEditorFullscreen chatId={chatId} open={showContext} onOpenChange={setShowContext} />
       )}
     </div>
   );

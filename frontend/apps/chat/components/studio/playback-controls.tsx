@@ -6,8 +6,7 @@ import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { useStudioStore } from "./use-studio-store";
 
 export function PlaybackControls() {
-  const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying } =
-    useStudioStore();
+  const { currentTime, isPlaying, duration, setCurrentTime, setIsPlaying } = useStudioStore();
 
   const togglePlay = useCallback(() => {
     setIsPlaying(!isPlaying);
@@ -36,17 +35,17 @@ export function PlaybackControls() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setCurrentTime(parseFloat(e.target.value));
     },
-    [setCurrentTime]
+    [setCurrentTime],
   );
 
   return (
-    <div className="px-4 py-2 bg-card/80 border-t flex items-center gap-3">
+    <div className="flex items-center gap-3 border-t bg-card/80 px-4 py-2">
       <Button variant="ghost" size="sm" onClick={goToStart} title="Go to start">
-        <SkipBack className="w-4 h-4" />
+        <SkipBack className="h-4 w-4" />
       </Button>
 
       <Button variant="ghost" size="sm" onClick={skipBack} title="Back 5s">
-        <SkipBack className="w-3 h-3" />
+        <SkipBack className="h-3 w-3" />
       </Button>
 
       <Button
@@ -54,20 +53,16 @@ export function PlaybackControls() {
         size="sm"
         onClick={togglePlay}
         title={isPlaying ? "Pause" : "Play"}
-        className="w-8 h-8 p-0"
+        className="h-8 w-8 p-0"
       >
-        {isPlaying ? (
-          <Pause className="w-4 h-4" />
-        ) : (
-          <Play className="w-4 h-4 ml-0.5" />
-        )}
+        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
       </Button>
 
       <Button variant="ghost" size="sm" onClick={skipForward} title="Forward 5s">
-        <SkipForward className="w-3 h-3" />
+        <SkipForward className="h-3 w-3" />
       </Button>
 
-      <span className="text-xs font-mono text-muted-foreground min-w-[80px]">
+      <span className="min-w-[80px] font-mono text-xs text-muted-foreground">
         {formatTime(currentTime)} / {formatTime(duration || 0)}
       </span>
 
@@ -78,7 +73,7 @@ export function PlaybackControls() {
         step={0.01}
         value={currentTime}
         onChange={handleScrub}
-        className="flex-1 h-1 accent-primary"
+        className="h-1 flex-1 accent-primary"
       />
     </div>
   );

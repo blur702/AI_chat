@@ -27,11 +27,11 @@ interface TimelineTrackProps {
 const TRACK_HEIGHT = 56;
 
 const TRACK_ICONS: Record<string, React.ReactNode> = {
-  video: <Film className="w-3 h-3" />,
-  audio: <Music className="w-3 h-3" />,
-  text: <Type className="w-3 h-3" />,
-  image: <ImageIcon className="w-3 h-3" />,
-  subtitle: <Captions className="w-3 h-3" />,
+  video: <Film className="h-3 w-3" />,
+  audio: <Music className="h-3 w-3" />,
+  text: <Type className="h-3 w-3" />,
+  image: <ImageIcon className="h-3 w-3" />,
+  subtitle: <Captions className="h-3 w-3" />,
 };
 
 const TRACK_COLORS: Record<string, string> = {
@@ -54,7 +54,7 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
     // We need to update via store - for now we'll use a direct approach
     const state = useStudioStore.getState();
     const tracks = state.timeline.tracks.map((t) =>
-      t.id === track.id ? { ...t, muted: !t.muted } : t
+      t.id === track.id ? { ...t, muted: !t.muted } : t,
     );
     state.setTimeline({ ...state.timeline, tracks });
   }, [track.id]);
@@ -62,7 +62,7 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
   const toggleVisible = useCallback(() => {
     const state = useStudioStore.getState();
     const tracks = state.timeline.tracks.map((t) =>
-      t.id === track.id ? { ...t, visible: !t.visible } : t
+      t.id === track.id ? { ...t, visible: !t.visible } : t,
     );
     state.setTimeline({ ...state.timeline, tracks });
   }, [track.id]);
@@ -70,7 +70,7 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
   const toggleLocked = useCallback(() => {
     const state = useStudioStore.getState();
     const tracks = state.timeline.tracks.map((t) =>
-      t.id === track.id ? { ...t, locked: !t.locked } : t
+      t.id === track.id ? { ...t, locked: !t.locked } : t,
     );
     state.setTimeline({ ...state.timeline, tracks });
   }, [track.id]);
@@ -81,59 +81,43 @@ export function TimelineTrack({ track }: TimelineTrackProps) {
       style={{ height: TRACK_HEIGHT }}
     >
       {/* Track header */}
-      <div className="w-40 shrink-0 flex items-center gap-1 px-2 border-r bg-card">
+      <div className="flex w-40 shrink-0 items-center gap-1 border-r bg-card px-2">
         <span className="text-muted-foreground">{TRACK_ICONS[track.type]}</span>
-        <span className="text-xs truncate flex-1">{track.name}</span>
+        <span className="flex-1 truncate text-xs">{track.name}</span>
         <div className="flex gap-0.5">
           <button
             onClick={toggleMuted}
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted"
             title={track.muted ? "Unmute" : "Mute"}
           >
-            {track.muted ? (
-              <VolumeX className="w-3 h-3" />
-            ) : (
-              <Volume2 className="w-3 h-3" />
-            )}
+            {track.muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
           </button>
           <button
             onClick={toggleVisible}
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted"
             title={track.visible ? "Hide" : "Show"}
           >
-            {track.visible ? (
-              <Eye className="w-3 h-3" />
-            ) : (
-              <EyeOff className="w-3 h-3" />
-            )}
+            {track.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
           </button>
           <button
             onClick={toggleLocked}
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted"
             title={track.locked ? "Unlock" : "Lock"}
           >
-            {track.locked ? (
-              <Lock className="w-3 h-3" />
-            ) : (
-              <Unlock className="w-3 h-3" />
-            )}
+            {track.locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
           </button>
           <button
             onClick={() => removeTrack(track.id)}
-            className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+            className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             title="Delete track"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>
 
       {/* Clip area */}
-      <div
-        ref={setNodeRef}
-        className="flex-1 relative"
-        style={{ minWidth: 0 }}
-      >
+      <div ref={setNodeRef} className="relative flex-1" style={{ minWidth: 0 }}>
         {track.clips.map((clip) => (
           <TimelineClipBlock
             key={clip.id}

@@ -118,8 +118,8 @@ class MediaAsset(UUIDMixin, TimestampMixin, Base):
 
     thumbnail_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True
+    asset_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
     )
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

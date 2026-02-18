@@ -44,25 +44,18 @@ export function ScreenRecorder({ projectId, onDone, onCancel }: ScreenRecorderPr
         // Upload recording
         setState("uploading");
         const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        const file = new File(
-          [blob],
-          `recording-${Date.now()}.webm`,
-          { type: "video/webm" }
-        );
+        const file = new File([blob], `recording-${Date.now()}.webm`, { type: "video/webm" });
 
         const formData = new FormData();
         formData.append("file", file);
 
         try {
           const token = localStorage.getItem("auth_token");
-          const res = await fetch(
-            `/api/studio/projects/${projectId}/recordings`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: formData,
-            }
-          );
+          const res = await fetch(`/api/studio/projects/${projectId}/recordings`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
           if (res.ok) {
             const asset = await res.json();
             onDone(asset);
@@ -108,22 +101,20 @@ export function ScreenRecorder({ projectId, onDone, onCancel }: ScreenRecorderPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-card rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-        <h3 className="font-semibold mb-4">Screen Recording</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="mx-4 w-full max-w-sm rounded-lg bg-card p-6 shadow-xl">
+        <h3 className="mb-4 font-semibold">Screen Recording</h3>
 
         {state === "idle" && (
-          <div className="text-center space-y-4">
-            <Monitor className="w-12 h-12 mx-auto text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Choose a screen or window to record
-            </p>
-            <div className="flex gap-2 justify-center">
+          <div className="space-y-4 text-center">
+            <Monitor className="mx-auto h-12 w-12 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Choose a screen or window to record</p>
+            <div className="flex justify-center gap-2">
               <Button variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
               <Button onClick={startRecording}>
-                <Monitor className="w-4 h-4 mr-2" />
+                <Monitor className="mr-2 h-4 w-4" />
                 Start Recording
               </Button>
             </div>
@@ -131,25 +122,23 @@ export function ScreenRecorder({ projectId, onDone, onCancel }: ScreenRecorderPr
         )}
 
         {state === "recording" && (
-          <div className="text-center space-y-4">
+          <div className="space-y-4 text-center">
             <div className="flex items-center justify-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-lg font-mono">{formatDuration(duration)}</span>
+              <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+              <span className="font-mono text-lg">{formatDuration(duration)}</span>
             </div>
             <p className="text-sm text-muted-foreground">Recording in progress...</p>
             <Button variant="destructive" onClick={stopRecording}>
-              <Square className="w-4 h-4 mr-2" />
+              <Square className="mr-2 h-4 w-4" />
               Stop Recording
             </Button>
           </div>
         )}
 
         {state === "uploading" && (
-          <div className="text-center space-y-4">
-            <Upload className="w-12 h-12 mx-auto text-muted-foreground animate-pulse" />
-            <p className="text-sm text-muted-foreground">
-              Uploading recording...
-            </p>
+          <div className="space-y-4 text-center">
+            <Upload className="mx-auto h-12 w-12 animate-pulse text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Uploading recording...</p>
           </div>
         )}
       </div>
