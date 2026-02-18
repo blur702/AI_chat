@@ -91,7 +91,7 @@ export function KanbanBoard({
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-64 items-center justify-center" role="status" aria-label="Loading notes">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );

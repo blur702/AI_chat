@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid import UUID
@@ -41,6 +41,7 @@ class NoteCategory(UUIDMixin, TimestampMixin, Base):
 
     __table_args__ = (
         Index("idx_note_categories_user_not_deleted", "user_id", "is_deleted"),
+        UniqueConstraint("user_id", "slug", name="uq_note_categories_user_slug"),
     )
 
     def soft_delete(self) -> None:

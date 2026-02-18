@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import get_current_user_payload, get_db_session
@@ -102,7 +103,10 @@ async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
             ))
             added = True
     if added:
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
 
 
 # ---- Note Category Endpoints ----

@@ -93,7 +93,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
           <Bug className="h-4 w-4" />
           Issues
         </h2>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close issues panel">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -200,6 +200,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                   size="icon"
                   className="ml-auto h-6 w-6 text-destructive"
                   onClick={() => handleDelete(issue.id)}
+                  aria-label="Delete issue"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

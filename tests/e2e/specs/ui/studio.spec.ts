@@ -16,9 +16,10 @@ test.describe("Video Studio — full e2e", () => {
   test.afterAll(async ({ request }) => {
     if (projectIds.length === 0) return;
     try {
-      await request.post("/api/auth/login", {
+      const loginRes = await request.post("/api/auth/login", {
         data: { identifier: ADMIN_ID, password: ADMIN_PW },
       });
+      if (!loginRes.ok()) return; // Can't cleanup without auth
     } catch {
       return; // Can't cleanup without auth
     }
