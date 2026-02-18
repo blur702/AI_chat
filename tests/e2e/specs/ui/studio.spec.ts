@@ -3,7 +3,7 @@ import { loginAsAdmin } from "../../helpers/auth";
 import { flushRateLimits, resetLockout } from "../../helpers/db";
 import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
 
-const ORIGIN = process.env.BASE_URL ?? "https://ssdd.kevinalthaus.com";
+const ORIGIN = process.env.BASE_URL ?? "http://localhost:3001";
 
 test.describe("Video Studio — full e2e", () => {
   const projectIds: string[] = [];

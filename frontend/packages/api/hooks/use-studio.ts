@@ -386,12 +386,23 @@ export function useStudioMedia(projectId: string) {
     }
   }, []);
 
+  // Track created object URLs for cleanup on unmount
+  const createdUrlsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      createdUrlsRef.current.clear();
+    };
+  }, []);
+
   /**
    * Build the authenticated URL for streaming or downloading a media file.
    * Returns an object URL backed by a Blob so it works cross-origin.
    *
-   * @important Callers are responsible for calling URL.revokeObjectURL() on the
-   * returned URL when done to avoid memory leaks.
+   * @important Callers are responsible for calling revokeMediaUrl() or
+   * URL.revokeObjectURL() on the returned URL when done to avoid memory leaks.
+   * Any unreleased URLs are automatically revoked on unmount.
    *
    * @param mediaId - The UUID of the media asset to stream.
    */
@@ -408,7 +419,15 @@ export function useStudioMedia(projectId: string) {
     }
 
     const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    createdUrlsRef.current.add(url);
+    return url;
+  }, []);
+
+  /** Revoke a previously created object URL to free memory. */
+  const revokeMediaUrl = useCallback((url: string) => {
+    URL.revokeObjectURL(url);
+    createdUrlsRef.current.delete(url);
   }, []);
 
   return {
@@ -422,6 +441,7 @@ export function useStudioMedia(projectId: string) {
     uploadRecording,
     deleteAsset,
     getMediaFileUrl,
+    revokeMediaUrl,
   };
 }
 
@@ -563,6 +583,9 @@ export function useStudioExport(projectId: string) {
   /**
    * Download the rendered video for a completed export job.
    * Returns an object URL for the downloaded Blob.
+   *
+   * @important Callers are responsible for calling URL.revokeObjectURL() on the
+   * returned URL when done to avoid memory leaks.
    *
    * @param exportId - The UUID of the completed export to download.
    */

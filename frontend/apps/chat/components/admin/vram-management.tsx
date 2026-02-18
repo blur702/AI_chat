@@ -561,7 +561,7 @@ export function VramManagement() {
                 gpu={gpu}
                 runningModels={modelsByGpu.get(gpu.gpu_index) ?? []}
                 onUnload={unloadModel}
-                onOffload={(name) => offloadToRam(name, userId ?? "")}
+                onOffload={(name) => offloadToRam(name, userId ?? undefined)}
                 actionLoading={actionLoading}
               />
             ))}

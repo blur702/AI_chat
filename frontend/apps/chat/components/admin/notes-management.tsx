@@ -37,7 +37,7 @@ export function NotesManagement() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this note?")) return;
     try {
-      await getClient().deleteNote(id);
+      await getClient().adminDeleteNote(id);
       await fetchNotes();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete note");

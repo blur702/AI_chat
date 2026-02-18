@@ -91,7 +91,11 @@ export function ChatPanel({
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (typeof detail?.content === "string" && sendMessage) {
-        sendMessage(detail.content).catch(() => {});
+        sendMessage(detail.content).catch((err) => {
+          if (process.env.NODE_ENV === "development") {
+            console.debug("workspace:inject-message failed:", err);
+          }
+        });
       }
     };
     window.addEventListener("workspace:inject-message", handler);

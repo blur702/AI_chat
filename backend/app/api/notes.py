@@ -205,8 +205,8 @@ async def delete_category(
 
 @router.get("", response_model=NoteListResponse)
 async def list_notes(
-    project_id: str | None = Query(default=None),
-    category_id: str | None = Query(default=None),
+    project_id: UUID | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
     note_status: str | None = Query(default=None, alias="status"),
     pinned: bool | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
@@ -543,6 +543,27 @@ async def admin_list_notes(
     )
     rows = result.scalars().all()
     return NoteListResponse(notes=[_note_to_response(n) for n in rows], count=total)
+
+
+@admin_notes_router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_note(
+    note_id: UUID,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Admin-only: soft-delete any note regardless of owner."""
+    role = payload.get("role", "user")
+    if role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
+    result = await db.execute(
+        select(Note).where(Note.id == note_id, Note.is_deleted == False)  # noqa: E712
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    row.soft_delete()
+    await db.commit()
 
 
 # ---- AI Title Generation ----

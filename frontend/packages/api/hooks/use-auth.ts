@@ -141,9 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    void getClient()
+    getClient()
       .logout()
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        getClient().setToken(null);
+      });
     setState({ ...emptyState, isLoading: false });
   }, []);
 

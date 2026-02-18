@@ -91,7 +91,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
 
       attemptRef.current++;
       try {
-        const result = await fetcher();
+        const result = await fetcherRef.current();
         if (cancelledRef.current) return;
         setData(result);
         setError(null);
@@ -103,7 +103,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
       } catch (err) {
         if (cancelledRef.current) return;
         setError(err);
-        onError?.(err);
+        onErrorRef.current?.(err);
       }
 
       if (maxAttempts > 0 && attemptRef.current >= maxAttempts) {

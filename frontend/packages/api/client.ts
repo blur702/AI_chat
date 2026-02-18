@@ -2539,6 +2539,13 @@ export class WorkstationClient {
     });
   }
 
+  /** Admin: soft-delete any note regardless of owner. */
+  async adminDeleteNote(noteId: string): Promise<void> {
+    return this.request(`/api/admin/notes/${encodeURIComponent(noteId)}`, {
+      method: "DELETE",
+    });
+  }
+
   /** Mark a note as completed. */
   async completeNote(noteId: string): Promise<NoteResponse> {
     return this.request(`/api/notes/${encodeURIComponent(noteId)}/complete`, {
