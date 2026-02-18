@@ -34,7 +34,8 @@ export type MobileIdeTab =
   | "snapshots"
   | "context"
   | "ui-builder"
-  | "planning";
+  | "planning"
+  | "kb-builder";
 
 const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "files", label: "Files", icon: FolderOpen },

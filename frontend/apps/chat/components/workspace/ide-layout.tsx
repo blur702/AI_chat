@@ -218,7 +218,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     [togglePanel],
   );
   const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
-  const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb"), [togglePanel]);
+  const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb-builder"), [togglePanel]);
   const handleIssuesClick = useCallback(() => togglePanel("issues"), [togglePanel]);
 
   const handleToolsClick = useCallback(() => {
@@ -461,7 +461,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           {mobileTab === "planning" && (
             <PlanningPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
-          {mobileTab === "kb" && (
+          {mobileTab === "kb-builder" && (
             <KBBuilderPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
         </div>
