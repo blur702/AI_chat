@@ -19,3 +19,5 @@ export * from "./planning";
 export * from "./prompt-preset";
 export * from "./drupal-local";
 export * from "./palette";
+export * from "./note";
+export * from "./issue";

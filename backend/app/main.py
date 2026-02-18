@@ -50,6 +50,8 @@ from app.api.planning import router as planning_router
 from app.api.prompt_presets import router as prompt_presets_router
 from app.api.drupal_local import router as drupal_local_router
 from app.api.palettes import router as palettes_router
+from app.api.issues import router as issues_router, project_issues_router
+from app.api.notes import router as notes_router, categories_router as note_categories_router, admin_notes_router
 from app.api.tool_approvals import router as tool_approvals_router
 from app.api.studio import router as studio_router
 
@@ -385,6 +387,8 @@ app = FastAPI(
         {"name": "ui-components", "description": "Reusable UI component registry and metadata."},
         {"name": "planning", "description": "Multi-step plan generation, review, and execution."},
         {"name": "drupal-local", "description": "Local Drupal development environment operations."},
+        {"name": "issues", "description": "Project issue tracking with severity, status, and fix workflow."},
+        {"name": "notes", "description": "User notes with project scoping, categories, and AI title generation."},
         {"name": "palettes", "description": "Color palette generation and theme management."},
         {"name": "system-prompts", "description": "System prompt CRUD and per-conversation prompt assignment."},
         {"name": "studio", "description": "Video Studio -- project CRUD, media upload, timeline editing, and FFmpeg export."},
@@ -454,6 +458,11 @@ app.include_router(planning_router, prefix="/api", tags=["planning"])
 app.include_router(prompt_presets_router, prefix="/api", tags=["image"])
 app.include_router(drupal_local_router, prefix="/api", tags=["drupal-local"])
 app.include_router(palettes_router, prefix="/api", tags=["palettes"])
+app.include_router(issues_router, prefix="/api", tags=["issues"])
+app.include_router(project_issues_router, prefix="/api", tags=["issues"])
+app.include_router(notes_router, prefix="/api", tags=["notes"])
+app.include_router(note_categories_router, prefix="/api", tags=["notes"])
+app.include_router(admin_notes_router, prefix="/api", tags=["admin"])
 app.include_router(tool_approvals_router, prefix="/api", tags=["tools"])
 app.include_router(studio_router, prefix="/api", tags=["studio"])
 

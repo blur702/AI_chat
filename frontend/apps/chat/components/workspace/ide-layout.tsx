@@ -158,6 +158,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   const handleUIBuilderClick = useCallback(() => togglePanel("ui-builder", "ui-builder"), [togglePanel]);
   const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
   const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb"), [togglePanel]);
+  const handleIssuesClick = useCallback(() => togglePanel("issues"), [togglePanel]);
 
   const handleToolsClick = useCallback(() => {
     setToolsContext({ prefillFile: null, filterForFile: false, initialTool: null });
@@ -331,6 +332,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           onUIBuilderClick={handleUIBuilderClick}
           onPlanningClick={handlePlanningClick}
           onKBBuilderClick={handleKBBuilderClick}
+          onIssuesClick={handleIssuesClick}
           onToolsClick={handleToolsClick}
           onCloseProject={handleConfirmClose}
           onSettingsClick={handleSettingsClick}
@@ -449,6 +451,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         onUIBuilderClick={handleUIBuilderClick}
         onPlanningClick={handlePlanningClick}
         onKBBuilderClick={handleKBBuilderClick}
+        onIssuesClick={handleIssuesClick}
         onToolsClick={handleToolsClick}
         onCloseProject={handleConfirmClose}
         onSettingsClick={handleSettingsClick}

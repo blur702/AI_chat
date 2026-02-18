@@ -24,7 +24,7 @@ export default function WorkspaceLayout({
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-[calc(100vh-2.5rem)] flex-col">
       <ServiceStatusBanner />
       <main className="flex-1 overflow-hidden">{children}</main>
       <WorkspaceStatusBar />

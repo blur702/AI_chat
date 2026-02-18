@@ -17,6 +17,9 @@ from app.models.base import TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.audit_log import AuditLog
     from app.models.color_palette import ColorPalette
+    from app.models.issue import Issue
+    from app.models.note import Note
+    from app.models.note_category import NoteCategory
     from app.models.context_snippet import ContextSnippet
     from app.models.event import Event
     from app.models.image_generation import ImageGeneration
@@ -185,6 +188,21 @@ class User(UUIDMixin, TimestampMixin, Base):
 
     color_palettes: Mapped[List["ColorPalette"]] = relationship(
         "ColorPalette",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    notes: Mapped[List["Note"]] = relationship(
+        "Note",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    issues: Mapped[List["Issue"]] = relationship(
+        "Issue",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    note_categories: Mapped[List["NoteCategory"]] = relationship(
+        "NoteCategory",
         back_populates="user",
         cascade="all, delete-orphan",
     )

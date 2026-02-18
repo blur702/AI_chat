@@ -30,11 +30,13 @@ const ContextEditorPanel = dynamic(() => import("../context/context-editor-panel
 const UIBuilderPanel = dynamic(() => import("./ui-builder/ui-builder-panel").then(m => m.UIBuilderPanel), { ssr: false, loading: PanelSkeleton });
 const PlanningPanel = dynamic(() => import("./planning/planning-panel").then(m => m.PlanningPanel), { ssr: false, loading: PanelSkeleton });
 const KBBuilderPanel = dynamic(() => import("./kb-builder/kb-builder-panel").then(m => m.KBBuilderPanel), { ssr: false, loading: PanelSkeleton });
+const IssuesPanel = dynamic(() => import("./issues/issues-panel").then(m => m.IssuesPanel), { ssr: false, loading: PanelSkeleton });
 
 export type OverlayPanel =
   | "automations" | "history" | "image-gen" | "tools"
   | "events" | "resources" | "drupal" | "kb" | "snapshots"
   | "context" | "ui-builder" | "planning" | "kb-builder"
+  | "issues"
   | null;
 
 interface PanelSheetsProps {
@@ -206,6 +208,15 @@ export function PanelSheets({
           <SheetTitle className="sr-only">KB Builder</SheetTitle>
           <PanelErrorBoundary panelName="KB Builder">
             <KBBuilderPanel projectId={projectId} onClose={close} />
+          </PanelErrorBoundary>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={activePanel === "issues"} onOpenChange={sheetOpenChange("issues", setActivePanel)}>
+        <SheetContent className="w-[520px]">
+          <SheetTitle className="sr-only">Issues</SheetTitle>
+          <PanelErrorBoundary panelName="Issues">
+            <IssuesPanel projectId={projectId} onClose={close} />
           </PanelErrorBoundary>
         </SheetContent>
       </Sheet>

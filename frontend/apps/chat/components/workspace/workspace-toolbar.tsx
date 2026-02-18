@@ -41,6 +41,7 @@ import {
   LayoutTemplate,
   Map as MapIcon,
   GraduationCap,
+  Bug,
 } from "lucide-react";
 import type { ToolInfo } from "@workstation/api/types";
 import { useHelp } from "../help/help-provider";
@@ -63,6 +64,7 @@ interface WorkspaceToolbarProps {
   onUIBuilderClick?: () => void;
   onPlanningClick?: () => void;
   onKBBuilderClick?: () => void;
+  onIssuesClick?: () => void;
   onCloseProject?: () => void;
   onSettingsClick?: () => void;
   pendingActionsCount?: number;
@@ -88,6 +90,7 @@ export const WorkspaceToolbar = memo(function WorkspaceToolbar({
   onUIBuilderClick,
   onPlanningClick,
   onKBBuilderClick,
+  onIssuesClick,
   onCloseProject,
   onSettingsClick,
   pendingActionsCount = 0,
@@ -294,6 +297,18 @@ export const WorkspaceToolbar = memo(function WorkspaceToolbar({
           <TooltipContent>
             <p>Build a vector knowledge base step-by-step with educational wizard</p>
             <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); openHelp("kb-what-are-embeddings"); }}>Learn more</button>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={onIssuesClick}>
+              <Bug className="h-4 w-4" />
+              {!isMobile && "Issues"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Track and fix project issues</p>
           </TooltipContent>
         </Tooltip>
 

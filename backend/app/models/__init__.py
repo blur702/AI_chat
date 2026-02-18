@@ -20,10 +20,13 @@ from app.models.drupal_site import DrupalSite
 from app.models.event import Event
 from app.models.help_topic import HelpTopic
 from app.models.image_generation import ImageGeneration
+from app.models.issue import Issue
 from app.models.context_compaction import ContextCompaction
 from app.models.kb_chunk import KBChunk
 from app.models.kb_source import KBSource
 from app.models.message import Message
+from app.models.note import Note
+from app.models.note_category import NoteCategory
 from app.models.project import Project
 from app.models.prompt_preset import PromptPreset
 from app.models.project_import import ProjectImport
@@ -49,9 +52,12 @@ __all__ = [
     "Event",
     "HelpTopic",
     "ImageGeneration",
+    "Issue",
     "KBChunk",
     "KBSource",
     "Message",
+    "Note",
+    "NoteCategory",
     "PlanPhase",
     "PlanTask",
     "PlanningSession",

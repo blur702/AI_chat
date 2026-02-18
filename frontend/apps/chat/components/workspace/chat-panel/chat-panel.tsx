@@ -60,6 +60,18 @@ export function ChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, processing]);
 
+  // Listen for injected messages from issues panel
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.content && sendMessage) {
+        sendMessage(detail.content).catch(() => {});
+      }
+    };
+    window.addEventListener("workspace:inject-message", handler);
+    return () => window.removeEventListener("workspace:inject-message", handler);
+  }, [sendMessage]);
+
   const handleSend = useCallback(async () => {
     const content = input.trim();
     if (!content || processing) return;

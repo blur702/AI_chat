@@ -17,16 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
   cn,
   useBreakpoint,
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Settings, Pin, Archive, Trash2, Pencil, Loader2, LogOut, Code2, Monitor, Globe, HelpCircle, Palette, ImageIcon, Film, ShieldCheck } from "lucide-react";
+import { Plus, MessageSquare, Pin, Archive, Trash2, Pencil, Loader2, HelpCircle } from "lucide-react";
 import { useHelp } from "./help/help-provider";
 import { t } from "@/lib/i18n";
 
@@ -392,186 +388,16 @@ const SidebarContent = memo(function SidebarContent({
         )}
       </ScrollArea>
 
-      <TooltipProvider delayDuration={300}>
-        <div className="border-t p-2 mt-2 space-y-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/projects"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/projects" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <Code2 className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("projects")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Manage your projects</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-projects"); }} aria-label="Learn more about projects">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-          {projectId && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href={`/workspace/${projectId}`}
-                  onClick={onChatSelect}
-                  className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <Monitor className="h-4 w-4" aria-hidden="true" />
-                  <span className="text-sm">{t("openIDE")}</span>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>Open the workspace IDE with editor, terminal, and tools</p>
-                <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-ide"); }} aria-label="Learn more about IDE">Learn more</button>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/drupal"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/drupal" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <Globe className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("Drupal")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Manage your Drupal site</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-drupal"); }} aria-label="Learn more about Drupal manager">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/settings"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/settings" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <Settings className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("settings")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>User preferences and configuration</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-settings"); }} aria-label="Learn more about settings">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/palettes"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/palettes" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <Palette className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("Palettes")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Create and reuse saved color palettes anywhere</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-palettes"); }} aria-label="Learn more about palettes">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href={projectId ? `/workspace/${projectId}/image-gen` : "#"}
-                onClick={onChatSelect}
-                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("Images")}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Generate and browse AI images</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/studio"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/studio" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <Film className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Studio</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Create e-learning videos with screen recordings</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href="/admin"
-                onClick={onChatSelect}
-                className={cn(
-                  "flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  pathname === "/admin" && "bg-accent text-accent-foreground"
-                )}
-              >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">Admin</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>System administration and monitoring</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => onHelp()}
-                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                aria-label="Help"
-              >
-                <HelpCircle className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("help")}</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Browse help topics and search for answers</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-help"); }} aria-label="Learn more about help">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onLogout}
-                className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors min-h-[44px] text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">{t("logOut")}</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Sign out of your account</p>
-              <button type="button" className="text-xs text-primary hover:underline mt-1 block" onClick={(e) => { e.stopPropagation(); onHelp("sidebar-logout"); }} aria-label="Learn more about logging out">Learn more</button>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      <div className="border-t p-2 mt-2 space-y-1">
+        <button
+          onClick={() => onHelp()}
+          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors min-h-[36px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="Help"
+        >
+          <HelpCircle className="h-4 w-4" aria-hidden="true" />
+          <span className="text-sm">{t("help")}</span>
+        </button>
+      </div>
     </>
   );
 });

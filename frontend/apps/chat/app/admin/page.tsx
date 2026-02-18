@@ -13,6 +13,7 @@ import { AuditLogs } from "@/components/admin/audit-logs";
 import { EventStats } from "@/components/admin/event-stats";
 import { HelpTopicManagement } from "@/components/admin/help-topic-management";
 import { ImageModelManagement } from "@/components/admin/image-model-management";
+import { NotesManagement } from "@/components/admin/notes-management";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -79,6 +80,7 @@ export default function AdminDashboardPage() {
               <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
               <TabsTrigger value="help-topics">Help Topics</TabsTrigger>
               <TabsTrigger value="image-models">Image Models</TabsTrigger>
+              <TabsTrigger value="notes">Notes</TabsTrigger>
             </TabsList>
 
             <TabsContent value="system" className="mt-4 space-y-6">
@@ -119,6 +121,10 @@ export default function AdminDashboardPage() {
 
             <TabsContent value="image-models" className="mt-4">
               <ImageModelManagement />
+            </TabsContent>
+
+            <TabsContent value="notes" className="mt-4">
+              <NotesManagement />
             </TabsContent>
           </Tabs>
         </div>

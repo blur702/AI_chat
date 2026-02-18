@@ -147,6 +147,19 @@ import type {
   SavedPaletteListResponse,
   SavedPaletteResponse,
   SavedPaletteUpdateRequest,
+  NoteCreateRequest,
+  NoteUpdateRequest,
+  NoteResponse,
+  NoteListResponse,
+  NoteCategoryCreateRequest,
+  NoteCategoryUpdateRequest,
+  NoteCategoryResponse,
+  NoteCategoryListResponse,
+  IssueCreateRequest,
+  IssueUpdateRequest,
+  IssueResponse,
+  IssueListResponse,
+  StartFixResponse,
 } from "./types";
 
 /**
@@ -2292,6 +2305,197 @@ export class WorkstationClient {
       method: "POST",
       body: JSON.stringify({ upscale_model: upscaleModel }),
     });
+  }
+
+  // ---- Notes ----
+
+  /** List notes with optional filters for project, category, status, and pinned. */
+  async listNotes(params?: {
+    project_id?: string;
+    category_id?: string;
+    status?: string;
+    pinned?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<NoteListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.project_id) sp.set("project_id", params.project_id);
+    if (params?.category_id) sp.set("category_id", params.category_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.pinned !== undefined) sp.set("pinned", String(params.pinned));
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+    const query = sp.toString();
+    return this.request(`/api/notes${query ? `?${query}` : ""}`);
+  }
+
+  /** Create a new note with optional AI title generation. */
+  async createNote(data: NoteCreateRequest): Promise<NoteResponse> {
+    return this.request("/api/notes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Fetch a single note by ID. */
+  async getNote(noteId: string): Promise<NoteResponse> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}`);
+  }
+
+  /** Update a note's title, body, category, project, status, or pinned state. */
+  async updateNote(noteId: string, data: NoteUpdateRequest): Promise<NoteResponse> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Soft-delete a note. */
+  async deleteNote(noteId: string): Promise<void> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Mark a note as completed. */
+  async completeNote(noteId: string): Promise<NoteResponse> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}/complete`, {
+      method: "POST",
+    });
+  }
+
+  /** Archive a note. */
+  async archiveNote(noteId: string): Promise<NoteResponse> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}/archive`, {
+      method: "POST",
+    });
+  }
+
+  // ---- Note Categories ----
+
+  /** List all note categories for the current user. */
+  async listNoteCategories(): Promise<NoteCategoryListResponse> {
+    return this.request("/api/note-categories");
+  }
+
+  /** Create a new note category. */
+  async createNoteCategory(data: NoteCategoryCreateRequest): Promise<NoteCategoryResponse> {
+    return this.request("/api/note-categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Update an existing note category. */
+  async updateNoteCategory(
+    categoryId: string,
+    data: NoteCategoryUpdateRequest,
+  ): Promise<NoteCategoryResponse> {
+    return this.request(`/api/note-categories/${encodeURIComponent(categoryId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Delete a note category (blocked for system categories). */
+  async deleteNoteCategory(categoryId: string): Promise<void> {
+    return this.request(`/api/note-categories/${encodeURIComponent(categoryId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // ---- Issues ----
+
+  /** List issues with optional filters. */
+  async listIssues(params?: {
+    project_id?: string;
+    status?: string;
+    severity?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<IssueListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.project_id) sp.set("project_id", params.project_id);
+    if (params?.status) sp.set("status", params.status);
+    if (params?.severity) sp.set("severity", params.severity);
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+    const query = sp.toString();
+    return this.request(`/api/issues${query ? `?${query}` : ""}`);
+  }
+
+  /** Create a new issue. */
+  async createIssue(data: IssueCreateRequest): Promise<IssueResponse> {
+    return this.request("/api/issues", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Get a single issue. */
+  async getIssue(issueId: string): Promise<IssueResponse> {
+    return this.request(`/api/issues/${encodeURIComponent(issueId)}`);
+  }
+
+  /** Update an issue. */
+  async updateIssue(issueId: string, data: IssueUpdateRequest): Promise<IssueResponse> {
+    return this.request(`/api/issues/${encodeURIComponent(issueId)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Soft-delete an issue. */
+  async deleteIssue(issueId: string): Promise<void> {
+    return this.request(`/api/issues/${encodeURIComponent(issueId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Start a fix for an issue (creates git branch). */
+  async startIssueFix(issueId: string): Promise<StartFixResponse> {
+    return this.request(`/api/issues/${encodeURIComponent(issueId)}/start-fix`, {
+      method: "POST",
+    });
+  }
+
+  /** Check review status for an issue. */
+  async getIssueReviewStatus(issueId: string): Promise<{
+    issue_id: string;
+    status: string;
+    fix_pr_url: string | null;
+    coderabbit_review_url: string | null;
+    has_pr: boolean;
+  }> {
+    return this.request(`/api/issues/${encodeURIComponent(issueId)}/review-status`);
+  }
+
+  /** Scan project for open issues. */
+  async scanProjectIssues(projectId: string): Promise<IssueListResponse> {
+    return this.request(`/api/projects/${encodeURIComponent(projectId)}/issues/scan`);
+  }
+
+  /** Promote a note to an issue. */
+  async promoteNoteToIssue(noteId: string): Promise<IssueResponse> {
+    return this.request(`/api/notes/${encodeURIComponent(noteId)}/promote-to-issue`, {
+      method: "POST",
+    });
+  }
+
+  // ---- Admin Notes ----
+
+  /** Admin: list all notes across all users. */
+  async adminListNotes(params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<NoteListResponse> {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+    const query = sp.toString();
+    return this.request(`/api/admin/notes${query ? `?${query}` : ""}`);
   }
 }
 

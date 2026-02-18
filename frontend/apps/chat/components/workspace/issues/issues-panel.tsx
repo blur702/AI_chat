@@ -1,0 +1,202 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Button, Badge, ScrollArea } from "@workstation/ui";
+import { Bug, ExternalLink, Check, Trash2, Wrench, X } from "lucide-react";
+import { useIssues } from "@workstation/api/hooks/use-issues";
+import type { IssueResponse } from "@workstation/api/types";
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "bg-red-600 text-white",
+  high: "bg-orange-500 text-white",
+  medium: "bg-yellow-500 text-black",
+  low: "bg-blue-400 text-white",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  open: "Open",
+  in_progress: "In Progress",
+  fix_pending_review: "Pending Review",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
+interface IssuesPanelProps {
+  projectId: string;
+  onClose: () => void;
+}
+
+export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const scannedRef = useRef(false);
+
+  const {
+    issues,
+    loading,
+    error,
+    refresh,
+    updateIssue,
+    deleteIssue,
+    startFix,
+    scanProjectIssues,
+  } = useIssues({
+    project_id: projectId,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    severity: severityFilter === "all" ? undefined : severityFilter,
+  });
+
+  // Auto-scan on mount
+  useEffect(() => {
+    if (!scannedRef.current) {
+      scannedRef.current = true;
+      scanProjectIssues(projectId).catch(() => {});
+    }
+  }, [projectId, scanProjectIssues]);
+
+  const handleStartFix = useCallback(
+    async (issue: IssueResponse) => {
+      const result = await startFix(issue.id);
+      // Dispatch custom event to inject fix request into chat
+      const event = new CustomEvent("workspace:inject-message", {
+        detail: {
+          content: `Fix issue: "${issue.title}"\n\nBranch: ${result.branch}\nSeverity: ${issue.severity}\n\n${issue.description || "No description"}\n\n${issue.reproduction_steps ? `Reproduction steps:\n${issue.reproduction_steps}` : ""}`,
+        },
+      });
+      window.dispatchEvent(event);
+    },
+    [startFix]
+  );
+
+  const handleResolve = useCallback(
+    async (id: string) => {
+      await updateIssue(id, { status: "resolved" });
+    },
+    [updateIssue]
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b px-4 py-2">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Bug className="h-4 w-4" />
+          Issues
+        </h2>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b">
+        <select
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+          value={severityFilter}
+          onChange={(e) => setSeverityFilter(e.target.value)}
+        >
+          <option value="all">All severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All statuses</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="fix_pending_review">Pending Review</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      <ScrollArea className="flex-1 px-4 py-2">
+        {loading && (
+          <p className="text-xs text-muted-foreground text-center py-4">Loading...</p>
+        )}
+        {error && (
+          <p className="text-xs text-destructive text-center py-4">{error}</p>
+        )}
+        {!loading && issues.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-8">
+            No issues found
+          </p>
+        )}
+        <div className="flex flex-col gap-2">
+          {issues.map((issue) => (
+            <div
+              key={issue.id}
+              className="rounded-lg border bg-card p-3"
+            >
+              <div className="flex items-start gap-2">
+                <Badge
+                  className={`text-[10px] h-4 shrink-0 ${SEVERITY_COLORS[issue.severity] || ""}`}
+                >
+                  {issue.severity}
+                </Badge>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium">{issue.title}</p>
+                  {issue.description && (
+                    <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
+                      {issue.description}
+                    </p>
+                  )}
+                </div>
+                <Badge variant="outline" className="text-[10px] h-4 shrink-0">
+                  {STATUS_LABELS[issue.status] || issue.status}
+                </Badge>
+              </div>
+
+              <div className="flex items-center gap-1 mt-2">
+                {issue.status === "open" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] gap-1"
+                    onClick={() => handleStartFix(issue)}
+                  >
+                    <Wrench className="h-3 w-3" />
+                    Fix this
+                  </Button>
+                )}
+                {issue.fix_pr_url && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] gap-1"
+                    onClick={() => window.open(issue.fix_pr_url!, "_blank")}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View PR
+                  </Button>
+                )}
+                {(issue.status === "open" || issue.status === "in_progress") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] gap-1"
+                    onClick={() => handleResolve(issue.id)}
+                  >
+                    <Check className="h-3 w-3" />
+                    Resolve
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-destructive ml-auto"
+                  onClick={() => deleteIssue(issue.id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
