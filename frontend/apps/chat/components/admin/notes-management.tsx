@@ -45,8 +45,10 @@ export function NotesManagement() {
     if (!window.confirm("Are you sure you want to delete this note?")) return;
     try {
       await getClient().adminDeleteNote(id);
+      if (cancelledRef.current) return;
       await fetchNotes();
     } catch (err) {
+      if (cancelledRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to delete note");
     }
   };
@@ -122,6 +124,7 @@ export function NotesManagement() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-destructive"
+                      aria-label={`Delete note: ${note.title || "untitled"}`}
                       onClick={() => handleDelete(note.id)}
                     >
                       <Trash2 className="h-3 w-3" />

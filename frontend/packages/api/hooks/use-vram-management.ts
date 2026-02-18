@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { getClient } from "../client";
 import { useModelSwitcher } from "./use-model-switcher";
 import { usePolling } from "./use-polling";
@@ -65,6 +65,12 @@ export function useVramManagement(): UseVramManagementReturn {
 
   const [localActionLoading, setLocalActionLoading] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const gpus = useMemo(() => vramData?.per_gpu ?? [], [vramData]);
 
@@ -105,10 +111,10 @@ export function useVramManagement(): UseVramManagementReturn {
         return result;
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to offload resource");
-        setLocalError(msg);
+        if (mountedRef.current) setLocalError(msg);
         throw err;
       } finally {
-        setLocalActionLoading(null);
+        if (mountedRef.current) setLocalActionLoading(null);
       }
     },
     [refreshModels, refreshVram, refreshResourceStatus],
@@ -128,10 +134,10 @@ export function useVramManagement(): UseVramManagementReturn {
         return result;
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to reload resource");
-        setLocalError(msg);
+        if (mountedRef.current) setLocalError(msg);
         throw err;
       } finally {
-        setLocalActionLoading(null);
+        if (mountedRef.current) setLocalActionLoading(null);
       }
     },
     [refreshModels, refreshVram, refreshResourceStatus],

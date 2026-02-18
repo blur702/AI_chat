@@ -244,6 +244,8 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     setCreatingContentType(false);
     setScaffoldingTheme(false);
     setStagingStatus(null);
+    modulesFilterRef.current = undefined;
+    themesFilterRef.current = undefined;
     refresh();
   }, [refresh]);
 
@@ -359,7 +361,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
       if (requestIdRef.current !== rid) return;
       setError(extractErrorMessage(err, "Failed to load content types"));
     } finally {
-      setContentTypesLoading(false);
+      if (requestIdRef.current === rid) setContentTypesLoading(false);
     }
   }, [projectId]);
 
@@ -376,7 +378,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load content"));
       } finally {
-        setNodesLoading(false);
+        if (requestIdRef.current === rid) setNodesLoading(false);
       }
     },
     [projectId],
@@ -529,7 +531,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load modules"));
       } finally {
-        setModulesLoading(false);
+        if (requestIdRef.current === rid) setModulesLoading(false);
       }
     },
     [projectId],
@@ -550,7 +552,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load themes"));
       } finally {
-        setThemesLoading(false);
+        if (requestIdRef.current === rid) setThemesLoading(false);
       }
     },
     [projectId],
@@ -571,7 +573,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to enable modules"));
         return null;
       } finally {
-        setModulesOperating(false);
+        if (requestIdRef.current === rid) setModulesOperating(false);
       }
     },
     [projectId, fetchModules],
@@ -592,7 +594,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to disable modules"));
         return null;
       } finally {
-        setModulesOperating(false);
+        if (requestIdRef.current === rid) setModulesOperating(false);
       }
     },
     [projectId, fetchModules],
@@ -613,7 +615,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to enable theme"));
         return null;
       } finally {
-        setThemesOperating(false);
+        if (requestIdRef.current === rid) setThemesOperating(false);
       }
     },
     [projectId, fetchThemes],
@@ -634,7 +636,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to disable theme"));
         return null;
       } finally {
-        setThemesOperating(false);
+        if (requestIdRef.current === rid) setThemesOperating(false);
       }
     },
     [projectId, fetchThemes],
@@ -657,7 +659,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Composer require failed"));
         return null;
       } finally {
-        setComposerOperating(false);
+        if (requestIdRef.current === rid) setComposerOperating(false);
       }
     },
     [projectId, fetchModules],
@@ -678,7 +680,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Composer remove failed"));
         return null;
       } finally {
-        setComposerOperating(false);
+        if (requestIdRef.current === rid) setComposerOperating(false);
       }
     },
     [projectId, fetchModules],
@@ -699,7 +701,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Composer update failed"));
         return null;
       } finally {
-        setComposerOperating(false);
+        if (requestIdRef.current === rid) setComposerOperating(false);
       }
     },
     [projectId, fetchModules],
@@ -722,7 +724,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to create content type"));
         return null;
       } finally {
-        setCreatingContentType(false);
+        if (requestIdRef.current === rid) setCreatingContentType(false);
       }
     },
     [projectId, fetchContentTypes],
@@ -743,7 +745,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         if (requestIdRef.current !== rid) return;
         setError(extractErrorMessage(err, "Failed to load blocks"));
       } finally {
-        setBlocksLoading(false);
+        if (requestIdRef.current === rid) setBlocksLoading(false);
       }
     },
     [projectId],
@@ -767,7 +769,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to create block"));
         return null;
       } finally {
-        setBlocksOperating(false);
+        if (requestIdRef.current === rid) setBlocksOperating(false);
       }
     },
     [projectId, fetchBlocks],
@@ -792,7 +794,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to update block"));
         return null;
       } finally {
-        setBlocksOperating(false);
+        if (requestIdRef.current === rid) setBlocksOperating(false);
       }
     },
     [projectId, fetchBlocks],
@@ -815,7 +817,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setError(extractErrorMessage(err, "Failed to scaffold theme"));
         return null;
       } finally {
-        setScaffoldingTheme(false);
+        if (requestIdRef.current === rid) setScaffoldingTheme(false);
       }
     },
     [projectId, fetchThemes],

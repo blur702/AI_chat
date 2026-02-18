@@ -37,11 +37,16 @@ export function KanbanBoard({
     const up = (e: KeyboardEvent) => {
       if (e.key === "Shift") setShiftHeld(false);
     };
+    const clearShift = () => setShiftHeld(false);
     document.addEventListener("keydown", down);
     document.addEventListener("keyup", up);
+    window.addEventListener("blur", clearShift);
+    document.addEventListener("visibilitychange", clearShift);
     return () => {
       document.removeEventListener("keydown", down);
       document.removeEventListener("keyup", up);
+      window.removeEventListener("blur", clearShift);
+      document.removeEventListener("visibilitychange", clearShift);
     };
   }, []);
 

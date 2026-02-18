@@ -68,12 +68,13 @@ test.describe("Video Studio — full e2e", () => {
     });
     expect(createRes.ok()).toBeTruthy();
     const project = await createRes.json();
-    projectIds.push(project.id);
+    const testProjectId = project.id;
+    projectIds.push(testProjectId);
     expect(project.name).toBe("E2E Test Video");
     expect(project.status).toBe("draft");
 
     // --- Step 2: Navigate to project editor ---
-    await page.goto(`/studio/${projectIds[0]}`);
+    await page.goto(`/studio/${testProjectId}`);
     await page.waitForLoadState("networkidle");
 
     // Editor should load with the project name visible
@@ -171,7 +172,7 @@ test.describe("Video Studio — full e2e", () => {
     };
 
     // Save timeline via API
-    const saveRes = await page.request.put(`/api/studio/projects/${projectIds[0]}`, {
+    const saveRes = await page.request.put(`/api/studio/projects/${testProjectId}`, {
       headers: { Origin: ORIGIN },
       data: {
         name: "E2E Test Video — Text & Subtitles",
@@ -185,7 +186,7 @@ test.describe("Video Studio — full e2e", () => {
     expect(savedProject.duration_seconds).toBe(9);
 
     // --- Step 4: Verify timeline was saved correctly ---
-    const getRes = await page.request.get(`/api/studio/projects/${projectIds[0]}`);
+    const getRes = await page.request.get(`/api/studio/projects/${testProjectId}`);
     expect(getRes.ok()).toBeTruthy();
     const fetchedProject = await getRes.json();
     expect(fetchedProject.timeline_data).toBeTruthy();
@@ -215,7 +216,7 @@ test.describe("Video Studio — full e2e", () => {
 
     // --- Step 7: Test export API (HTML format — no FFmpeg required) ---
     const exportRes = await page.request.post(
-      `/api/studio/projects/${projectIds[0]}/export`,
+      `/api/studio/projects/${testProjectId}/export`,
       {
         headers: { Origin: ORIGIN },
         data: { format: "html" },
@@ -261,7 +262,7 @@ test.describe("Video Studio — full e2e", () => {
     }
 
     // --- Step 8: Test media listing (should be empty for this project) ---
-    const mediaRes = await page.request.get(`/api/studio/projects/${projectIds[0]}/media`);
+    const mediaRes = await page.request.get(`/api/studio/projects/${testProjectId}/media`);
     expect(mediaRes.ok()).toBeTruthy();
     const mediaData = await mediaRes.json();
     expect(mediaData.assets).toHaveLength(0);

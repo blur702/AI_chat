@@ -585,7 +585,6 @@ async def _generate_ai_title(request: Request, body_text: str) -> str | None:
                 },
                 {"role": "user", "content": body_text[:500]},
             ],
-            model=None,  # use default model
         )
         title = response.get("message", {}).get("content", "").strip()
         return title[:255] if title else None

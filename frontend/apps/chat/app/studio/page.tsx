@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@workstation/ui";
 import { Plus, Film, Trash2, Calendar, Clock } from "lucide-react";
@@ -17,6 +17,7 @@ interface StudioProject {
 
 export default function StudioPage() {
   const router = useRouter();
+  const isMountedRef = useRef(true);
   const [projects, setProjects] = useState<StudioProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -36,16 +37,20 @@ export default function StudioPage() {
         return;
       }
       const data = await res.json();
-      setProjects(data.projects || []);
+      if (isMountedRef.current) setProjects(data.projects || []);
     } catch {
       // ignore
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   }, [router]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchProjects();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchProjects]);
 
   const handleCreate = async () => {
@@ -82,11 +87,15 @@ export default function StudioPage() {
         method: "DELETE",
         credentials: "include",
       });
+      if (res.status === 401) {
+        router.push(`/login?returnTo=${encodeURIComponent("/studio")}`);
+        return;
+      }
       if (!res.ok) {
         console.error("Failed to delete project:", res.status);
         return;
       }
-      setProjects((prev) => prev.filter((p) => p.id !== id));
+      if (isMountedRef.current) setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error("Delete project error:", err);
     }

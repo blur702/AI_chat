@@ -1,6 +1,7 @@
 """Pydantic schemas for notes and note categories."""
 
 from typing import List, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -42,8 +43,8 @@ class NoteCategoryListResponse(BaseModel):
 class NoteCreateRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=255)
     body: str = Field(default="", max_length=50000)
-    project_id: Optional[str] = None
-    category_id: Optional[str] = None
+    project_id: Optional[UUID] = None
+    category_id: Optional[UUID] = None
     pinned: bool = False
     generate_title: bool = False
 
@@ -51,8 +52,8 @@ class NoteCreateRequest(BaseModel):
 class NoteUpdateRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=255)
     body: Optional[str] = Field(default=None, max_length=50000)
-    project_id: Optional[str] = None
-    category_id: Optional[str] = None
+    project_id: Optional[UUID] = None
+    category_id: Optional[UUID] = None
     status: Optional[NoteStatus] = None
     pinned: Optional[bool] = None
 

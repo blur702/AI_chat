@@ -75,6 +75,17 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
     [updateIssue],
   );
 
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteIssue(id);
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") console.warn("delete failed:", err);
+      }
+    },
+    [deleteIssue],
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-4 py-2">
@@ -188,7 +199,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                   variant="ghost"
                   size="icon"
                   className="ml-auto h-6 w-6 text-destructive"
-                  onClick={() => deleteIssue(issue.id).catch(() => {})}
+                  onClick={() => handleDelete(issue.id)}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

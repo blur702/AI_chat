@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button, Textarea } from "@workstation/ui";
 import { Plus, Sparkles, Loader2 } from "lucide-react";
 import type { NoteCreateRequest, NoteCategoryResponse } from "@workstation/api/types";
@@ -18,6 +18,12 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
   const [projectId, setProjectId] = useState("");
   const [generateTitle, setGenerateTitle] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -30,12 +36,13 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
         project_id: projectId || null,
         generate_title: generateTitle,
       });
+      if (!mountedRef.current) return;
       setBody("");
       setCategoryId("");
       setProjectId("");
       setGenerateTitle(false);
     } finally {
-      setSubmitting(false);
+      if (mountedRef.current) setSubmitting(false);
     }
   };
 
