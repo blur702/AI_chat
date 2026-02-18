@@ -316,7 +316,7 @@ function RamZone({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "ram" });
 
-  const ramPct = systemStats ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100 : 0;
+  const ramPct = systemStats && systemStats.ram_total_mb > 0 ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100 : 0;
 
   return (
     <div

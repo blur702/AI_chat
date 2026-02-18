@@ -683,7 +683,14 @@ function IssueCard({
                 variant="outline"
                 size="sm"
                 className="h-6 gap-1 text-[10px]"
-                onClick={() => window.open(issue.fix_pr_url!, "_blank", "noopener,noreferrer")}
+                onClick={() => {
+                  try {
+                    const parsed = new URL(issue.fix_pr_url!);
+                    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                      window.open(issue.fix_pr_url!, "_blank", "noopener,noreferrer");
+                    }
+                  } catch { /* invalid URL */ }
+                }}
               >
                 <ExternalLink className="h-3 w-3" />
                 View PR

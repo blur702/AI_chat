@@ -55,8 +55,8 @@ export default function SettingsPage() {
 
   // Sync tab from URL changes
   useEffect(() => {
-    const t = searchParams.get("tab");
-    if (t) setActiveTab(!isAdmin && t.startsWith("admin-") ? "profile" : t);
+    const tabParam = searchParams.get("tab");
+    if (tabParam) setActiveTab(!isAdmin && tabParam.startsWith("admin-") ? "profile" : tabParam);
   }, [searchParams, isAdmin]);
 
   const {

@@ -230,6 +230,9 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     setBlocks([]);
     setBlocksLoading(false);
     setBlocksOperating(false);
+    setComposerOperating(false);
+    setCreatingContentType(false);
+    setScaffoldingTheme(false);
     setStagingStatus(null);
     refresh();
   }, [refresh]);
