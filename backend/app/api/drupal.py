@@ -1428,7 +1428,12 @@ async def create_content_type(
                 body_b64 = base64.b64encode(body_field_yaml.encode()).decode()
                 write_body_cmd = f"echo {shlex.quote(body_b64)} | base64 -d > {shlex.quote(f'{tmp_dir}/{body_config_file}')}"
                 await ssh.execute(write_body_cmd, timeout=10)
-                await ssh.execute(import_cmd, timeout=60)
+                body_import = await ssh.execute(import_cmd, timeout=60)
+                if body_import["exit_code"] != 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Body field import failed: {body_import['stderr'][:500]}",
+                    )
 
         await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
 
