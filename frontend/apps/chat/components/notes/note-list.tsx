@@ -2,11 +2,7 @@
 
 import { Badge } from "@workstation/ui";
 import { Loader2 } from "lucide-react";
-import type {
-  NoteResponse,
-  NoteUpdateRequest,
-  NoteCategoryResponse,
-} from "@workstation/api/types";
+import type { NoteResponse, NoteUpdateRequest, NoteCategoryResponse } from "@workstation/api/types";
 import { NoteItem } from "./note-item";
 
 interface NoteListProps {
@@ -49,9 +45,7 @@ export function NoteList({
   }
 
   if (error) {
-    return (
-      <p className="text-sm text-destructive py-4 text-center">{error}</p>
-    );
+    return <p className="py-4 text-center text-sm text-destructive">{error}</p>;
   }
 
   return (
@@ -76,18 +70,20 @@ export function NoteList({
         >
           <option value="all">All Categories</option>
           {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
           ))}
         </select>
 
-        <Badge variant="secondary" className="text-[10px] ml-auto">
+        <Badge variant="secondary" className="ml-auto text-[10px]">
           {notes.length} note{notes.length !== 1 ? "s" : ""}
         </Badge>
       </div>
 
       {/* Note list */}
       {notes.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-6">
+        <p className="py-6 text-center text-xs text-muted-foreground">
           No notes yet. Write one above.
         </p>
       ) : (
@@ -96,11 +92,25 @@ export function NoteList({
             <NoteItem
               key={note.id}
               note={note}
-              onUpdate={async (id, data) => { await onUpdate(id, data); }}
-              onDelete={async (id) => { await onDelete(id); }}
-              onComplete={async (id) => { await onComplete(id); }}
-              onArchive={async (id) => { await onArchive(id); }}
-              onPromoteToIssue={onPromoteToIssue ? async (id) => { await onPromoteToIssue(id); } : undefined}
+              onUpdate={async (id, data) => {
+                await onUpdate(id, data);
+              }}
+              onDelete={async (id) => {
+                await onDelete(id);
+              }}
+              onComplete={async (id) => {
+                await onComplete(id);
+              }}
+              onArchive={async (id) => {
+                await onArchive(id);
+              }}
+              onPromoteToIssue={
+                onPromoteToIssue
+                  ? async (id) => {
+                      await onPromoteToIssue(id);
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>

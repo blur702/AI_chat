@@ -29,15 +29,7 @@ export function IssuesModal() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const {
-    issues,
-    count,
-    loading,
-    error,
-    updateIssue,
-    deleteIssue,
-    startFix,
-  } = useIssues({
+  const { issues, count, loading, error, updateIssue, deleteIssue, startFix } = useIssues({
     project_id: projectFilter === "all" ? undefined : projectFilter,
     status: statusFilter === "all" ? undefined : statusFilter,
   });
@@ -57,7 +49,9 @@ export function IssuesModal() {
   }, [isOpen]);
 
   useEffect(() => {
-    return () => { dragCleanupRef.current?.(); };
+    return () => {
+      dragCleanupRef.current?.();
+    };
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -95,7 +89,10 @@ export function IssuesModal() {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); closeIssues(); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeIssues();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
@@ -105,7 +102,7 @@ export function IssuesModal() {
     async (id: string) => {
       await updateIssue(id, { status: "resolved" });
     },
-    [updateIssue]
+    [updateIssue],
   );
 
   const handleStartFix = useCallback(
@@ -118,7 +115,7 @@ export function IssuesModal() {
       });
       window.dispatchEvent(event);
     },
-    [startFix]
+    [startFix],
   );
 
   if (!isOpen) return null;
@@ -131,7 +128,10 @@ export function IssuesModal() {
     <>
       <div
         className="fixed inset-0 z-50 bg-black/30"
-        onClick={(e) => { e.stopPropagation(); closeIssues(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeIssues();
+        }}
         aria-hidden="true"
       />
 
@@ -140,19 +140,19 @@ export function IssuesModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed z-[51] w-full max-w-lg flex flex-col rounded-lg border bg-background shadow-lg"
+        className="fixed z-[51] flex w-full max-w-lg flex-col rounded-lg border bg-background shadow-lg"
         style={{ ...panelStyle, maxHeight: "80vh" }}
       >
         {/* Header / drag handle */}
         <div
-          className="flex items-center justify-between px-4 py-2.5 border-b select-none cursor-grab active:cursor-grabbing"
+          className="flex cursor-grab select-none items-center justify-between border-b px-4 py-2.5 active:cursor-grabbing"
           onPointerDown={handlePointerDown}
         >
-          <h2 id={titleId} className="text-sm font-semibold flex items-center gap-2">
+          <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <Bug className="h-4 w-4" />
             Issues
             {count > 0 && (
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+              <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                 {count}
               </Badge>
             )}
@@ -168,7 +168,7 @@ export function IssuesModal() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-1.5 px-4 py-2 border-b">
+        <div className="flex items-center gap-1.5 border-b px-4 py-2">
           <select
             className="h-7 rounded-md border bg-background px-2 text-xs"
             value={projectFilter}
@@ -176,7 +176,9 @@ export function IssuesModal() {
           >
             <option value="all">All projects</option>
             {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </select>
           <select
@@ -194,48 +196,44 @@ export function IssuesModal() {
         </div>
 
         {/* Content */}
-        <ScrollArea className="flex-1 min-h-0 px-4 py-2" style={{ maxHeight: "60vh" }}>
+        <ScrollArea className="min-h-0 flex-1 px-4 py-2" style={{ maxHeight: "60vh" }}>
           {loading && issues.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-4">Loading...</p>
+            <p className="py-4 text-center text-xs text-muted-foreground">Loading...</p>
           )}
-          {error && (
-            <p className="text-xs text-destructive text-center py-4">{error}</p>
-          )}
+          {error && <p className="py-4 text-center text-xs text-destructive">{error}</p>}
           {!loading && issues.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-8">
-              No issues found
-            </p>
+            <p className="py-8 text-center text-xs text-muted-foreground">No issues found</p>
           )}
           <div className="flex flex-col gap-2">
             {issues.map((issue) => (
               <div key={issue.id} className="rounded-lg border bg-card p-3">
                 <div className="flex items-start gap-2">
                   <Badge
-                    className={`text-[10px] h-4 shrink-0 ${SEVERITY_COLORS[issue.severity] || ""}`}
+                    className={`h-4 shrink-0 text-[10px] ${SEVERITY_COLORS[issue.severity] || ""}`}
                   >
                     {issue.severity}
                   </Badge>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium">{issue.title}</p>
                     {issue.project_name && (
                       <p className="text-[10px] text-muted-foreground">{issue.project_name}</p>
                     )}
                     {issue.description && (
-                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
+                      <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
                         {issue.description}
                       </p>
                     )}
                   </div>
-                  <Badge variant="outline" className="text-[10px] h-4 shrink-0">
+                  <Badge variant="outline" className="h-4 shrink-0 text-[10px]">
                     {STATUS_LABELS[issue.status] || issue.status}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
+                <div className="mt-2 flex items-center gap-1">
                   {issue.status === "open" && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 text-[10px] gap-1"
+                      className="h-6 gap-1 text-[10px]"
                       onClick={() => handleStartFix(issue)}
                     >
                       <Wrench className="h-3 w-3" />
@@ -246,7 +244,7 @@ export function IssuesModal() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 text-[10px] gap-1"
+                      className="h-6 gap-1 text-[10px]"
                       onClick={() => window.open(issue.fix_pr_url!, "_blank")}
                     >
                       <ExternalLink className="h-3 w-3" />
@@ -257,7 +255,7 @@ export function IssuesModal() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 text-[10px] gap-1"
+                      className="h-6 gap-1 text-[10px]"
                       onClick={() => handleResolve(issue.id)}
                     >
                       <Check className="h-3 w-3" />
@@ -267,7 +265,7 @@ export function IssuesModal() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-destructive ml-auto"
+                    className="ml-auto h-6 w-6 text-destructive"
                     onClick={() => deleteIssue(issue.id)}
                   >
                     <Trash2 className="h-3 w-3" />

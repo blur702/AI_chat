@@ -39,7 +39,11 @@ export function SidebarLayout({ children, mobileTitle = "AI Workstation" }: Side
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      try { localStorage.setItem(SIDEBAR_KEY, String(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(SIDEBAR_KEY, String(next));
+      } catch {
+        /* ignore */
+      }
       return next;
     });
   }, []);
@@ -75,14 +79,16 @@ export function SidebarLayout({ children, mobileTitle = "AI Workstation" }: Side
         {!isMobile && (
           <div
             className={cn(
-              "relative transition-[width] duration-200 ease-in-out shrink-0",
-              collapsed ? "w-0" : "w-64"
+              "relative shrink-0 transition-[width] duration-200 ease-in-out",
+              collapsed ? "w-0" : "w-64",
             )}
           >
-            <div className={cn(
-              "h-full w-64 overflow-hidden transition-transform duration-200 ease-in-out",
-              collapsed && "-translate-x-full"
-            )}>
+            <div
+              className={cn(
+                "h-full w-64 overflow-hidden transition-transform duration-200 ease-in-out",
+                collapsed && "-translate-x-full",
+              )}
+            >
               <ChatSidebar
                 projectId={projectId}
                 mobileOpen={mobileOpen}
@@ -114,9 +120,7 @@ export function SidebarLayout({ children, mobileTitle = "AI Workstation" }: Side
           />
         )}
 
-        <main className="flex flex-1 flex-col overflow-hidden">
-          {children}
-        </main>
+        <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
       </div>
       <SystemStatusBar />
     </div>

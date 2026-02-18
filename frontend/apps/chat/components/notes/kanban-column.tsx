@@ -31,21 +31,19 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={`flex w-72 shrink-0 flex-col rounded-lg border ${
-        isOver ? "bg-primary/5 border-primary/30" : "bg-muted/30"
+        isOver ? "border-primary/30 bg-primary/5" : "bg-muted/30"
       }`}
     >
-      <div className="flex items-center gap-2 px-3 py-2 border-b">
-        <h3 className="text-xs font-semibold truncate">{title}</h3>
-        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <h3 className="truncate text-xs font-semibold">{title}</h3>
+        <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
           {notes.length}
         </Badge>
       </div>
       <ScrollArea className="flex-1 p-2" style={{ maxHeight: "calc(100vh - 200px)" }}>
         <div className="flex flex-col gap-2">
           {notes.length === 0 && (
-            <p className="text-[10px] text-muted-foreground text-center py-4">
-              No notes
-            </p>
+            <p className="py-4 text-center text-[10px] text-muted-foreground">No notes</p>
           )}
           {notes.map((note) => (
             <KanbanNoteCard

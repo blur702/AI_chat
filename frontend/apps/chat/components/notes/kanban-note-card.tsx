@@ -38,26 +38,22 @@ export function KanbanNoteCard({ note, onDelete, onUpdate }: KanbanNoteCardProps
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={`rounded-lg border bg-card p-3 cursor-grab active:cursor-grabbing transition-opacity ${
-        isDragging ? "opacity-50 z-50" : ""
+      className={`cursor-grab rounded-lg border bg-card p-3 transition-opacity active:cursor-grabbing ${
+        isDragging ? "z-50 opacity-50" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-1">
-        <div className="flex-1 min-w-0">
-          {note.title && (
-            <p className="text-xs font-medium truncate">{note.title}</p>
-          )}
-          <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
-            {note.body}
-          </p>
+        <div className="min-w-0 flex-1">
+          {note.title && <p className="truncate text-xs font-medium">{note.title}</p>}
+          <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">{note.body}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 mt-2 flex-wrap">
+      <div className="mt-2 flex flex-wrap items-center gap-1">
         {note.category_name && (
           <Badge
             variant="secondary"
-            className="text-[10px] h-4"
+            className="h-4 text-[10px]"
             style={
               note.category_color
                 ? {
@@ -71,13 +67,13 @@ export function KanbanNoteCard({ note, onDelete, onUpdate }: KanbanNoteCardProps
           </Badge>
         )}
         {note.issue_id && (
-          <Badge variant="destructive" className="text-[10px] h-4">
+          <Badge variant="destructive" className="h-4 text-[10px]">
             Issue
           </Badge>
         )}
       </div>
 
-      <div className="flex items-center gap-0.5 mt-2">
+      <div className="mt-2 flex items-center gap-0.5">
         {note.project_id && !note.issue_id && (
           <Button
             variant="ghost"

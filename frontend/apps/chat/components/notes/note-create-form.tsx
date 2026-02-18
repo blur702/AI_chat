@@ -52,7 +52,7 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
           }
         }}
       />
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
@@ -60,7 +60,9 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
         >
           <option value="">Category</option>
           {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
           ))}
         </select>
 
@@ -71,14 +73,16 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
         >
           <option value="">General</option>
           {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
           ))}
         </select>
 
         <Button
           variant={generateTitle ? "secondary" : "ghost"}
           size="sm"
-          className="h-7 text-xs gap-1"
+          className="h-7 gap-1 text-xs"
           onClick={() => setGenerateTitle(!generateTitle)}
         >
           <Sparkles className="h-3 w-3" />
@@ -89,15 +93,11 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
 
         <Button
           size="sm"
-          className="h-7 text-xs gap-1"
+          className="h-7 gap-1 text-xs"
           disabled={!body.trim() || submitting}
           onClick={handleSubmit}
         >
-          {submitting ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3" />
-          )}
+          {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           Add
         </Button>
       </div>

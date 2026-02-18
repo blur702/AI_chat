@@ -1,11 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import {
-  Panel,
-  Group,
-  Separator,
-} from "react-resizable-panels";
+import { Panel, Group, Separator } from "react-resizable-panels";
 import { FileExplorer } from "./file-explorer/file-explorer";
 import { EditorPane } from "./editor/editor-pane";
 import type { TerminalHandle } from "./terminal/terminal-pane";
@@ -23,20 +19,62 @@ const PanelSkeleton = () => (
 );
 
 // Lazy-loaded panels (only loaded when their tab is opened)
-const TerminalPane = dynamic(() => import("./terminal/terminal-pane").then(m => m.TerminalPane), { ssr: false, loading: PanelSkeleton });
-const PreviewPane = dynamic(() => import("./preview/preview-pane").then(m => m.PreviewPane), { ssr: false, loading: PanelSkeleton });
-const ChatPanel = dynamic(() => import("./chat-panel/chat-panel").then(m => m.ChatPanel), { ssr: false, loading: PanelSkeleton });
-const ImageGenPanel = dynamic(() => import("./image-gen/image-gen-panel").then(m => m.ImageGenPanel), { ssr: false, loading: PanelSkeleton });
-const ToolsPanel = dynamic(() => import("./tools/tools-panel").then(m => m.ToolsPanel), { ssr: false, loading: PanelSkeleton });
-const ResourcesPanel = dynamic(() => import("./resources/resources-panel").then(m => m.ResourcesPanel), { ssr: false, loading: PanelSkeleton });
-const EventsPanel = dynamic(() => import("./events/events-panel").then(m => m.EventsPanel), { ssr: false, loading: PanelSkeleton });
-const DrupalPanel = dynamic(() => import("./drupal/drupal-panel").then(m => m.DrupalPanel), { ssr: false, loading: PanelSkeleton });
-const KBPanel = dynamic(() => import("./kb/kb-panel").then(m => m.KBPanel), { ssr: false, loading: PanelSkeleton });
-const SnapshotsPanel = dynamic(() => import("./snapshots/snapshots-panel").then(m => m.SnapshotsPanel), { ssr: false, loading: PanelSkeleton });
-const ContextEditorPanel = dynamic(() => import("../context/context-editor-panel").then(m => m.ContextEditorPanel), { ssr: false, loading: PanelSkeleton });
-const UIBuilderPanel = dynamic(() => import("./ui-builder/ui-builder-panel").then(m => m.UIBuilderPanel), { ssr: false, loading: PanelSkeleton });
-const PlanningPanel = dynamic(() => import("./planning/planning-panel").then(m => m.PlanningPanel), { ssr: false, loading: PanelSkeleton });
-const KBBuilderPanel = dynamic(() => import("./kb-builder/kb-builder-panel").then(m => m.KBBuilderPanel), { ssr: false, loading: PanelSkeleton });
+const TerminalPane = dynamic(() => import("./terminal/terminal-pane").then((m) => m.TerminalPane), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const PreviewPane = dynamic(() => import("./preview/preview-pane").then((m) => m.PreviewPane), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const ChatPanel = dynamic(() => import("./chat-panel/chat-panel").then((m) => m.ChatPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const ImageGenPanel = dynamic(
+  () => import("./image-gen/image-gen-panel").then((m) => m.ImageGenPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const ToolsPanel = dynamic(() => import("./tools/tools-panel").then((m) => m.ToolsPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const ResourcesPanel = dynamic(
+  () => import("./resources/resources-panel").then((m) => m.ResourcesPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const EventsPanel = dynamic(() => import("./events/events-panel").then((m) => m.EventsPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const DrupalPanel = dynamic(() => import("./drupal/drupal-panel").then((m) => m.DrupalPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const KBPanel = dynamic(() => import("./kb/kb-panel").then((m) => m.KBPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
+const SnapshotsPanel = dynamic(
+  () => import("./snapshots/snapshots-panel").then((m) => m.SnapshotsPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const ContextEditorPanel = dynamic(
+  () => import("../context/context-editor-panel").then((m) => m.ContextEditorPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const UIBuilderPanel = dynamic(
+  () => import("./ui-builder/ui-builder-panel").then((m) => m.UIBuilderPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const PlanningPanel = dynamic(
+  () => import("./planning/planning-panel").then((m) => m.PlanningPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
+const KBBuilderPanel = dynamic(
+  () => import("./kb-builder/kb-builder-panel").then((m) => m.KBBuilderPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -99,7 +137,13 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   } = useFileExplorer(projectId);
 
   const { pendingCount } = useAutomationActions(projectId);
-  const { tools, loading: toolsLoading, error: toolsError, executeTool, refresh: refreshTools } = useTools();
+  const {
+    tools,
+    loading: toolsLoading,
+    error: toolsError,
+    executeTool,
+    refresh: refreshTools,
+  } = useTools();
 
   // Read pinned tools once on mount, not on every render
   const [pinnedToolNames, setPinnedToolNames] = useState<string[]>([]);
@@ -107,7 +151,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     try {
       const pinned = JSON.parse(localStorage.getItem("tools:pinned") ?? "[]") as string[];
       setPinnedToolNames(pinned);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const handleTerminalCommand = useCallback((cmd: string) => {
@@ -138,24 +184,39 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     }
   }, [isMobile]);
 
-  const togglePanel = useCallback((panel: NonNullable<typeof activePanel>, mobileTab?: MobileIdeTab) => {
-    if (isMobile && mobileTab) {
-      setMobileTab(mobileTab);
-    } else {
-      setActivePanel((p) => (p === panel ? null : panel));
-    }
-  }, [isMobile]);
+  const togglePanel = useCallback(
+    (panel: NonNullable<typeof activePanel>, mobileTab?: MobileIdeTab) => {
+      if (isMobile && mobileTab) {
+        setMobileTab(mobileTab);
+      } else {
+        setActivePanel((p) => (p === panel ? null : panel));
+      }
+    },
+    [isMobile],
+  );
 
   const handleActionsClick = useCallback(() => togglePanel("automations", "chat"), [togglePanel]);
   const handleHistoryClick = useCallback(() => togglePanel("history"), [togglePanel]);
-  const handleImageGenClick = useCallback(() => togglePanel("image-gen", "image-gen"), [togglePanel]);
-  const handleResourcesClick = useCallback(() => togglePanel("resources", "resources"), [togglePanel]);
+  const handleImageGenClick = useCallback(
+    () => togglePanel("image-gen", "image-gen"),
+    [togglePanel],
+  );
+  const handleResourcesClick = useCallback(
+    () => togglePanel("resources", "resources"),
+    [togglePanel],
+  );
   const handleEventsClick = useCallback(() => togglePanel("events", "events"), [togglePanel]);
   const handleDrupalClick = useCallback(() => togglePanel("drupal", "drupal"), [togglePanel]);
   const handleKBClick = useCallback(() => togglePanel("kb", "kb"), [togglePanel]);
-  const handleSnapshotsClick = useCallback(() => togglePanel("snapshots", "snapshots"), [togglePanel]);
+  const handleSnapshotsClick = useCallback(
+    () => togglePanel("snapshots", "snapshots"),
+    [togglePanel],
+  );
   const handleContextClick = useCallback(() => togglePanel("context", "context"), [togglePanel]);
-  const handleUIBuilderClick = useCallback(() => togglePanel("ui-builder", "ui-builder"), [togglePanel]);
+  const handleUIBuilderClick = useCallback(
+    () => togglePanel("ui-builder", "ui-builder"),
+    [togglePanel],
+  );
   const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
   const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb"), [togglePanel]);
   const handleIssuesClick = useCallback(() => togglePanel("issues"), [togglePanel]);
@@ -178,7 +239,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         setActivePanel("tools");
       }
     },
-    [isMobile]
+    [isMobile],
   );
 
   const handleToolExecuted = useCallback(
@@ -195,11 +256,13 @@ export function IDELayout({ projectId }: IDELayoutProps) {
       try {
         localStorage.setItem(
           "tools:last-execution",
-          JSON.stringify({ toolName, success: result.success, timestamp: execution.timestamp })
+          JSON.stringify({ toolName, success: result.success, timestamp: execution.timestamp }),
         );
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     },
-    []
+    [],
   );
 
   const handleRerunLastTool = useCallback(async () => {
@@ -227,14 +290,17 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     router.push("/chat");
   }, [projectId, router]);
 
-  const handleQuickExecuteTool = useCallback((toolName: string) => {
-    setToolsContext({ prefillFile: null, filterForFile: false, initialTool: toolName });
-    if (isMobile) {
-      setMobileTab("tools");
-    } else {
-      setActivePanel("tools");
-    }
-  }, [isMobile]);
+  const handleQuickExecuteTool = useCallback(
+    (toolName: string) => {
+      setToolsContext({ prefillFile: null, filterForFile: false, initialTool: toolName });
+      if (isMobile) {
+        setMobileTab("tools");
+      } else {
+        setActivePanel("tools");
+      }
+    },
+    [isMobile],
+  );
 
   const handleConfirmClose = useCallback(() => {
     setShowCloseConfirm(true);
@@ -360,10 +426,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             />
           )}
           {mobileTab === "image-gen" && (
-            <ImageGenPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <ImageGenPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
           {mobileTab === "tools" && (
             <ToolsPanel
@@ -380,52 +443,26 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               initialTool={toolsContext.initialTool}
             />
           )}
-          {mobileTab === "events" && (
-            <EventsPanel onClose={() => setMobileTab("editor")} />
-          )}
-          {mobileTab === "resources" && (
-            <ResourcesPanel onClose={() => setMobileTab("editor")} />
-          )}
+          {mobileTab === "events" && <EventsPanel onClose={() => setMobileTab("editor")} />}
+          {mobileTab === "resources" && <ResourcesPanel onClose={() => setMobileTab("editor")} />}
           {mobileTab === "drupal" && (
-            <DrupalPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <DrupalPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
           {mobileTab === "kb" && (
-            <KBPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <KBPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
           {mobileTab === "snapshots" && (
-            <SnapshotsPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <SnapshotsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
           {mobileTab === "context" && (
-            <ContextEditorPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <ContextEditorPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
-          {mobileTab === "ui-builder" && (
-            <UIBuilderPanel
-              onClose={() => setMobileTab("editor")}
-            />
-          )}
+          {mobileTab === "ui-builder" && <UIBuilderPanel onClose={() => setMobileTab("editor")} />}
           {mobileTab === "planning" && (
-            <PlanningPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <PlanningPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
           {mobileTab === "kb" && (
-            <KBBuilderPanel
-              projectId={projectId}
-              onClose={() => setMobileTab("editor")}
-            />
+            <KBBuilderPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />
@@ -468,7 +505,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           </PanelErrorBoundary>
         </Panel>
 
-        <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+        <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
 
         {/* Main Editor + Terminal */}
         <Panel id="editor-main" defaultSize={showChat ? "55%" : "85%"} minSize="30%">
@@ -480,7 +517,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
               </PanelErrorBoundary>
             </Panel>
 
-            <Separator className="h-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="h-1 bg-border transition-colors hover:bg-primary/50" />
 
             {/* Terminal + Preview */}
             <Panel id="terminal-preview" defaultSize="35%" minSize="15%">
@@ -494,7 +531,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
                     />
                   </PanelErrorBoundary>
                 </Panel>
-                <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+                <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
                 <Panel id="preview" defaultSize="40%" minSize="20%">
                   <PanelErrorBoundary panelName="Preview">
                     <PreviewPane />
@@ -508,7 +545,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         {/* Chat Panel (collapsible sidebar — stays inline) */}
         {showChat && (
           <>
-            <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors" />
+            <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
             <Panel id="chat-panel" defaultSize="30%" minSize="20%" maxSize="40%">
               <PanelErrorBoundary panelName="Chat">
                 <ChatPanel
@@ -544,23 +581,15 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           <DialogHeader>
             <DialogTitle>Close Project</DialogTitle>
             <DialogDescription>
-              This will stop the sandbox container and disconnect any active
-              terminal sessions. Unsaved editor changes will be lost.
+              This will stop the sandbox container and disconnect any active terminal sessions.
+              Unsaved editor changes will be lost.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowCloseConfirm(false)}
-              disabled={closing}
-            >
+            <Button variant="outline" onClick={() => setShowCloseConfirm(false)} disabled={closing}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleCloseProject}
-              disabled={closing}
-            >
+            <Button variant="destructive" onClick={handleCloseProject} disabled={closing}>
               {closing ? "Closing..." : "Close Project"}
             </Button>
           </DialogFooter>

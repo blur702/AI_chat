@@ -13,14 +13,7 @@ export default function NotesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  const {
-    notes,
-    categories,
-    loading,
-    createNote,
-    updateNote,
-    deleteNote,
-  } = useNotes({
+  const { notes, categories, loading, createNote, updateNote, deleteNote } = useNotes({
     status: statusFilter === "all" ? undefined : statusFilter,
     category_id: categoryFilter === "all" ? undefined : categoryFilter,
   });
@@ -33,7 +26,7 @@ export default function NotesPage() {
       <div className="flex items-center gap-2 border-b px-4 py-2">
         <h1 className="text-sm font-semibold">Notes Kanban</h1>
 
-        <div className="flex items-center gap-1.5 ml-4">
+        <div className="ml-4 flex items-center gap-1.5">
           <select
             className="h-7 rounded-md border bg-background px-2 text-xs"
             value={statusFilter}
@@ -61,11 +54,7 @@ export default function NotesPage() {
 
         <div className="flex-1" />
 
-        <Button
-          size="sm"
-          className="h-7 text-xs gap-1"
-          onClick={() => setShowCreate(!showCreate)}
-        >
+        <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => setShowCreate(!showCreate)}>
           <Plus className="h-3 w-3" />
           New Note
         </Button>

@@ -1,23 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Button,
-  Badge,
-  Textarea,
-  Input,
-} from "@workstation/ui";
-import {
-  Check,
-  Archive,
-  Trash2,
-  Pin,
-  PinOff,
-  Pencil,
-  X,
-  Save,
-  Bug,
-} from "lucide-react";
+import { Button, Badge, Textarea, Input } from "@workstation/ui";
+import { Check, Archive, Trash2, Pin, PinOff, Pencil, X, Save, Bug } from "lucide-react";
 import type { NoteResponse, NoteUpdateRequest } from "@workstation/api/types";
 
 interface NoteItemProps {
@@ -29,7 +14,14 @@ interface NoteItemProps {
   onPromoteToIssue?: (id: string) => Promise<void>;
 }
 
-export function NoteItem({ note, onUpdate, onDelete, onComplete, onArchive, onPromoteToIssue }: NoteItemProps) {
+export function NoteItem({
+  note,
+  onUpdate,
+  onDelete,
+  onComplete,
+  onArchive,
+  onPromoteToIssue,
+}: NoteItemProps) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note.title || "");
   const [editBody, setEditBody] = useState(note.body);
@@ -66,10 +58,10 @@ export function NoteItem({ note, onUpdate, onDelete, onComplete, onArchive, onPr
           <Textarea
             value={editBody}
             onChange={(e) => setEditBody(e.target.value)}
-            className="min-h-[50px] text-xs resize-none"
+            className="min-h-[50px] resize-none text-xs"
           />
           <div className="flex gap-1">
-            <Button size="sm" className="h-6 text-xs gap-1" onClick={handleSave}>
+            <Button size="sm" className="h-6 gap-1 text-xs" onClick={handleSave}>
               <Save className="h-3 w-3" /> Save
             </Button>
             <Button
@@ -89,19 +81,23 @@ export function NoteItem({ note, onUpdate, onDelete, onComplete, onArchive, onPr
       ) : (
         <>
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               {note.title && (
-                <p className={`font-medium text-xs ${statusColor} ${note.status === "completed" ? "line-through" : ""}`}>
-                  {note.pinned && <Pin className="inline h-3 w-3 mr-1 text-primary" />}
+                <p
+                  className={`text-xs font-medium ${statusColor} ${note.status === "completed" ? "line-through" : ""}`}
+                >
+                  {note.pinned && <Pin className="mr-1 inline h-3 w-3 text-primary" />}
                   {note.title}
                 </p>
               )}
-              <p className={`text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap line-clamp-3 ${note.status === "completed" ? "line-through" : ""}`}>
+              <p
+                className={`mt-0.5 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground ${note.status === "completed" ? "line-through" : ""}`}
+              >
                 {note.body}
               </p>
             </div>
 
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div className="flex shrink-0 items-center gap-0.5">
               {note.status === "active" && (
                 <>
                   <Button
@@ -166,30 +162,34 @@ export function NoteItem({ note, onUpdate, onDelete, onComplete, onArchive, onPr
           </div>
 
           {/* Badges */}
-          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
             {note.category_name && (
               <Badge
                 variant="secondary"
-                className="text-[10px] h-4"
-                style={note.category_color ? { backgroundColor: note.category_color + "20", color: note.category_color } : undefined}
+                className="h-4 text-[10px]"
+                style={
+                  note.category_color
+                    ? { backgroundColor: note.category_color + "20", color: note.category_color }
+                    : undefined
+                }
               >
                 {note.category_name}
               </Badge>
             )}
             {note.project_name && (
-              <Badge variant="outline" className="text-[10px] h-4">
+              <Badge variant="outline" className="h-4 text-[10px]">
                 {note.project_name}
               </Badge>
             )}
             {note.issue_id && (
-              <Badge variant="destructive" className="text-[10px] h-4">
+              <Badge variant="destructive" className="h-4 text-[10px]">
                 Issue
               </Badge>
             )}
             {note.status !== "active" && (
               <Badge
                 variant={note.status === "completed" ? "default" : "secondary"}
-                className="text-[10px] h-4"
+                className="h-4 text-[10px]"
               >
                 {note.status}
               </Badge>

@@ -44,7 +44,13 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: "/chat", label: "Chat", icon: MessageSquare, matchPrefix: true },
   { href: "/projects", label: "Projects", icon: Code2 },
-  { href: "/workspace", label: "Open IDE", icon: Monitor, requiresProject: true, matchPrefix: true },
+  {
+    href: "/workspace",
+    label: "Open IDE",
+    icon: Monitor,
+    requiresProject: true,
+    matchPrefix: true,
+  },
   { href: "/drupal", label: "Drupal", icon: Globe, matchPrefix: true },
   { href: "/studio", label: "Studio", icon: Film, matchPrefix: true },
   { href: "/workspace/image-gen", label: "Images", icon: ImageIcon, requiresProject: true },
@@ -81,18 +87,18 @@ export function GlobalHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-10 items-center px-3 gap-1">
+      <div className="flex h-10 items-center gap-1 px-3">
         {/* Brand / Home */}
         <Link
           href="/"
-          className="mr-2 flex items-center gap-1.5 text-sm font-semibold text-foreground shrink-0"
+          className="mr-2 flex shrink-0 items-center gap-1.5 text-sm font-semibold text-foreground"
         >
           <MessageSquare className="h-4 w-4 text-primary" />
           {!isMobile && <span>SSDD</span>}
         </Link>
 
         {/* Nav links - scrollable on mobile */}
-        <nav className="flex-1 min-w-0 overflow-x-auto" aria-label="Main navigation">
+        <nav className="min-w-0 flex-1 overflow-x-auto" aria-label="Main navigation">
           <TooltipProvider delayDuration={300}>
             <div className="flex items-center gap-0.5">
               {NAV_ITEMS.map((item) => {
@@ -109,12 +115,10 @@ export function GlobalHeader() {
                       <Link
                         href={href}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap",
+                          "flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                           "hover:bg-accent hover:text-accent-foreground",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          active
-                            ? "bg-accent text-accent-foreground"
-                            : "text-muted-foreground"
+                          active ? "bg-accent text-accent-foreground" : "text-muted-foreground",
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -134,7 +138,7 @@ export function GlobalHeader() {
         </nav>
 
         {/* Right side actions */}
-        <div className="flex items-center gap-1 shrink-0 ml-1">
+        <div className="ml-1 flex shrink-0 items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -174,7 +178,10 @@ export function GlobalHeader() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() => { logout(); window.location.href = "/login"; }}
+                onClick={() => {
+                  logout();
+                  window.location.href = "/login";
+                }}
                 aria-label="Log out"
               >
                 <LogOut className="h-3.5 w-3.5" />

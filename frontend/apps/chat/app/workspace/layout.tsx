@@ -6,11 +6,7 @@ import { useAuth } from "@workstation/api";
 import { ServiceStatusBanner } from "@/components/service-status-banner";
 import { WorkspaceStatusBar } from "@/components/workspace/workspace-status-bar";
 
-export default function WorkspaceLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

@@ -1,18 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import type {
-  NoteResponse,
-  NoteCreateRequest,
-  NoteUpdateRequest,
-} from "@workstation/api/types";
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import type { NoteResponse, NoteCreateRequest, NoteUpdateRequest } from "@workstation/api/types";
 import { KanbanColumn } from "./kanban-column";
 import { Loader2 } from "lucide-react";
 
@@ -55,9 +45,7 @@ export function KanbanBoard({
     };
   }, []);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -89,7 +77,7 @@ export function KanbanBoard({
         await onUpdateNote(noteId, { project_id: targetProjectId });
       }
     },
-    [notes, shiftHeld, onUpdateNote, onCreateNote]
+    [notes, shiftHeld, onUpdateNote, onCreateNote],
   );
 
   if (loading) {
@@ -109,7 +97,7 @@ export function KanbanBoard({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 p-4 min-h-[400px]">
+      <div className="flex min-h-[400px] gap-4 p-4">
         <KanbanColumn
           columnId="general"
           title="General"
@@ -131,7 +119,7 @@ export function KanbanBoard({
         ))}
       </div>
       {shiftHeld && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-lg z-50">
+        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-lg">
           Shift held — drop to copy
         </div>
       )}

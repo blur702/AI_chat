@@ -2,10 +2,6 @@
 
 import { SidebarLayout } from "@/components/sidebar-layout";
 
-export default function NotesLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function NotesLayout({ children }: { children: React.ReactNode }) {
   return <SidebarLayout mobileTitle="Notes">{children}</SidebarLayout>;
 }

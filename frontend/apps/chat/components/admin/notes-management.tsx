@@ -61,7 +61,7 @@ export function NotesManagement() {
             <option value="completed">Completed</option>
             <option value="archived">Archived</option>
           </select>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={fetchNotes}>
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={fetchNotes}>
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
         </div>
@@ -72,24 +72,24 @@ export function NotesManagement() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : notes.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-6">No notes found.</p>
+        <p className="py-6 text-center text-xs text-muted-foreground">No notes found.</p>
       ) : (
         <div className="rounded-md border">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left px-3 py-2 font-medium">Title</th>
-                <th className="text-left px-3 py-2 font-medium">Status</th>
-                <th className="text-left px-3 py-2 font-medium">Category</th>
-                <th className="text-left px-3 py-2 font-medium">Project</th>
-                <th className="text-left px-3 py-2 font-medium">Created</th>
-                <th className="text-right px-3 py-2 font-medium">Actions</th>
+                <th className="px-3 py-2 text-left font-medium">Title</th>
+                <th className="px-3 py-2 text-left font-medium">Status</th>
+                <th className="px-3 py-2 text-left font-medium">Category</th>
+                <th className="px-3 py-2 text-left font-medium">Project</th>
+                <th className="px-3 py-2 text-left font-medium">Created</th>
+                <th className="px-3 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {notes.map((note) => (
                 <tr key={note.id} className="border-b last:border-0">
-                  <td className="px-3 py-2 max-w-[200px] truncate">
+                  <td className="max-w-[200px] truncate px-3 py-2">
                     {note.title || note.body.slice(0, 40)}
                   </td>
                   <td className="px-3 py-2">

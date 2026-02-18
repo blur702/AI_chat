@@ -78,7 +78,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const updateNote = useCallback(
@@ -93,7 +93,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const deleteNote = useCallback(
@@ -107,7 +107,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const completeNote = useCallback(
@@ -122,7 +122,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const archiveNote = useCallback(
@@ -137,7 +137,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const createCategory = useCallback(
@@ -152,7 +152,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refreshCategories]
+    [refreshCategories],
   );
 
   const updateCategory = useCallback(
@@ -167,7 +167,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refreshCategories]
+    [refreshCategories],
   );
 
   const deleteCategory = useCallback(
@@ -181,7 +181,7 @@ export function useNotes(filters?: {
         throw err;
       }
     },
-    [refreshCategories]
+    [refreshCategories],
   );
 
   return {

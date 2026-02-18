@@ -71,7 +71,7 @@ export function useIssues(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const updateIssue = useCallback(
@@ -86,7 +86,7 @@ export function useIssues(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const deleteIssue = useCallback(
@@ -100,7 +100,7 @@ export function useIssues(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const startFix = useCallback(
@@ -115,22 +115,16 @@ export function useIssues(filters?: {
         throw err;
       }
     },
-    [refresh]
+    [refresh],
   );
 
-  const getReviewStatus = useCallback(
-    async (id: string) => {
-      return getClient().getIssueReviewStatus(id);
-    },
-    []
-  );
+  const getReviewStatus = useCallback(async (id: string) => {
+    return getClient().getIssueReviewStatus(id);
+  }, []);
 
-  const scanProjectIssues = useCallback(
-    async (projectId: string) => {
-      return getClient().scanProjectIssues(projectId);
-    },
-    []
-  );
+  const scanProjectIssues = useCallback(async (projectId: string) => {
+    return getClient().scanProjectIssues(projectId);
+  }, []);
 
   return {
     issues,

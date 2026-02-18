@@ -52,7 +52,9 @@ export function NotesModal() {
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => { dragCleanupRef.current?.(); };
+    return () => {
+      dragCleanupRef.current?.();
+    };
   }, []);
 
   // Focus trap
@@ -64,15 +66,21 @@ export function NotesModal() {
     const handleFocusTrap = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
       const focusable = panel.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
       } else {
-        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener("keydown", handleFocusTrap);
@@ -115,7 +123,10 @@ export function NotesModal() {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); closeNotes(); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeNotes();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
@@ -132,7 +143,10 @@ export function NotesModal() {
       {/* Overlay */}
       <div
         className="fixed inset-0 z-50 bg-black/30"
-        onClick={(e) => { e.stopPropagation(); closeNotes(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeNotes();
+        }}
         aria-hidden="true"
       />
 
@@ -142,49 +156,54 @@ export function NotesModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed z-[51] w-full max-w-md flex flex-col rounded-lg border bg-background shadow-lg"
+        className="fixed z-[51] flex w-full max-w-md flex-col rounded-lg border bg-background shadow-lg"
         style={{ ...panelStyle, maxHeight: "80vh" }}
       >
         {/* Header / drag handle */}
         <div
-          className="flex items-center justify-between px-4 py-2.5 border-b select-none cursor-grab active:cursor-grabbing"
+          className="flex cursor-grab select-none items-center justify-between border-b px-4 py-2.5 active:cursor-grabbing"
           onPointerDown={handlePointerDown}
         >
-          <h2 id={titleId} className="text-sm font-semibold flex items-center gap-2">
+          <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4" />
             Notes
           </h2>
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => { closeNotes(); router.push("/notes"); }}
+              onClick={() => {
+                closeNotes();
+                router.push("/notes");
+              }}
               className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               title="Open Kanban"
             >
               <LayoutGrid className="h-4 w-4" />
             </button>
-          <button
-            type="button"
-            onClick={closeNotes}
-            className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Close notes"
-          >
-            <X className="h-4 w-4" />
-          </button>
+            <button
+              type="button"
+              onClick={closeNotes}
+              className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Close notes"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <div className="px-4 pt-3 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="px-4 pb-2 pt-3">
             <NoteCreateForm
               categories={categories}
               projects={projects}
-              onSubmit={async (data) => { await createNote(data); }}
+              onSubmit={async (data) => {
+                await createNote(data);
+              }}
             />
           </div>
 
-          <ScrollArea className="flex-1 min-h-0 px-4 pb-3" style={{ maxHeight: "50vh" }}>
+          <ScrollArea className="min-h-0 flex-1 px-4 pb-3" style={{ maxHeight: "50vh" }}>
             <NoteList
               notes={notes}
               categories={categories}
@@ -194,10 +213,18 @@ export function NotesModal() {
               onStatusFilterChange={setStatusFilter}
               categoryFilter={categoryFilter}
               onCategoryFilterChange={setCategoryFilter}
-              onUpdate={async (id, data) => { await updateNote(id, data); }}
-              onDelete={async (id) => { await deleteNote(id); }}
-              onComplete={async (id) => { await completeNote(id); }}
-              onArchive={async (id) => { await archiveNote(id); }}
+              onUpdate={async (id, data) => {
+                await updateNote(id, data);
+              }}
+              onDelete={async (id) => {
+                await deleteNote(id);
+              }}
+              onComplete={async (id) => {
+                await completeNote(id);
+              }}
+              onArchive={async (id) => {
+                await archiveNote(id);
+              }}
               onPromoteToIssue={async (id) => {
                 await getClient().promoteNoteToIssue(id);
                 await refresh();

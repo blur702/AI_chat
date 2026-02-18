@@ -22,7 +22,16 @@ import {
   useSwipe,
 } from "@workstation/ui";
 import { useChats, useAuth } from "@workstation/api";
-import { Plus, MessageSquare, Pin, Archive, Trash2, Pencil, Loader2, HelpCircle } from "lucide-react";
+import {
+  Plus,
+  MessageSquare,
+  Pin,
+  Archive,
+  Trash2,
+  Pencil,
+  Loader2,
+  HelpCircle,
+} from "lucide-react";
 import { useHelp } from "./help/help-provider";
 import { t } from "@/lib/i18n";
 
@@ -32,7 +41,11 @@ interface ChatSidebarProps {
   onMobileClose?: () => void;
 }
 
-export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClose: onMobileCloseProp }: ChatSidebarProps) {
+export function ChatSidebar({
+  projectId,
+  mobileOpen: mobileOpenProp,
+  onMobileClose: onMobileCloseProp,
+}: ChatSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
@@ -64,7 +77,9 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
 
   // Refresh chat list when a new chat is created from the draft page
   useEffect(() => {
-    const handler = () => { refresh(); };
+    const handler = () => {
+      refresh();
+    };
     window.addEventListener("chat-list-refresh", handler);
     return () => window.removeEventListener("chat-list-refresh", handler);
   }, [refresh]);
@@ -125,7 +140,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
         setOperationError(`Failed to update pin state: ${message}`);
       }
     },
-    [updateChat]
+    [updateChat],
   );
 
   const handleToggleArchive = useCallback(
@@ -139,7 +154,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
         setOperationError(`Failed to update archive state: ${message}`);
       }
     },
-    [updateChat]
+    [updateChat],
   );
 
   const handleOpenRename = useCallback((id: string, title: string) => {
@@ -233,7 +248,7 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
           ref={sidebarRef}
           className={cn(
             "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-sidebar transition-transform duration-standard ease-in-out",
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
+            mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
           role="navigation"
           aria-label="Chat navigation"
@@ -265,7 +280,14 @@ export function ChatSidebar({ projectId, mobileOpen: mobileOpenProp, onMobileClo
 
 interface SidebarContentProps {
   projectId: string | null;
-  chats: { id: string; title: string; is_pinned?: boolean; is_archived?: boolean; created_at?: string; updated_at?: string }[];
+  chats: {
+    id: string;
+    title: string;
+    is_pinned?: boolean;
+    is_archived?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  }[];
   pathname: string;
   loading: boolean;
   error: string | null;
@@ -304,19 +326,14 @@ const SidebarContent = memo(function SidebarContent({
     <>
       <div className="flex items-center justify-between p-4">
         <h2 className="text-sm font-semibold text-sidebar-foreground">{t("chats")}</h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onNewChat}
-          aria-label="Create new chat"
-        >
+        <Button variant="ghost" size="icon" onClick={onNewChat} aria-label="Create new chat">
           <Plus className="h-4 w-4" />
         </Button>
       </div>
 
       <ScrollArea className="flex-1 px-2">
         {(error || operationError) && (
-          <div className="px-3 py-2 space-y-1">
+          <div className="space-y-1 px-3 py-2">
             {error && <p className="text-xs text-destructive">{error}</p>}
             {operationError && <p className="text-xs text-destructive">{operationError}</p>}
           </div>
@@ -326,9 +343,7 @@ const SidebarContent = memo(function SidebarContent({
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : chats.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">
-            {t("noChatsYet")}
-          </p>
+          <p className="px-3 py-4 text-xs text-muted-foreground">{t("noChatsYet")}</p>
         ) : (
           <div className="space-y-1" role="list" aria-label="Chat list">
             {pinnedChats.length > 0 && (
@@ -351,7 +366,9 @@ const SidebarContent = memo(function SidebarContent({
             {regularChats.length > 0 && (
               <>
                 {pinnedChats.length > 0 && (
-                  <p className="px-3 py-1 text-xs font-medium text-muted-foreground">{t("recent")}</p>
+                  <p className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                    {t("recent")}
+                  </p>
                 )}
                 {regularChats.map((chat) => (
                   <ChatItem
@@ -369,7 +386,9 @@ const SidebarContent = memo(function SidebarContent({
             )}
             {archivedChats.length > 0 && (
               <>
-                <p className="px-3 py-1 pt-2 text-xs font-medium text-muted-foreground">{t("archived")}</p>
+                <p className="px-3 py-1 pt-2 text-xs font-medium text-muted-foreground">
+                  {t("archived")}
+                </p>
                 {archivedChats.map((chat) => (
                   <ChatItem
                     key={chat.id}
@@ -388,10 +407,10 @@ const SidebarContent = memo(function SidebarContent({
         )}
       </ScrollArea>
 
-      <div className="border-t p-2 mt-2 space-y-1">
+      <div className="mt-2 space-y-1 border-t p-2">
         <button
           onClick={() => onHelp()}
-          className="flex w-full items-center justify-start gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors min-h-[36px] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex min-h-[36px] w-full items-center justify-start gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Help"
         >
           <HelpCircle className="h-4 w-4" aria-hidden="true" />
@@ -425,33 +444,39 @@ const ChatItem = memo(function ChatItem({
         <div
           role="listitem"
           className={cn(
-            "group relative flex items-center gap-2 rounded-md text-sm transition-colors min-h-[44px]",
+            "group relative flex min-h-[44px] items-center gap-2 rounded-md text-sm transition-colors",
             isActive
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50",
           )}
         >
           <Link
             href={`/chat/${chat.id}`}
             aria-current={isActive ? "page" : undefined}
             onClick={onSelect}
-            className="flex items-center gap-2 px-3 py-2.5 pr-[4.5rem] flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2.5 pr-[4.5rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{chat.title}</span>
             {chat.is_pinned && (
-              <Pin className="ml-auto h-3 w-3 shrink-0 text-muted-foreground group-hover:hidden" aria-label="Pinned" />
+              <Pin
+                className="ml-auto h-3 w-3 shrink-0 text-muted-foreground group-hover:hidden"
+                aria-label="Pinned"
+              />
             )}
           </Link>
           <div
             role="toolbar"
             aria-label="Chat actions"
-            className="absolute right-1 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0"
+            className="absolute right-1 z-10 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
           >
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRename(chat.id, chat.title); }}
-              className="p-1 rounded hover:bg-sidebar-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename(chat.id, chat.title);
+              }}
+              className="rounded p-1 hover:bg-sidebar-accent"
               title="Rename"
               aria-label="Rename"
             >
@@ -459,8 +484,11 @@ const ChatItem = memo(function ChatItem({
             </button>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onTogglePin(chat.id, !!chat.is_pinned); }}
-              className="p-1 rounded hover:bg-sidebar-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin(chat.id, !!chat.is_pinned);
+              }}
+              className="rounded p-1 hover:bg-sidebar-accent"
               title={chat.is_pinned ? "Unpin" : "Pin"}
               aria-label={chat.is_pinned ? "Unpin" : "Pin"}
             >
@@ -468,8 +496,11 @@ const ChatItem = memo(function ChatItem({
             </button>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onToggleArchive(chat.id, !!chat.is_archived); }}
-              className="p-1 rounded hover:bg-sidebar-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleArchive(chat.id, !!chat.is_archived);
+              }}
+              className="rounded p-1 hover:bg-sidebar-accent"
               title={chat.is_archived ? "Unarchive" : "Archive"}
               aria-label={chat.is_archived ? "Unarchive" : "Archive"}
             >
@@ -477,8 +508,11 @@ const ChatItem = memo(function ChatItem({
             </button>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onDelete(chat.id, chat.title); }}
-              className="p-1 rounded hover:bg-sidebar-accent text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(chat.id, chat.title);
+              }}
+              className="rounded p-1 text-destructive hover:bg-sidebar-accent"
               title="Delete"
               aria-label="Delete"
             >
