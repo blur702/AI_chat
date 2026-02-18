@@ -33,6 +33,7 @@ export function NotesManagement() {
   }, [fetchNotes]);
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this note?")) return;
     try {
       await getClient().deleteNote(id);
       await fetchNotes();

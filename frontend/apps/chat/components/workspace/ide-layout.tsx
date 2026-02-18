@@ -219,7 +219,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
   );
   const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
   const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb-builder"), [togglePanel]);
-  const handleIssuesClick = useCallback(() => togglePanel("issues"), [togglePanel]);
+  const handleIssuesClick = useCallback(() => togglePanel("issues", "issues"), [togglePanel]);
 
   const handleToolsClick = useCallback(() => {
     setToolsContext({ prefillFile: null, filterForFile: false, initialTool: null });

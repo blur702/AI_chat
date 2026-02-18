@@ -1,5 +1,6 @@
 """API endpoints for Drupal MCP site management."""
 
+import base64
 import ipaddress
 import json as json_mod
 import logging
@@ -1373,8 +1374,9 @@ async def create_content_type(
 
     try:
         await ssh.execute(f"mkdir -p {safe_tmp}", timeout=10)
-        # Write YAML via heredoc
-        write_cmd = f"cat > {shlex.quote(f'{tmp_dir}/{config_filename}')} << 'CONFIGEOF'\n{config_yaml}CONFIGEOF"
+        # Write YAML via base64 to avoid heredoc injection
+        config_b64 = base64.b64encode(config_yaml.encode()).decode()
+        write_cmd = f"echo {shlex.quote(config_b64)} | base64 -d > {shlex.quote(f'{tmp_dir}/{config_filename}')}"
         await ssh.execute(write_cmd, timeout=10)
 
         # Import the config

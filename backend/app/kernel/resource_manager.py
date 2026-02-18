@@ -736,7 +736,7 @@ class ResourceManager(BaseKernelService):
                 logger.debug(f"Found {len(resources)} offloaded resources")
                 return resources
         except Exception as e:
-            logger.error(f"Failed to get offloaded resources: {e}")
+            logger.error("Failed to get offloaded resources: %s", e)
             return []
 
     async def find_preemptable_resources(self, required_vram_mb: int) -> List[str]:

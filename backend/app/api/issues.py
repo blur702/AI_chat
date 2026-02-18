@@ -98,7 +98,11 @@ async def create_issue(
     )
     db.add(row)
     await db.commit()
-    await db.refresh(row)
+    # Re-fetch with relationships eagerly loaded (selectin on project)
+    result = await db.execute(
+        select(Issue).where(Issue.id == row.id)
+    )
+    row = result.scalar_one()
     return _issue_to_response(row)
 
 

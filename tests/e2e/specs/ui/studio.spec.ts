@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin } from "../../helpers/auth";
 import { flushRateLimits, resetLockout } from "../../helpers/db";
-import { ADMIN_ID } from "../../helpers/credentials";
+import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
 
 const ORIGIN = process.env.BASE_URL ?? "https://ssdd.kevinalthaus.com";
 
@@ -19,7 +19,7 @@ test.describe("Video Studio — full e2e", () => {
       try {
         // Login to get auth cookie
         await request.post("/api/auth/login", {
-          data: { identifier: ADMIN_ID, password: "(130Bpm)" },
+          data: { identifier: ADMIN_ID, password: ADMIN_PW },
         });
         await request.delete(`/api/studio/projects/${projectId}`, {
           headers: { Origin: ORIGIN },

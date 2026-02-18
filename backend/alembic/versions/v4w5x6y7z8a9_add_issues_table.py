@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("project_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("projects.id", ondelete="SET NULL"), nullable=False),
+        sa.Column("project_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
         sa.Column("note_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("notes.id", ondelete="SET NULL"), nullable=True),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -44,10 +44,12 @@ def upgrade() -> None:
     op.create_index("idx_issues_project_open", "issues", ["project_id", "is_deleted"])
 
     # Add issue_id FK to notes
-    op.add_column("notes", sa.Column("issue_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("issues.id", ondelete="SET NULL"), nullable=True))
+    op.add_column("notes", sa.Column("issue_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.create_foreign_key("fk_notes_issue_id", "notes", "issues", ["issue_id"], ["id"], ondelete="SET NULL")
 
 
 def downgrade() -> None:
+    op.drop_constraint("fk_notes_issue_id", "notes", type_="foreignkey")
     op.drop_column("notes", "issue_id")
     op.drop_index("idx_issues_project_open", table_name="issues")
     op.drop_index("idx_issues_user_project_status", table_name="issues")

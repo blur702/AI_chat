@@ -31,7 +31,7 @@ class Issue(UUIDMixin, TimestampMixin, Base):
     )
     project_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="SET NULL"),
+        ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
     note_id: Mapped[Optional[UUID]] = mapped_column(

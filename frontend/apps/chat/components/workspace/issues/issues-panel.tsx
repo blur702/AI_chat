@@ -150,7 +150,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                     variant="outline"
                     size="sm"
                     className="h-6 gap-1 text-[10px]"
-                    onClick={() => window.open(issue.fix_pr_url!, "_blank")}
+                    onClick={() => window.open(issue.fix_pr_url!, "_blank", "noopener,noreferrer")}
                   >
                     <ExternalLink className="h-3 w-3" />
                     View PR

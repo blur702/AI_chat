@@ -142,7 +142,7 @@ export function useVramManagement(): UseVramManagementReturn {
   }, [refreshModels, refreshVram, refreshResourceStatus]);
 
   const actionLoading = modelActionLoading ?? localActionLoading;
-  const loading = modelLoading || vramData === null;
+  const loading = modelLoading || (vramData === null && vramPollError === null);
   const error = localError ?? modelError ?? vramError ?? resourceError;
 
   return {
