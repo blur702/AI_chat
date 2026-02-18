@@ -72,9 +72,18 @@ MODE_PROMPT_MODIFIERS: dict[str, str] = {
 }
 
 
-def get_mode_modifier(chat_mode: str) -> str:
+def get_mode_modifier(
+    chat_mode: str,
+    user_overrides: dict[str, str] | None = None,
+) -> str:
     """Return the prompt modifier for the given chat mode.
 
-    Falls back to empty string for unknown modes (same as agent).
+    If *user_overrides* contains a non-empty string for the mode, it is
+    returned instead of the built-in default.  Falls back to empty string
+    for unknown modes (same as agent).
     """
+    if user_overrides and chat_mode in user_overrides:
+        override = user_overrides[chat_mode]
+        if isinstance(override, str) and override.strip():
+            return override
     return MODE_PROMPT_MODIFIERS.get(chat_mode, "")

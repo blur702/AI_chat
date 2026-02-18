@@ -124,6 +124,7 @@ export interface UserPreferences {
   imggen_auto_delete_days?: number;
   imggen_max_generations?: number;
   comfyui_base_url?: string;
+  mode_prompt_overrides?: Record<string, string>;
 }
 
 export interface UserPreferencesUpdateRequest {
@@ -152,6 +153,7 @@ export interface UserPreferencesUpdateRequest {
   imggen_auto_delete_days?: number;
   imggen_max_generations?: number;
   comfyui_base_url?: string;
+  mode_prompt_overrides?: Record<string, string> | null;
 }
 
 export interface ModelInfo {

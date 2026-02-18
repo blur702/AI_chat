@@ -24,9 +24,10 @@ interface UseAdminReturn {
 
 /**
  * Fetches kernel metrics and debug info for the admin panel, with optional auto-refresh.
+ * @param enabled - When false, skips initial fetch and auto-refresh (useful for non-admin users).
  * @returns Metrics, debug info, loading/error state, refresh callbacks, and auto-refresh controls.
  */
-export function useAdmin(): UseAdminReturn {
+export function useAdmin(enabled = true): UseAdminReturn {
   const [metrics, setMetrics] = useState<KernelMetrics | null>(null);
   const [debugInfo, setDebugInfo] = useState<KernelDebugInfo | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -72,20 +73,21 @@ export function useAdmin(): UseAdminReturn {
     return getClient().getServiceDebug(serviceName);
   }, []);
 
-  // Initial fetch
+  // Initial fetch (only when enabled)
   useEffect(() => {
+    if (!enabled) return;
     refreshMetrics();
     refreshDebugInfo();
-  }, [refreshMetrics, refreshDebugInfo]);
+  }, [enabled, refreshMetrics, refreshDebugInfo]);
 
-  // Auto-refresh
+  // Auto-refresh (only when enabled)
   useEffect(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
-    if (autoRefreshEnabled) {
+    if (enabled && autoRefreshEnabled) {
       intervalRef.current = setInterval(() => {
         refreshMetrics();
         refreshDebugInfo();

@@ -130,3 +130,125 @@ export interface PushResponse {
   message: string;
   details?: Record<string, unknown>;
 }
+
+// --- Composer / Module / Theme Management ---
+
+export interface ComposerRequireRequest {
+  package: string;
+  version?: string;
+}
+
+export interface ComposerRemoveRequest {
+  package: string;
+  confirm: boolean;
+}
+
+export interface ComposerUpdateRequest {
+  packages?: string[];
+  with_dependencies?: boolean;
+  confirm: boolean;
+}
+
+export interface ComposerOperationResponse {
+  success: boolean;
+  command: string;
+  output: string;
+  error?: string;
+}
+
+export interface ModuleEnableRequest {
+  modules: string[];
+}
+
+export interface ModuleDisableRequest {
+  modules: string[];
+  confirm: boolean;
+}
+
+export interface ThemeEnableRequest {
+  theme: string;
+  set_default?: boolean;
+}
+
+export interface ThemeDisableRequest {
+  theme: string;
+  confirm: boolean;
+}
+
+export interface DrushOperationResponse {
+  success: boolean;
+  command: string;
+  stdout: string;
+  stderr: string;
+}
+
+export interface ModuleThemeListItem {
+  machine_name: string;
+  display_name: string;
+  status: string;
+  version?: string;
+  package?: string;
+  type: "module" | "theme";
+}
+
+export interface ModuleThemeListResponse {
+  items: ModuleThemeListItem[];
+  total: number;
+}
+
+export interface ContentTypeCreateRequest {
+  machine_name: string;
+  label: string;
+  description?: string;
+  has_body?: boolean;
+}
+
+export interface ContentTypeCreateResponse {
+  success: boolean;
+  machine_name: string;
+  label: string;
+  message: string;
+}
+
+export interface BlockContentCreateRequest {
+  bundle?: string;
+  info: string;
+  body?: string;
+  body_format?: string;
+}
+
+export interface BlockContentResponse {
+  uuid: string;
+  bundle: string;
+  info: string;
+  body?: string;
+  body_format?: string;
+  status: boolean;
+}
+
+export interface BlockContentListResponse {
+  blocks: BlockContentResponse[];
+  total: number;
+}
+
+export interface BlockContentUpdateRequest {
+  info?: string;
+  body?: string;
+  body_format?: string;
+  status?: boolean;
+}
+
+export interface ThemeScaffoldRequest {
+  machine_name: string;
+  name: string;
+  description?: string;
+  base_theme?: string;
+}
+
+export interface ThemeScaffoldResponse {
+  success: boolean;
+  machine_name: string;
+  path: string;
+  files_created: string[];
+  message: string;
+}

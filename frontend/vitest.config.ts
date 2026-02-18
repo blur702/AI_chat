@@ -35,6 +35,7 @@ export default defineConfig({
       "next/navigation": path.resolve(__dirname, "node_modules/next/navigation"),
       "next/image": path.resolve(__dirname, "node_modules/next/image"),
       "next/link": path.resolve(__dirname, "node_modules/next/link"),
+      "@dnd-kit/core": path.resolve(__dirname, "../tests/frontend/unit/mocks/dnd-kit-core.tsx"),
     },
   },
 });

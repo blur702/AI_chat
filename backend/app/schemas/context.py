@@ -205,6 +205,7 @@ class UserPreferencesResponse(BaseModel):
     imggen_auto_delete_days: Optional[int] = None
     imggen_max_generations: Optional[int] = None
     comfyui_base_url: Optional[str] = None
+    mode_prompt_overrides: Optional[Dict[str, str]] = None
 
 
 class UserPreferencesUpdateRequest(BaseModel):
@@ -252,6 +253,27 @@ class UserPreferencesUpdateRequest(BaseModel):
     imggen_auto_delete_days: Optional[int] = Field(default=None, ge=0, le=365)
     imggen_max_generations: Optional[int] = Field(default=None, ge=0, le=10000)
     comfyui_base_url: Optional[str] = Field(default=None, max_length=500)
+    mode_prompt_overrides: Optional[Dict[str, str]] = None
+
+    @field_validator("mode_prompt_overrides")
+    @classmethod
+    def validate_mode_prompt_overrides(
+        cls, v: Optional[Dict[str, str]]
+    ) -> Optional[Dict[str, str]]:
+        if v is None:
+            return v
+        for key, value in v.items():
+            if key not in VALID_CHAT_MODES:
+                raise ValueError(
+                    f"Invalid chat mode key '{key}'. Must be one of {VALID_CHAT_MODES}"
+                )
+            if not isinstance(value, str):
+                raise ValueError(f"Value for mode '{key}' must be a string")
+            if len(value) > 10_000:
+                raise ValueError(
+                    f"Value for mode '{key}' must not exceed 10,000 characters"
+                )
+        return v
 
 
 class ModelInfo(BaseModel):

@@ -225,3 +225,166 @@ class PushResponse(BaseModel):
     success: bool
     message: str
     details: Optional[Dict[str, Any]] = None
+
+
+# --- Composer / Module / Theme Management schemas ---
+
+
+class ComposerRequireRequest(BaseModel):
+    """Install a package via composer require."""
+
+    package: str = Field(..., min_length=3, max_length=255)
+    version: str = Field(default="", max_length=64)
+
+
+class ComposerRemoveRequest(BaseModel):
+    """Remove a package via composer remove."""
+
+    package: str = Field(..., min_length=3, max_length=255)
+    confirm: bool = Field(default=False, description="Must be True to proceed")
+
+
+class ComposerUpdateRequest(BaseModel):
+    """Update packages via composer update."""
+
+    packages: List[str] = Field(default_factory=list, max_length=50)
+    with_dependencies: bool = Field(default=True)
+    confirm: bool = Field(default=False, description="Must be True to proceed")
+
+
+class ComposerOperationResponse(BaseModel):
+    """Response from a composer operation."""
+
+    success: bool
+    command: str
+    output: str
+    error: Optional[str] = None
+
+
+class ModuleEnableRequest(BaseModel):
+    """Enable one or more modules via drush pm:enable."""
+
+    modules: List[str] = Field(..., min_length=1, max_length=20)
+
+
+class ModuleDisableRequest(BaseModel):
+    """Uninstall one or more modules via drush pm:uninstall."""
+
+    modules: List[str] = Field(..., min_length=1, max_length=20)
+    confirm: bool = Field(default=False, description="Must be True for destructive uninstall")
+
+
+class ThemeEnableRequest(BaseModel):
+    """Enable a theme via drush theme:enable."""
+
+    theme: str = Field(..., min_length=1, max_length=128)
+    set_default: bool = Field(default=False)
+
+
+class ThemeDisableRequest(BaseModel):
+    """Uninstall a theme via drush theme:uninstall."""
+
+    theme: str = Field(..., min_length=1, max_length=128)
+    confirm: bool = Field(default=False)
+
+
+class DrushOperationResponse(BaseModel):
+    """Response from a drush module/theme operation."""
+
+    success: bool
+    command: str
+    stdout: str
+    stderr: str
+
+
+class ModuleThemeListItem(BaseModel):
+    """A module or theme with its status."""
+
+    machine_name: str
+    display_name: str
+    status: str
+    version: Optional[str] = None
+    package: Optional[str] = None
+    type: str
+
+
+class ModuleThemeListResponse(BaseModel):
+    """List of installed modules and themes."""
+
+    items: List[ModuleThemeListItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class ContentTypeCreateRequest(BaseModel):
+    """Create a new content type via config import."""
+
+    machine_name: str = Field(..., min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_]*$")
+    label: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(default="")
+    has_body: bool = Field(default=True)
+
+
+class ContentTypeCreateResponse(BaseModel):
+    """Response from content type creation."""
+
+    success: bool
+    machine_name: str
+    label: str
+    message: str
+
+
+class BlockContentCreateRequest(BaseModel):
+    """Create block content via JSON:API."""
+
+    bundle: str = Field(default="basic")
+    info: str = Field(..., min_length=1, max_length=255)
+    body: Optional[str] = None
+    body_format: str = Field(default="basic_html")
+
+
+class BlockContentResponse(BaseModel):
+    """A block content entity."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    uuid: str
+    bundle: str
+    info: str
+    body: Optional[str] = None
+    body_format: Optional[str] = None
+    status: bool = True
+
+
+class BlockContentListResponse(BaseModel):
+    """List of block content entities."""
+
+    blocks: List[BlockContentResponse] = Field(default_factory=list)
+    total: int = 0
+
+
+class BlockContentUpdateRequest(BaseModel):
+    """Update block content."""
+
+    info: Optional[str] = Field(None, max_length=255)
+    body: Optional[str] = None
+    body_format: Optional[str] = None
+    status: Optional[bool] = None
+
+
+class ThemeScaffoldRequest(BaseModel):
+    """Scaffold a new custom Drupal theme on the VPS."""
+
+    machine_name: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(default="")
+    base_theme: str = Field(default="stark")
+
+
+class ThemeScaffoldResponse(BaseModel):
+    """Response from theme scaffolding."""
+
+    success: bool
+    machine_name: str
+    path: str
+    files_created: List[str] = Field(default_factory=list)
+    message: str

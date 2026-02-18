@@ -323,6 +323,7 @@ class ContextManager(BaseKernelService):
                 "imggen_auto_delete_days": pref.imggen_auto_delete_days,
                 "imggen_max_generations": pref.imggen_max_generations,
                 "comfyui_base_url": pref.comfyui_base_url,
+                "mode_prompt_overrides": pref.mode_prompt_overrides,
             }
 
         await self._redis.setex(cache_key, self.USER_PREFS_CACHE_TTL, json.dumps(prefs_dict, default=str))

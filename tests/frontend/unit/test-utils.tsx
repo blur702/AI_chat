@@ -79,6 +79,12 @@ export function createMockClient() {
     listUsers: vi.fn(),
     getAuditLogs: vi.fn(),
     getSystemHealth: vi.fn(),
+
+    // Resources / VRAM
+    getVRAMStats: vi.fn(),
+    getResourceStatus: vi.fn(),
+    submitOffloadDecision: vi.fn(),
+    reloadResource: vi.fn(),
   };
 }
 
@@ -127,6 +133,9 @@ export const workstationUiMock = {
   Switch: ({ checked, onCheckedChange, ...props }: any) => (
     <button role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
   ),
+  Collapsible: ({ children }: any) => <div>{children}</div>,
+  CollapsibleTrigger: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  CollapsibleContent: ({ children }: any) => <div>{children}</div>,
   SkipNav: () => null,
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 };

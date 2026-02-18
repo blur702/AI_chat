@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { SidebarLayout } from "@/components/sidebar-layout";
 
 export default function SettingsLayout({
@@ -7,5 +8,9 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <SidebarLayout mobileTitle="Settings">{children}</SidebarLayout>;
+  return (
+    <SidebarLayout mobileTitle="Settings">
+      <Suspense>{children}</Suspense>
+    </SidebarLayout>
+  );
 }

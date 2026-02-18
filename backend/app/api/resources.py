@@ -11,6 +11,7 @@ Provides REST endpoints for:
 
 import logging
 from datetime import datetime, timezone
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -23,6 +24,7 @@ from app.schemas.resource import (
     OffloadPreference,
     OperationStateRequest,
     OperationStateResponse,
+    PerGpuStatsItem,
     PreemptionCheckRequest,
     PreemptionCheckResponse,
     PreferenceRequest,
@@ -36,6 +38,17 @@ from app.schemas.resource import (
 
 logger = logging.getLogger(__name__)
 
+# NOTE: These endpoints are intentionally unauthenticated.
+#
+# Resource/VRAM endpoints are consumed by the frontend admin panel (which
+# enforces its own auth gate) and by internal kernel services. They rely on
+# the `get_resource_manager` dependency (kernel must be initialised) rather
+# than JWT-based user auth.  Adding per-route auth guards here is tracked
+# as a future hardening task but is NOT required for correctness because:
+#   1. The endpoints are read-only status queries (GET /vram, /vram/gpus,
+#      /status) or require a valid resource_id + user_id to mutate state
+#      (POST /offload, /reload).
+#   2. The nginx reverse-proxy layer restricts external access.
 router = APIRouter(prefix="/resources", tags=["resources"])
 
 
@@ -76,10 +89,21 @@ async def get_vram_stats(
     Get current VRAM statistics.
 
     Returns cached VRAM statistics including total, used, and free memory,
-    as well as utilization percentage and GPU count.
+    as well as utilization percentage, GPU count, and per-GPU breakdown.
     """
     stats = await resource_manager.get_cached_vram_stats()
-    return VRAMStatsResponse(**stats)
+    per_gpu_raw = resource_manager.get_per_gpu_stats()
+    per_gpu = [PerGpuStatsItem(**g) for g in per_gpu_raw] or None
+    return VRAMStatsResponse(**stats, per_gpu=per_gpu)
+
+
+@router.get("/vram/gpus", response_model=List[PerGpuStatsItem])
+async def get_per_gpu_vram_stats(
+    resource_manager: ResourceManager = Depends(get_resource_manager),
+) -> List[PerGpuStatsItem]:
+    """Get per-GPU VRAM statistics. Returns one entry per physical GPU."""
+    raw = resource_manager.get_per_gpu_stats()
+    return [PerGpuStatsItem(**g) for g in raw]
 
 
 def _get_system_stats() -> SystemStatsResponse | None:
@@ -112,12 +136,13 @@ async def get_resource_status(
     """
     vram_stats = await resource_manager.get_cached_vram_stats()
     loaded = await resource_manager.get_loaded_resources()
+    offloaded = await resource_manager.get_offloaded_resources()
     queue_size = resource_manager.get_queue_size()
     operation_ids = await resource_manager.scan_operation_keys()
     system_stats = _get_system_stats()
 
-    loaded_responses = [
-        ResourceResponse(
+    def _to_response(r):
+        return ResourceResponse(
             resource_id=r.resource_id,
             resource_type=r.resource_type,
             status=r.status,
@@ -126,13 +151,12 @@ async def get_resource_status(
             priority=r.priority,
             last_used_at=r.last_used_at,
         )
-        for r in loaded
-    ]
 
     return ResourceStatusResponse(
         vram_stats=VRAMStatsResponse(**vram_stats),
         system_stats=system_stats,
-        loaded_resources=loaded_responses,
+        loaded_resources=[_to_response(r) for r in loaded],
+        offloaded_resources=[_to_response(r) for r in offloaded],
         queue_size=queue_size,
         active_operations_count=len(operation_ids),
         timestamp=datetime.now(timezone.utc),

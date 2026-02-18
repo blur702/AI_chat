@@ -23,6 +23,15 @@ export function ToolParameterForm({
   onChange,
   prefill,
 }: ToolParameterFormProps) {
+  const slugForParamType = (param: ParameterSchema): string => {
+    if (param.type === "boolean") return "tool-parameter-boolean";
+    if (param.enum) return "tool-parameter-select";
+    if (param.type === "number" || param.type === "integer") {
+      return "tool-parameter-number";
+    }
+    return "tool-parameter-text";
+  };
+
   const properties = (schema.properties ?? {}) as Record<
     string,
     ParameterSchema
@@ -50,6 +59,7 @@ export function ToolParameterForm({
         const currentValue =
           values[key] ?? prefill?.[key] ?? param.default ?? "";
         const helpTip = param.description ?? `Configure ${key} parameter.`;
+        const helpSlug = slugForParamType(param);
 
         if (param.type === "boolean") {
           return (
@@ -64,7 +74,7 @@ export function ToolParameterForm({
               <label htmlFor={`param-${key}`} className="text-xs font-medium flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
-                <FieldHelp tip={helpTip} />
+                <FieldHelp slug={helpSlug} tip={helpTip} />
               </label>
               {param.description && (
                 <span className="text-[10px] text-muted-foreground">
@@ -81,7 +91,7 @@ export function ToolParameterForm({
               <label className="text-xs font-medium mb-1 flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
-                <FieldHelp tip={helpTip} />
+                <FieldHelp slug={helpSlug} tip={helpTip} />
               </label>
               <select
                 value={String(currentValue)}
@@ -110,7 +120,7 @@ export function ToolParameterForm({
               <label className="text-xs font-medium mb-1 flex items-center gap-1">
                 {key}
                 {isRequired && <span className="text-destructive ml-0.5">*</span>}
-                <FieldHelp tip={helpTip} />
+                <FieldHelp slug={helpSlug} tip={helpTip} />
               </label>
               <Input
                 type="number"
@@ -138,7 +148,7 @@ export function ToolParameterForm({
             <label className="text-xs font-medium mb-1 flex items-center gap-1">
               {key}
               {isRequired && <span className="text-destructive ml-0.5">*</span>}
-              <FieldHelp tip={helpTip} />
+              <FieldHelp slug={helpSlug} tip={helpTip} />
             </label>
             <Input
               type="text"

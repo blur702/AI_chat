@@ -124,6 +124,11 @@ def mock_vram_tracker():
         "gpu_count": 1,
     }
     tracker.cleanup = MagicMock()
+    tracker.get_per_gpu_stats = MagicMock(return_value=[
+        {"gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+         "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+         "utilization_percent": 33.33}
+    ])
     return tracker
 
 

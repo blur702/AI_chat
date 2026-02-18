@@ -56,6 +56,8 @@ export {
   ACTIVE_MODEL_CHANGE_EVENT,
 } from "./use-model-switcher";
 export type { UseModelSwitcherReturn } from "./use-model-switcher";
+export { useVramManagement } from "./use-vram-management";
+export type { UseVramManagementReturn } from "./use-vram-management";
 export { useSnippets } from "./use-snippets";
 export type { UseSnippetsReturn } from "./use-snippets";
 export { usePalettes } from "./use-palettes";

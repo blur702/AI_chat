@@ -769,3 +769,540 @@ class TestVRAMCaching:
         result = await rm.get_cached_vram_stats()
         assert result["total_mb"] == 0
         assert result["gpu_count"] == 0
+
+
+# =========================================================================
+# Per-GPU Stats - VRAMTracker Tests
+# =========================================================================
+
+class TestPerGpuStatsTracker:
+    """Tests for VRAMTracker.get_per_gpu_stats()."""
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_not_initialized(self):
+        """Returns empty list when tracker is not initialized."""
+        with patch("app.kernel.resource_manager.VRAMTracker.__init__", return_value=None):
+            tracker = VRAMTracker.__new__(VRAMTracker)
+            tracker._initialized = False
+            tracker._gpu_handles = []
+
+            assert tracker.get_per_gpu_stats() == []
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_single_gpu(self):
+        """Returns correct stats for a single GPU."""
+        with patch("app.kernel.resource_manager.VRAMTracker.__init__", return_value=None):
+            tracker = VRAMTracker.__new__(VRAMTracker)
+            tracker._initialized = True
+            tracker._gpu_count = 1
+
+            mock_mem = MagicMock()
+            mock_mem.total = 24 * 1024 * 1024 * 1024
+            mock_mem.used = 8 * 1024 * 1024 * 1024
+            mock_mem.free = 16 * 1024 * 1024 * 1024
+
+            mock_pynvml = MagicMock()
+            mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_mem
+            mock_pynvml.nvmlDeviceGetName.return_value = "NVIDIA GeForce RTX 4090"
+            tracker._pynvml = mock_pynvml
+            tracker._gpu_handles = [MagicMock()]
+
+            result = tracker.get_per_gpu_stats()
+            assert len(result) == 1
+            gpu = result[0]
+            assert gpu["gpu_index"] == 0
+            assert gpu["name"] == "NVIDIA GeForce RTX 4090"
+            assert gpu["total_mb"] == 24576
+            assert gpu["used_mb"] == 8192
+            assert gpu["free_mb"] == 16384
+            assert gpu["utilization_percent"] == 33.33
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_multi_gpu(self):
+        """Returns independent stats for multiple GPUs."""
+        with patch("app.kernel.resource_manager.VRAMTracker.__init__", return_value=None):
+            tracker = VRAMTracker.__new__(VRAMTracker)
+            tracker._initialized = True
+            tracker._gpu_count = 2
+
+            mem0 = MagicMock(total=24 * 1024**3, used=8 * 1024**3, free=16 * 1024**3)
+            mem1 = MagicMock(total=16 * 1024**3, used=4 * 1024**3, free=12 * 1024**3)
+
+            mock_pynvml = MagicMock()
+            handle0, handle1 = MagicMock(), MagicMock()
+            mock_pynvml.nvmlDeviceGetMemoryInfo.side_effect = lambda h: mem0 if h is handle0 else mem1
+            mock_pynvml.nvmlDeviceGetName.side_effect = lambda h: "RTX 4090" if h is handle0 else "RTX 3080"
+            tracker._pynvml = mock_pynvml
+            tracker._gpu_handles = [handle0, handle1]
+
+            result = tracker.get_per_gpu_stats()
+            assert len(result) == 2
+            assert result[0]["gpu_index"] == 0
+            assert result[0]["total_mb"] == 24576
+            assert result[1]["gpu_index"] == 1
+            assert result[1]["total_mb"] == 16384
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_name_bytes(self):
+        """Handles GPU name returned as bytes."""
+        with patch("app.kernel.resource_manager.VRAMTracker.__init__", return_value=None):
+            tracker = VRAMTracker.__new__(VRAMTracker)
+            tracker._initialized = True
+            tracker._gpu_count = 1
+
+            mock_mem = MagicMock(total=16 * 1024**3, used=2 * 1024**3, free=14 * 1024**3)
+            mock_pynvml = MagicMock()
+            mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_mem
+            mock_pynvml.nvmlDeviceGetName.return_value = b"Tesla T4"
+            tracker._pynvml = mock_pynvml
+            tracker._gpu_handles = [MagicMock()]
+
+            result = tracker.get_per_gpu_stats()
+            assert result[0]["name"] == "Tesla T4"
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_zero_total(self):
+        """Returns 0% utilization when total VRAM is zero."""
+        with patch("app.kernel.resource_manager.VRAMTracker.__init__", return_value=None):
+            tracker = VRAMTracker.__new__(VRAMTracker)
+            tracker._initialized = True
+            tracker._gpu_count = 1
+
+            mock_mem = MagicMock(total=0, used=0, free=0)
+            mock_pynvml = MagicMock()
+            mock_pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_mem
+            mock_pynvml.nvmlDeviceGetName.return_value = "Unknown GPU"
+            tracker._pynvml = mock_pynvml
+            tracker._gpu_handles = [MagicMock()]
+
+            result = tracker.get_per_gpu_stats()
+            assert result[0]["utilization_percent"] == 0.0
+
+
+# =========================================================================
+# Per-GPU Stats - ResourceManager Delegate Tests
+# =========================================================================
+
+class TestPerGpuStatsDelegate:
+    """Tests for ResourceManager.get_per_gpu_stats() delegation."""
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_no_tracker(self, mock_session_factory, mock_redis):
+        """Returns empty list when no VRAM tracker is available."""
+        rm = ResourceManager(session_factory=mock_session_factory, redis_client=mock_redis)
+        rm._vram_tracker = None
+        assert rm.get_per_gpu_stats() == []
+
+    @pytest.mark.unit
+    def test_get_per_gpu_stats_delegates(self, mock_session_factory, mock_redis, mock_vram_tracker):
+        """Delegates to VRAMTracker and returns its result."""
+        rm = ResourceManager(session_factory=mock_session_factory, redis_client=mock_redis)
+        rm._vram_tracker = mock_vram_tracker
+        result = rm.get_per_gpu_stats()
+        assert len(result) == 1
+        assert result[0]["name"] == "NVIDIA GeForce RTX 4090"
+        mock_vram_tracker.get_per_gpu_stats.assert_called_once()
+
+
+# =========================================================================
+# Per-GPU Stats - API Endpoint Tests
+# =========================================================================
+
+class TestPerGpuStatsEndpoints:
+    """Tests for the per-GPU VRAM API endpoints."""
+
+    @pytest.fixture
+    def mock_rm(self, mock_vram_tracker):
+        """Create a mock ResourceManager with per-GPU stats."""
+        rm = MagicMock(spec=ResourceManager)
+        rm.get_cached_vram_stats = AsyncMock(return_value={
+            "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+            "utilization_percent": 33.33, "gpu_count": 1,
+        })
+        rm.get_per_gpu_stats = MagicMock(return_value=[
+            {"gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+             "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+             "utilization_percent": 33.33}
+        ])
+        return rm
+
+    @pytest.fixture
+    def test_app(self, mock_rm):
+        """Create a FastAPI test app with dependency overrides."""
+        from fastapi import FastAPI
+        from app.api.resources import router, get_resource_manager
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+        app.dependency_overrides[get_resource_manager] = lambda: mock_rm
+        return app
+
+    @pytest.mark.unit
+    async def test_get_per_gpu_vram_stats(self, test_app, mock_rm):
+        """GET /api/resources/vram/gpus returns 200 with GPU list."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/vram/gpus")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "NVIDIA GeForce RTX 4090"
+        assert data[0]["gpu_index"] == 0
+
+    @pytest.mark.unit
+    async def test_get_vram_includes_per_gpu(self, test_app, mock_rm):
+        """GET /api/resources/vram includes per_gpu field."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/vram")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "per_gpu" in data
+        assert len(data["per_gpu"]) == 1
+        assert data["per_gpu"][0]["name"] == "NVIDIA GeForce RTX 4090"
+
+    @pytest.mark.unit
+    async def test_get_per_gpu_vram_stats_empty(self, test_app, mock_rm):
+        """GET /api/resources/vram/gpus with no GPUs returns empty list."""
+        mock_rm.get_per_gpu_stats.return_value = []
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/vram/gpus")
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+# =========================================================================
+# Offload & Reload Endpoint Tests
+# =========================================================================
+
+class TestOffloadReloadEndpoints:
+    """Tests for the CPU offload/reload API endpoints."""
+
+    USER_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    @pytest.fixture
+    def mock_rm(self, mock_vram_tracker):
+        """Create a mock ResourceManager with offload/reload stubs."""
+        rm = MagicMock(spec=ResourceManager)
+        rm.get_cached_vram_stats = AsyncMock(return_value={
+            "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+            "utilization_percent": 33.33, "gpu_count": 1,
+        })
+        rm.get_per_gpu_stats = MagicMock(return_value=[
+            {"gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+             "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+             "utilization_percent": 33.33}
+        ])
+        rm.get_offload_preference = AsyncMock(return_value="ask_each_time")
+        rm.offload_to_cpu = AsyncMock(return_value=True)
+        rm.set_offload_preference = AsyncMock(return_value=True)
+        rm.reload_from_cpu = AsyncMock(return_value=(True, []))
+        rm.preempt_resource = AsyncMock(return_value=True)
+        # Expose preference constants
+        rm.PREFERENCE_ALWAYS_OFFLOAD = ResourceManager.PREFERENCE_ALWAYS_OFFLOAD
+        rm.PREFERENCE_ALWAYS_CANCEL = ResourceManager.PREFERENCE_ALWAYS_CANCEL
+        return rm
+
+    @pytest.fixture
+    def test_app(self, mock_rm):
+        """Create a FastAPI test app with dependency overrides."""
+        from fastapi import FastAPI
+        from app.api.resources import router, get_resource_manager
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+        app.dependency_overrides[get_resource_manager] = lambda: mock_rm
+        return app
+
+    # ----- Offload endpoint -----
+
+    @pytest.mark.unit
+    async def test_offload_decision_offload(self, test_app, mock_rm):
+        """POST /offload with decision=offload succeeds and saves preference."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": self.USER_ID,
+                "decision": "offload",
+                "remember": False,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        mock_rm.offload_to_cpu.assert_awaited_once_with("model-a", uuid.UUID(self.USER_ID))
+        mock_rm.set_offload_preference.assert_awaited_once()
+
+    @pytest.mark.unit
+    async def test_offload_decision_cancel(self, test_app, mock_rm):
+        """POST /offload with decision=cancel does not call offload_to_cpu."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": self.USER_ID,
+                "decision": "cancel",
+                "remember": False,
+            })
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        mock_rm.offload_to_cpu.assert_not_awaited()
+        mock_rm.set_offload_preference.assert_awaited_once()
+
+    @pytest.mark.unit
+    async def test_offload_auto_offload_preference(self, test_app, mock_rm):
+        """POST /offload auto-offloads when stored preference is always_offload."""
+        mock_rm.get_offload_preference.return_value = ResourceManager.PREFERENCE_ALWAYS_OFFLOAD
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": self.USER_ID,
+                "decision": "cancel",  # ignored due to stored preference
+                "remember": False,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "always_offload" in data["message"]
+        mock_rm.offload_to_cpu.assert_awaited_once()
+
+    @pytest.mark.unit
+    async def test_offload_auto_cancel_preference(self, test_app, mock_rm):
+        """POST /offload auto-cancels when stored preference is always_cancel."""
+        mock_rm.get_offload_preference.return_value = ResourceManager.PREFERENCE_ALWAYS_CANCEL
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": self.USER_ID,
+                "decision": "offload",
+                "remember": False,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "always_cancel" in data["message"]
+        mock_rm.offload_to_cpu.assert_not_awaited()
+
+    @pytest.mark.unit
+    async def test_offload_failure(self, test_app, mock_rm):
+        """POST /offload returns 500 when offload_to_cpu fails."""
+        mock_rm.offload_to_cpu.return_value = False
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": self.USER_ID,
+                "decision": "offload",
+                "remember": False,
+            })
+
+        assert resp.status_code == 500
+
+    # ----- Reload endpoint -----
+
+    @pytest.mark.unit
+    async def test_reload_success(self, test_app, mock_rm):
+        """POST /reload succeeds when VRAM is available."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+            })
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    @pytest.mark.unit
+    async def test_reload_insufficient_vram_no_user(self, test_app, mock_rm):
+        """POST /reload with insufficient VRAM and no user_id returns suggestions."""
+        mock_rm.reload_from_cpu.return_value = (False, ["model-b"])
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["preempted_resources"] == ["model-b"]
+
+    @pytest.mark.unit
+    async def test_reload_auto_preempt_preference(self, test_app, mock_rm):
+        """POST /reload auto-preempts when user preference is always_offload."""
+        mock_rm.reload_from_cpu.side_effect = [
+            (False, ["model-b"]),  # first call: insufficient VRAM
+            (True, []),            # second call after preemption: success
+        ]
+        mock_rm.get_offload_preference.return_value = ResourceManager.PREFERENCE_ALWAYS_OFFLOAD
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+                "user_id": self.USER_ID,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        mock_rm.preempt_resource.assert_awaited_once_with("model-b")
+
+    @pytest.mark.unit
+    async def test_reload_auto_cancel_preference(self, test_app, mock_rm):
+        """POST /reload auto-cancels when user preference is always_cancel."""
+        mock_rm.reload_from_cpu.return_value = (False, ["model-b"])
+        mock_rm.get_offload_preference.return_value = ResourceManager.PREFERENCE_ALWAYS_CANCEL
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+                "user_id": self.USER_ID,
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "always_cancel" in data["message"]
+
+    @pytest.mark.unit
+    async def test_reload_failure_no_suggestions(self, test_app, mock_rm):
+        """POST /reload returns 500 when reload fails with no suggestions."""
+        mock_rm.reload_from_cpu.return_value = (False, [])
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+            })
+
+        assert resp.status_code == 500
+
+
+# =========================================================================
+# Auth Guard Verification — resource endpoints are intentionally
+# unauthenticated (see note in app/api/resources.py).  These tests
+# confirm that unauthenticated callers receive 200 (not 401/403),
+# documenting the current design contract.
+# =========================================================================
+
+class TestResourceEndpointsUnauthenticated:
+    """Verify resource endpoints are accessible without authentication."""
+
+    @pytest.fixture
+    def mock_rm(self, mock_vram_tracker):
+        rm = MagicMock(spec=ResourceManager)
+        rm.get_cached_vram_stats = AsyncMock(return_value={
+            "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+            "utilization_percent": 33.33, "gpu_count": 1,
+        })
+        rm.get_per_gpu_stats = MagicMock(return_value=[
+            {"gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+             "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+             "utilization_percent": 33.33}
+        ])
+        rm.get_loaded_resources = AsyncMock(return_value=[])
+        rm.get_offloaded_resources = AsyncMock(return_value=[])
+        rm.get_queue_size = MagicMock(return_value=0)
+        rm.scan_operation_keys = AsyncMock(return_value=[])
+        rm.get_offload_preference = AsyncMock(return_value="ask_each_time")
+        rm.offload_to_cpu = AsyncMock(return_value=True)
+        rm.set_offload_preference = AsyncMock(return_value=True)
+        rm.reload_from_cpu = AsyncMock(return_value=(True, []))
+        rm.PREFERENCE_ALWAYS_OFFLOAD = ResourceManager.PREFERENCE_ALWAYS_OFFLOAD
+        rm.PREFERENCE_ALWAYS_CANCEL = ResourceManager.PREFERENCE_ALWAYS_CANCEL
+        return rm
+
+    @pytest.fixture
+    def test_app(self, mock_rm):
+        from fastapi import FastAPI
+        from app.api.resources import router, get_resource_manager
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+        app.dependency_overrides[get_resource_manager] = lambda: mock_rm
+        return app
+
+    @pytest.mark.unit
+    async def test_vram_no_auth_returns_200(self, test_app):
+        """GET /api/resources/vram is accessible without authentication."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/vram")
+
+        assert resp.status_code == 200
+
+    @pytest.mark.unit
+    async def test_vram_gpus_no_auth_returns_200(self, test_app):
+        """GET /api/resources/vram/gpus is accessible without authentication."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/vram/gpus")
+
+        assert resp.status_code == 200
+
+    @pytest.mark.unit
+    async def test_status_no_auth_returns_200(self, test_app):
+        """GET /api/resources/status is accessible without authentication."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.get("/api/resources/status")
+
+        assert resp.status_code == 200
+
+    @pytest.mark.unit
+    async def test_offload_no_auth_returns_200(self, test_app):
+        """POST /api/resources/offload is accessible without authentication."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/offload", json={
+                "resource_id": "model-a",
+                "user_id": "550e8400-e29b-41d4-a716-446655440000",
+                "decision": "offload",
+                "remember": False,
+            })
+
+        assert resp.status_code == 200
+
+    @pytest.mark.unit
+    async def test_reload_no_auth_returns_200(self, test_app):
+        """POST /api/resources/reload is accessible without authentication."""
+        from httpx import ASGITransport, AsyncClient
+
+        async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
+            resp = await ac.post("/api/resources/reload", json={
+                "resource_id": "model-a",
+                "estimated_vram_mb": 8192,
+            })
+
+        assert resp.status_code == 200

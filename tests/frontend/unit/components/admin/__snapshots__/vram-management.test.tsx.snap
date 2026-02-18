@@ -1,0 +1,555 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`VramManagement > matches snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="space-y-4"
+  >
+    <div
+      class="flex items-center justify-between"
+    >
+      <div>
+        <h2
+          class="text-sm font-semibold"
+        >
+          VRAM Management
+        </h2>
+        <p
+          class="text-xs text-muted-foreground"
+        >
+          Drag models between GPUs and RAM, or use the action buttons.
+        </p>
+      </div>
+      <button
+        class="gap-1.5"
+        variant="outline"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-refresh-ccw h-3.5 w-3.5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+          />
+          <path
+            d="M3 3v5h5"
+          />
+          <path
+            d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
+          />
+          <path
+            d="M16 16h5v5"
+          />
+        </svg>
+        Refresh
+      </button>
+    </div>
+    <div
+      data-testid="dnd-context"
+    >
+      <div
+        class="grid gap-4 lg:grid-cols-3"
+      >
+        <div
+          class="lg:col-span-2 space-y-4"
+        >
+          <div
+            class="rounded-lg border bg-card p-4 transition-all"
+          >
+            <div
+              class="flex items-center justify-between mb-3"
+            >
+              <div
+                class="flex items-center gap-2"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="lucide lucide-cpu h-4 w-4 text-muted-foreground"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 20v2"
+                  />
+                  <path
+                    d="M12 2v2"
+                  />
+                  <path
+                    d="M17 20v2"
+                  />
+                  <path
+                    d="M17 2v2"
+                  />
+                  <path
+                    d="M2 12h2"
+                  />
+                  <path
+                    d="M2 17h2"
+                  />
+                  <path
+                    d="M2 7h2"
+                  />
+                  <path
+                    d="M20 12h2"
+                  />
+                  <path
+                    d="M20 17h2"
+                  />
+                  <path
+                    d="M20 7h2"
+                  />
+                  <path
+                    d="M7 20v2"
+                  />
+                  <path
+                    d="M7 2v2"
+                  />
+                  <rect
+                    height="16"
+                    rx="2"
+                    width="16"
+                    x="4"
+                    y="4"
+                  />
+                  <rect
+                    height="8"
+                    rx="1"
+                    width="8"
+                    x="8"
+                    y="8"
+                  />
+                </svg>
+                <span
+                  class="text-sm font-semibold"
+                >
+                  GPU 0
+                </span>
+                <span
+                  class="text-xs text-muted-foreground truncate max-w-[180px]"
+                >
+                  RTX 4090
+                </span>
+              </div>
+              <span>
+                33%
+              </span>
+            </div>
+            <div
+              class="mb-1 flex items-center justify-between text-[11px] text-muted-foreground"
+            >
+              <span>
+                VRAM
+              </span>
+              <span>
+                8.0 GB / 24.0 GB
+              </span>
+            </div>
+            <div
+              aria-valuenow="33.33333333333333"
+              role="progressbar"
+            />
+            <div
+              class="space-y-1.5"
+            >
+              <div
+                class="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm"
+              >
+                <button
+                  aria-label="Drag llama3.2"
+                  class="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+                  data-draggable-id="llama3.2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-grip-vertical h-4 w-4"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <circle
+                      cx="9"
+                      cy="12"
+                      r="1"
+                    />
+                    <circle
+                      cx="9"
+                      cy="5"
+                      r="1"
+                    />
+                    <circle
+                      cx="9"
+                      cy="19"
+                      r="1"
+                    />
+                    <circle
+                      cx="15"
+                      cy="12"
+                      r="1"
+                    />
+                    <circle
+                      cx="15"
+                      cy="5"
+                      r="1"
+                    />
+                    <circle
+                      cx="15"
+                      cy="19"
+                      r="1"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="flex-1 truncate font-medium"
+                >
+                  llama3.2
+                </span>
+                <span
+                  class="text-xs text-muted-foreground shrink-0"
+                >
+                  3.3 GB
+                </span>
+                <button
+                  class="h-7 w-7 shrink-0"
+                  variant="ghost"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-down-to-line h-3.5 w-3.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 17V3"
+                    />
+                    <path
+                      d="m6 11 6 6 6-6"
+                    />
+                    <path
+                      d="M19 21H5"
+                    />
+                  </svg>
+                </button>
+                <div
+                  role="tooltip"
+                >
+                  Offload to RAM
+                </div>
+                <button
+                  class="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                  variant="ghost"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-trash2 lucide-trash-2 h-3.5 w-3.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 11v6"
+                    />
+                    <path
+                      d="M14 11v6"
+                    />
+                    <path
+                      d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
+                    />
+                    <path
+                      d="M3 6h18"
+                    />
+                    <path
+                      d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                    />
+                  </svg>
+                </button>
+                <div
+                  role="tooltip"
+                >
+                  Unload model
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="rounded-lg border bg-card p-4 transition-all"
+          >
+            <div
+              class="flex items-center gap-2 mb-3"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-memory-stick h-4 w-4 text-muted-foreground"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 12v-2"
+                />
+                <path
+                  d="M12 18v-2"
+                />
+                <path
+                  d="M16 12v-2"
+                />
+                <path
+                  d="M16 18v-2"
+                />
+                <path
+                  d="M2 11h1.5"
+                />
+                <path
+                  d="M20 18v-2"
+                />
+                <path
+                  d="M20.5 11H22"
+                />
+                <path
+                  d="M4 18v-2"
+                />
+                <path
+                  d="M8 12v-2"
+                />
+                <path
+                  d="M8 18v-2"
+                />
+                <rect
+                  height="10"
+                  rx="2"
+                  width="20"
+                  x="2"
+                  y="6"
+                />
+              </svg>
+              <span
+                class="text-sm font-semibold"
+              >
+                System RAM
+              </span>
+            </div>
+            <div
+              class="mb-1 flex items-center justify-between text-[11px] text-muted-foreground"
+            >
+              <span>
+                RAM
+              </span>
+              <span>
+                15.6 GB / 62.5 GB
+              </span>
+            </div>
+            <div
+              aria-valuenow="25"
+              role="progressbar"
+            />
+            <div
+              class="space-y-1.5"
+            >
+              <p
+                class="text-xs text-muted-foreground italic py-2 text-center"
+              >
+                Drag a running model here to offload
+              </p>
+            </div>
+          </div>
+        </div>
+        <div
+          class="space-y-3"
+        >
+          <h3
+            class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          >
+            Available Models
+          </h3>
+          <div
+            class="space-y-1.5"
+          >
+            <div
+              class="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
+            >
+              <button
+                aria-label="Drag mistral"
+                class="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+                data-draggable-id="mistral"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="lucide lucide-grip-vertical h-4 w-4"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="9"
+                    cy="12"
+                    r="1"
+                  />
+                  <circle
+                    cx="9"
+                    cy="5"
+                    r="1"
+                  />
+                  <circle
+                    cx="9"
+                    cy="19"
+                    r="1"
+                  />
+                  <circle
+                    cx="15"
+                    cy="12"
+                    r="1"
+                  />
+                  <circle
+                    cx="15"
+                    cy="5"
+                    r="1"
+                  />
+                  <circle
+                    cx="15"
+                    cy="19"
+                    r="1"
+                  />
+                </svg>
+              </button>
+              <span
+                class="flex-1 truncate font-medium"
+              >
+                mistral
+              </span>
+              <span
+                class="text-xs text-muted-foreground shrink-0"
+              >
+                6.5 GB
+              </span>
+              <button
+                class="h-7 w-7 shrink-0"
+                variant="ghost"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="lucide lucide-zap h-3.5 w-3.5"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+                  />
+                </svg>
+              </button>
+              <div
+                role="tooltip"
+              >
+                Load model
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div />
+    </div>
+    <div>
+      <button
+        class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-chevron-down h-3.5 w-3.5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m6 9 6 6 6-6"
+          />
+        </svg>
+        How VRAM management works
+      </button>
+      <div>
+        <p>
+          <strong
+            class="text-foreground"
+          >
+            VRAM
+          </strong>
+           — Video RAM on the GPU. Models must be loaded into VRAM to run inference. Each GPU has a fixed amount.
+        </p>
+        <p>
+          <strong
+            class="text-foreground"
+          >
+            Offloading
+          </strong>
+           — Moves a model from GPU VRAM to system RAM. The model stays in memory and can be quickly reloaded without re-downloading.
+        </p>
+        <p>
+          <strong
+            class="text-foreground"
+          >
+            Preemption
+          </strong>
+           — When loading a model that requires more VRAM than is free, lower-priority models are automatically offloaded or unloaded to make room.
+        </p>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

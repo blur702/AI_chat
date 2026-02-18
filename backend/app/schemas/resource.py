@@ -39,6 +39,23 @@ class OffloadDecision(str, Enum):
 # -------------------------------------------------------------------------
 
 
+class PerGpuStatsItem(BaseModel):
+    """VRAM statistics for a single GPU."""
+
+    gpu_index: int = Field(..., description="Zero-based GPU index")
+    name: str = Field(..., description="GPU model name from driver")
+    total_mb: int = Field(..., description="Total VRAM in MB")
+    used_mb: int = Field(..., description="Used VRAM in MB")
+    free_mb: int = Field(..., description="Free VRAM in MB")
+    utilization_percent: float = Field(..., description="Utilization 0-100")
+
+    model_config = {"json_schema_extra": {"example": {
+        "gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+        "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+        "utilization_percent": 33.33,
+    }}}
+
+
 class VRAMStatsResponse(BaseModel):
     """VRAM statistics response."""
 
@@ -49,13 +66,21 @@ class VRAMStatsResponse(BaseModel):
         ..., description="VRAM utilization as percentage (0-100)"
     )
     gpu_count: int = Field(..., description="Number of GPUs detected")
+    per_gpu: Optional[List[PerGpuStatsItem]] = Field(
+        None, description="Per-GPU breakdown (included when available)"
+    )
 
     model_config = {"json_schema_extra": {"example": {
         "total_mb": 24576,
         "used_mb": 8192,
         "free_mb": 16384,
         "utilization_percent": 33.33,
-        "gpu_count": 1
+        "gpu_count": 1,
+        "per_gpu": [{
+            "gpu_index": 0, "name": "NVIDIA GeForce RTX 4090",
+            "total_mb": 24576, "used_mb": 8192, "free_mb": 16384,
+            "utilization_percent": 33.33,
+        }],
     }}}
 
 
@@ -293,6 +318,9 @@ class ResourceStatusResponse(BaseModel):
     )
     loaded_resources: List[ResourceResponse] = Field(
         default_factory=list, description="Currently loaded resources"
+    )
+    offloaded_resources: List[ResourceResponse] = Field(
+        default_factory=list, description="Resources offloaded to system RAM"
     )
     queue_size: int = Field(..., description="Number of pending model loads in queue")
     active_operations_count: int = Field(

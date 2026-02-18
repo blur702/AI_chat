@@ -13,6 +13,7 @@ interface FieldHelpProps {
 
 export function FieldHelp({ tip, slug, className }: FieldHelpProps) {
   const { openHelp } = useHelp();
+  const resolvedSlug = slug ?? "field-help-overview";
 
   return (
     <Tooltip>
@@ -21,7 +22,7 @@ export function FieldHelp({ tip, slug, className }: FieldHelpProps) {
           type="button"
           onClick={(e) => {
             e.preventDefault();
-            if (slug) openHelp(slug);
+            openHelp(resolvedSlug);
           }}
           className={className ?? "inline-flex text-muted-foreground hover:text-foreground transition-colors"}
           aria-label={`Help: ${tip}`}
@@ -31,18 +32,16 @@ export function FieldHelp({ tip, slug, className }: FieldHelpProps) {
       </TooltipTrigger>
       <TooltipContent>
         <p className="text-xs">{tip}</p>
-        {slug && (
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline mt-1 block"
-            onClick={(e) => {
-              e.stopPropagation();
-              openHelp(slug);
-            }}
-          >
-            {t("learnMore")}
-          </button>
-        )}
+        <button
+          type="button"
+          className="text-xs text-primary hover:underline mt-1 block"
+          onClick={(e) => {
+            e.stopPropagation();
+            openHelp(resolvedSlug);
+          }}
+        >
+          {t("learnMore")}
+        </button>
       </TooltipContent>
     </Tooltip>
   );

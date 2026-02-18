@@ -161,7 +161,10 @@ class PromptBuilder:
         prompt = "".join(parts)
 
         # Prepend mode modifier for non-agent modes
-        mode_modifier = get_mode_modifier(chat_mode)
+        mode_modifier = get_mode_modifier(
+            chat_mode,
+            user_overrides=user_prefs.get("mode_prompt_overrides"),
+        )
         if mode_modifier:
             prompt = mode_modifier + prompt
 

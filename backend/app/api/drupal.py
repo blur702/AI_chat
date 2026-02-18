@@ -1,6 +1,7 @@
 """API endpoints for Drupal MCP site management."""
 
 import ipaddress
+import json as json_mod
 import logging
 import os
 import re
@@ -8,11 +9,11 @@ import shlex
 import socket
 import tempfile
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,8 +28,18 @@ from app.api.context_deps import (
 from app.auth import get_user_id
 from app.models.drupal_site import DrupalSite
 from app.schemas.drupal import (
+    BlockContentCreateRequest,
+    BlockContentListResponse,
+    BlockContentResponse,
+    BlockContentUpdateRequest,
     CloneRequest,
     CloneResponse,
+    ComposerOperationResponse,
+    ComposerRemoveRequest,
+    ComposerRequireRequest,
+    ComposerUpdateRequest,
+    ContentTypeCreateRequest,
+    ContentTypeCreateResponse,
     DrupalConnectRequest,
     DrupalConnectResponse,
     DrupalContentType,
@@ -40,11 +51,20 @@ from app.schemas.drupal import (
     DrupalSiteResponse,
     DrushCommandRequest,
     DrushCommandResponse,
+    DrushOperationResponse,
+    ModuleDisableRequest,
+    ModuleEnableRequest,
+    ModuleThemeListItem,
+    ModuleThemeListResponse,
     PushRequest,
     PushResponse,
     StagingStatusResponse as StagingStatusSchema,
     SyncResponse,
     SyncStatusResponse,
+    ThemeDisableRequest,
+    ThemeEnableRequest,
+    ThemeScaffoldRequest,
+    ThemeScaffoldResponse,
 )
 from app.services.drupal_mcp import DrupalMCPService
 from app.services.sandbox_manager import SandboxManager
@@ -59,6 +79,7 @@ ALLOWED_DRUSH_COMMANDS = frozenset({
     "status", "st",
     "core:status", "core-status",
     "config:get", "config-get", "cget",
+    "config:set", "config-set", "cset",
     "config:export", "config-export", "cex",
     "config:import", "config-import", "cim",
     "cache:rebuild", "cache-rebuild", "cr",
@@ -85,6 +106,51 @@ ALLOWED_DRUSH_COMMANDS = frozenset({
 
 # Shell metacharacters that must never appear in drush commands
 _SHELL_METACHARS = re.compile(r'[;|&`$(){}<>\\]')
+
+# Composer package name: vendor/package
+_COMPOSER_PACKAGE_RE = re.compile(
+    r'^[a-z0-9]([_.\-]?[a-z0-9]+)*/[a-z0-9](([_.]|\-{1,2})?[a-z0-9]+)*$'
+)
+
+# Composer version constraint (digits, dots, ^, ~, >=, <=, >, <, *, |, space, @, -)
+_COMPOSER_VERSION_RE = re.compile(r'^[a-zA-Z0-9.\^~><= *|@\-#]+$')
+
+# Drupal machine name (modules, themes, content types)
+_MACHINE_NAME_RE = re.compile(r'^[a-z][a-z0-9_]{0,127}$')
+
+
+def _validate_composer_package(name: str) -> None:
+    """Validate a Composer package name (vendor/package format)."""
+    if not _COMPOSER_PACKAGE_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid composer package name: {name}",
+        )
+
+
+def _validate_composer_version(version: str) -> None:
+    """Validate a Composer version constraint (no shell injection)."""
+    if not version:
+        return
+    if _SHELL_METACHARS.search(version):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Version constraint contains prohibited characters",
+        )
+    if not _COMPOSER_VERSION_RE.match(version):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid version constraint: {version}",
+        )
+
+
+def _validate_machine_name(name: str) -> None:
+    """Validate a Drupal machine name (module, theme, content type)."""
+    if not _MACHINE_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid machine name: {name}. Must match [a-z][a-z0-9_]*",
+        )
 
 
 def _validate_url_safe(url: str) -> None:
@@ -913,4 +979,645 @@ async def stop_staging(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to stop staging: {e}",
+        )
+
+
+# ============================================================
+# Module & Theme Management (SSH-based VPS operations)
+# ============================================================
+
+
+@router.get("/{project_id}/modules", response_model=ModuleThemeListResponse)
+async def list_modules(
+    project_id: UUID,
+    status_filter: Optional[str] = Query(None, description="Filter: enabled, disabled"),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """List installed modules on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    cmd = f"{_VPS_DRUSH} pm:list --type=module --format=json"
+    if status_filter in ("enabled", "disabled"):
+        cmd += f" --status={shlex.quote(status_filter)}"
+
+    result = await ssh.execute(cmd, timeout=60)
+    items: List[ModuleThemeListItem] = []
+    if result["exit_code"] == 0 and result["stdout"].strip():
+        try:
+            data = json_mod.loads(result["stdout"])
+            for key, info in data.items():
+                items.append(ModuleThemeListItem(
+                    machine_name=key,
+                    display_name=info.get("display_name", key),
+                    status=info.get("status", "unknown"),
+                    version=info.get("version"),
+                    package=info.get("package"),
+                    type="module",
+                ))
+        except (json_mod.JSONDecodeError, AttributeError) as e:
+            logger.warning("Failed to parse module list: %s", e)
+
+    return ModuleThemeListResponse(items=items, total=len(items))
+
+
+@router.get("/{project_id}/themes", response_model=ModuleThemeListResponse)
+async def list_themes(
+    project_id: UUID,
+    status_filter: Optional[str] = Query(None, description="Filter: enabled, disabled"),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """List installed themes on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    cmd = f"{_VPS_DRUSH} pm:list --type=theme --format=json"
+    if status_filter in ("enabled", "disabled"):
+        cmd += f" --status={shlex.quote(status_filter)}"
+
+    result = await ssh.execute(cmd, timeout=60)
+    items: List[ModuleThemeListItem] = []
+    if result["exit_code"] == 0 and result["stdout"].strip():
+        try:
+            data = json_mod.loads(result["stdout"])
+            for key, info in data.items():
+                items.append(ModuleThemeListItem(
+                    machine_name=key,
+                    display_name=info.get("display_name", key),
+                    status=info.get("status", "unknown"),
+                    version=info.get("version"),
+                    package=info.get("package"),
+                    type="theme",
+                ))
+        except (json_mod.JSONDecodeError, AttributeError) as e:
+            logger.warning("Failed to parse theme list: %s", e)
+
+    return ModuleThemeListResponse(items=items, total=len(items))
+
+
+@router.post("/{project_id}/modules/enable", response_model=DrushOperationResponse)
+async def enable_modules(
+    project_id: UUID,
+    body: ModuleEnableRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Enable one or more modules on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    for m in body.modules:
+        _validate_machine_name(m)
+
+    mod_args = " ".join(shlex.quote(m) for m in body.modules)
+    cmd = f"{_VPS_DRUSH} pm:enable {mod_args} -y"
+    result = await ssh.execute(cmd, timeout=120)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return DrushOperationResponse(
+        success=success,
+        command=f"drush pm:enable {' '.join(body.modules)}",
+        stdout=result["stdout"],
+        stderr=result["stderr"],
+    )
+
+
+@router.post("/{project_id}/modules/disable", response_model=DrushOperationResponse)
+async def disable_modules(
+    project_id: UUID,
+    body: ModuleDisableRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Uninstall one or more modules on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    if not body.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to uninstall modules",
+        )
+
+    for m in body.modules:
+        _validate_machine_name(m)
+
+    mod_args = " ".join(shlex.quote(m) for m in body.modules)
+    cmd = f"{_VPS_DRUSH} pm:uninstall {mod_args} -y"
+    result = await ssh.execute(cmd, timeout=120)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return DrushOperationResponse(
+        success=success,
+        command=f"drush pm:uninstall {' '.join(body.modules)}",
+        stdout=result["stdout"],
+        stderr=result["stderr"],
+    )
+
+
+@router.post("/{project_id}/themes/enable", response_model=DrushOperationResponse)
+async def enable_theme(
+    project_id: UUID,
+    body: ThemeEnableRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Enable a theme on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    _validate_machine_name(body.theme)
+
+    cmd = f"{_VPS_DRUSH} theme:enable {shlex.quote(body.theme)} -y"
+    result = await ssh.execute(cmd, timeout=60)
+    success = result["exit_code"] == 0
+
+    if success and body.set_default:
+        await ssh.execute(
+            f"{_VPS_DRUSH} config:set system.theme default {shlex.quote(body.theme)} -y",
+            timeout=30,
+        )
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return DrushOperationResponse(
+        success=success,
+        command=f"drush theme:enable {body.theme}" + (" (set as default)" if body.set_default else ""),
+        stdout=result["stdout"],
+        stderr=result["stderr"],
+    )
+
+
+@router.post("/{project_id}/themes/disable", response_model=DrushOperationResponse)
+async def disable_theme(
+    project_id: UUID,
+    body: ThemeDisableRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Uninstall a theme on the remote Drupal site via SSH + drush."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    if not body.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to uninstall theme",
+        )
+
+    _validate_machine_name(body.theme)
+
+    cmd = f"{_VPS_DRUSH} theme:uninstall {shlex.quote(body.theme)} -y"
+    result = await ssh.execute(cmd, timeout=60)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return DrushOperationResponse(
+        success=success,
+        command=f"drush theme:uninstall {body.theme}",
+        stdout=result["stdout"],
+        stderr=result["stderr"],
+    )
+
+
+# ============================================================
+# Composer Operations (SSH-based VPS operations)
+# ============================================================
+
+
+@router.post("/{project_id}/composer/require", response_model=ComposerOperationResponse)
+async def composer_require(
+    project_id: UUID,
+    body: ComposerRequireRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Install a Composer package on the remote Drupal site via SSH."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    _validate_composer_package(body.package)
+    if body.version:
+        _validate_composer_version(body.version)
+
+    pkg_spec = f"{body.package}:{body.version}" if body.version else body.package
+    cmd = f"cd {shlex.quote(_VPS_DRUPAL_ROOT)} && composer require {shlex.quote(pkg_spec)} --no-interaction"
+
+    result = await ssh.execute(cmd, timeout=300)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return ComposerOperationResponse(
+        success=success,
+        command=f"composer require {pkg_spec}",
+        output=result["stdout"],
+        error=result["stderr"] if not success else None,
+    )
+
+
+@router.post("/{project_id}/composer/remove", response_model=ComposerOperationResponse)
+async def composer_remove(
+    project_id: UUID,
+    body: ComposerRemoveRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Remove a Composer package from the remote Drupal site via SSH."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    if not body.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to remove packages",
+        )
+
+    _validate_composer_package(body.package)
+
+    cmd = f"cd {shlex.quote(_VPS_DRUPAL_ROOT)} && composer remove {shlex.quote(body.package)} --no-interaction"
+    result = await ssh.execute(cmd, timeout=300)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return ComposerOperationResponse(
+        success=success,
+        command=f"composer remove {body.package}",
+        output=result["stdout"],
+        error=result["stderr"] if not success else None,
+    )
+
+
+@router.post("/{project_id}/composer/update", response_model=ComposerOperationResponse)
+async def composer_update(
+    project_id: UUID,
+    body: ComposerUpdateRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Update Composer packages on the remote Drupal site via SSH."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    if not body.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to update packages",
+        )
+
+    for pkg in body.packages:
+        _validate_composer_package(pkg)
+
+    pkg_list = " ".join(shlex.quote(p) for p in body.packages)
+    deps_flag = "--with-dependencies" if body.with_dependencies else ""
+    cmd = f"cd {shlex.quote(_VPS_DRUPAL_ROOT)} && composer update {pkg_list} {deps_flag} --no-interaction".strip()
+
+    result = await ssh.execute(cmd, timeout=600)
+    success = result["exit_code"] == 0
+
+    if success:
+        await ssh.execute(f"{_VPS_DRUSH} updatedb -y", timeout=120)
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+    return ComposerOperationResponse(
+        success=success,
+        command=f"composer update {' '.join(body.packages) or '(all)'}",
+        output=result["stdout"],
+        error=result["stderr"] if not success else None,
+    )
+
+
+# ============================================================
+# Content Type Creation (SSH + config import)
+# ============================================================
+
+
+@router.post(
+    "/{project_id}/content-types/create",
+    response_model=ContentTypeCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_content_type(
+    project_id: UUID,
+    body: ContentTypeCreateRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Create a new content type on the remote Drupal site via SSH + config import."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    _validate_machine_name(body.machine_name)
+
+    # Check if content type already exists
+    check_cmd = f"{_VPS_DRUSH} config:get node.type.{shlex.quote(body.machine_name)} type 2>/dev/null"
+    check = await ssh.execute(check_cmd, timeout=15)
+    if check["exit_code"] == 0 and check["stdout"].strip():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Content type '{body.machine_name}' already exists",
+        )
+
+    # Build YAML config for the new node type
+    config_yaml = (
+        f"langcode: en\n"
+        f"status: true\n"
+        f"dependencies: {{}}\n"
+        f"name: {shlex.quote(body.label)}\n"
+        f"type: {body.machine_name}\n"
+        f"description: {shlex.quote(body.description)}\n"
+        f"help: ''\n"
+        f"new_revision: true\n"
+        f"preview_mode: 1\n"
+        f"display_submitted: true\n"
+    )
+
+    # Create temp directory on VPS and write config
+    tmp_dir = f"/tmp/drupal-config-{project_id.hex}"
+    safe_tmp = shlex.quote(tmp_dir)
+    config_filename = f"node.type.{body.machine_name}.yml"
+
+    try:
+        await ssh.execute(f"mkdir -p {safe_tmp}", timeout=10)
+        # Write YAML via heredoc
+        write_cmd = f"cat > {shlex.quote(f'{tmp_dir}/{config_filename}')} << 'CONFIGEOF'\n{config_yaml}CONFIGEOF"
+        await ssh.execute(write_cmd, timeout=10)
+
+        # Import the config
+        import_cmd = f"{_VPS_DRUSH} config:import --partial --source={safe_tmp} -y"
+        result = await ssh.execute(import_cmd, timeout=60)
+        success = result["exit_code"] == 0
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Config import failed: {result['stderr'][:500]}",
+            )
+
+        # If body field is requested, create it via field storage + field instance config
+        if body.has_body:
+            # body field is typically auto-created by Drupal for new node types when
+            # using the UI, but config import may need it explicitly. Check if it exists.
+            body_check = await ssh.execute(
+                f"{_VPS_DRUSH} config:get field.field.node.{shlex.quote(body.machine_name)}.body status 2>/dev/null",
+                timeout=15,
+            )
+            if body_check["exit_code"] != 0:
+                # Create body field config for this content type
+                body_field_yaml = (
+                    f"langcode: en\n"
+                    f"status: true\n"
+                    f"dependencies:\n"
+                    f"  config:\n"
+                    f"    - field.storage.node.body\n"
+                    f"    - node.type.{body.machine_name}\n"
+                    f"  module:\n"
+                    f"    - text\n"
+                    f"id: node.{body.machine_name}.body\n"
+                    f"field_name: body\n"
+                    f"entity_type: node\n"
+                    f"bundle: {body.machine_name}\n"
+                    f"label: Body\n"
+                    f"description: ''\n"
+                    f"required: false\n"
+                    f"translatable: true\n"
+                    f"default_value: []\n"
+                    f"default_value_callback: ''\n"
+                    f"settings:\n"
+                    f"  display_summary: true\n"
+                    f"  required_summary: false\n"
+                    f"field_type: text_with_summary\n"
+                )
+                body_config_file = f"field.field.node.{body.machine_name}.body.yml"
+                write_body_cmd = f"cat > {shlex.quote(f'{tmp_dir}/{body_config_file}')} << 'CONFIGEOF'\n{body_field_yaml}CONFIGEOF"
+                await ssh.execute(write_body_cmd, timeout=10)
+                await ssh.execute(import_cmd, timeout=60)
+
+        await ssh.execute(f"{_VPS_DRUSH} cr", timeout=30)
+
+        return ContentTypeCreateResponse(
+            success=True,
+            machine_name=body.machine_name,
+            label=body.label,
+            message=f"Content type '{body.label}' created successfully",
+        )
+    finally:
+        # Clean up temp directory
+        await ssh.execute(f"rm -rf {safe_tmp}", timeout=10)
+
+
+# ============================================================
+# Theme Scaffolding (SSH-based VPS operations)
+# ============================================================
+
+
+@router.post(
+    "/{project_id}/themes/scaffold",
+    response_model=ThemeScaffoldResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def scaffold_theme(
+    project_id: UUID,
+    body: ThemeScaffoldRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    ssh: SSHClient = Depends(get_ssh_client),
+):
+    """Scaffold a new custom theme on the remote Drupal site via SSH."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+    await _get_drupal_site(project_id, db)
+
+    _validate_machine_name(body.machine_name)
+    if body.base_theme:
+        _validate_machine_name(body.base_theme)
+
+    theme_dir = f"{_VPS_DRUPAL_ROOT}/web/themes/custom/{body.machine_name}"
+    safe_dir = shlex.quote(theme_dir)
+
+    # Check if theme directory already exists
+    check = await ssh.execute(f"test -d {safe_dir} && echo exists", timeout=10)
+    if "exists" in check["stdout"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Theme directory already exists: {body.machine_name}",
+        )
+
+    # Create directory structure
+    await ssh.execute(
+        f"mkdir -p {safe_dir}/css {safe_dir}/js {safe_dir}/templates",
+        timeout=10,
+    )
+
+    # Generate and write files
+    info_yml = (
+        f"name: '{body.name}'\n"
+        f"type: theme\n"
+        f"description: '{body.description}'\n"
+        f"base theme: {body.base_theme}\n"
+        f"core_version_requirement: ^10 || ^11\n"
+        f"libraries:\n"
+        f"  - {body.machine_name}/global-styling\n"
+    )
+
+    libraries_yml = (
+        f"global-styling:\n"
+        f"  css:\n"
+        f"    theme:\n"
+        f"      css/style.css: {{}}\n"
+        f"  js:\n"
+        f"    js/script.js: {{}}\n"
+    )
+
+    files_to_create = {
+        f"{theme_dir}/{body.machine_name}.info.yml": info_yml,
+        f"{theme_dir}/{body.machine_name}.libraries.yml": libraries_yml,
+        f"{theme_dir}/css/style.css": f"/* {body.name} styles */\n",
+        f"{theme_dir}/js/script.js": f"// {body.name} scripts\n",
+    }
+
+    files_created = []
+    for remote_path, content in files_to_create.items():
+        write_cmd = f"cat > {shlex.quote(remote_path)} << 'THEMEEOF'\n{content}THEMEEOF"
+        await ssh.execute(write_cmd, timeout=10)
+        files_created.append(os.path.basename(remote_path))
+
+    # Set ownership to www-data
+    await ssh.execute(f"chown -R www-data:www-data {safe_dir}", timeout=10)
+
+    return ThemeScaffoldResponse(
+        success=True,
+        machine_name=body.machine_name,
+        path=f"web/themes/custom/{body.machine_name}",
+        files_created=files_created,
+        message=f"Theme '{body.name}' scaffolded successfully",
+    )
+
+
+# ============================================================
+# Block Content CRUD (JSON:API)
+# ============================================================
+
+
+@router.get(
+    "/{project_id}/blocks/{bundle}",
+    response_model=BlockContentListResponse,
+)
+async def list_blocks(
+    project_id: UUID,
+    bundle: str,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    drupal: DrupalMCPService = Depends(get_drupal_mcp),
+):
+    """List block content entities for a given bundle."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+
+    site = await _get_drupal_site(project_id, db)
+    username, password = _get_credentials(drupal, site)
+    blocks = await drupal.list_blocks(site.site_url, username, password, bundle)
+    return BlockContentListResponse(
+        blocks=[BlockContentResponse(**b) for b in blocks],
+        total=len(blocks),
+    )
+
+
+@router.post(
+    "/{project_id}/blocks/{bundle}",
+    response_model=BlockContentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_block(
+    project_id: UUID,
+    bundle: str,
+    body: BlockContentCreateRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    drupal: DrupalMCPService = Depends(get_drupal_mcp),
+):
+    """Create a new block content entity."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+
+    site = await _get_drupal_site(project_id, db)
+    username, password = _get_credentials(drupal, site)
+    try:
+        block = await drupal.create_block(
+            site.site_url, username, password, bundle,
+            body.info, body.body, body.body_format,
+        )
+        return BlockContentResponse(**block)
+    except Exception as e:
+        logger.exception("Failed to create block for project %s: %s", project_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to create block content",
+        )
+
+
+@router.patch(
+    "/{project_id}/blocks/{bundle}/{block_uuid}",
+    response_model=BlockContentResponse,
+)
+async def update_block(
+    project_id: UUID,
+    bundle: str,
+    block_uuid: str,
+    body: BlockContentUpdateRequest,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+    drupal: DrupalMCPService = Depends(get_drupal_mcp),
+):
+    """Update an existing block content entity."""
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+
+    site = await _get_drupal_site(project_id, db)
+    username, password = _get_credentials(drupal, site)
+    try:
+        block = await drupal.update_block(
+            site.site_url, username, password, bundle, block_uuid,
+            body.info, body.body, body.body_format, body.status,
+        )
+        return BlockContentResponse(**block)
+    except Exception as e:
+        logger.exception("Failed to update block for project %s: %s", project_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to update block content",
         )

@@ -164,6 +164,11 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
         nullable=True,
     )
 
+    mode_prompt_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
+
     # Relationship
     user: Mapped["User"] = relationship(
         "User",

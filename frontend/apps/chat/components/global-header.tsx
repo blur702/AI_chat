@@ -58,7 +58,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/palettes", label: "Palettes", icon: Palette },
   { href: "/mcp", label: "MCP", icon: Server },
   { href: "/settings", label: "Settings", icon: Settings, matchPrefix: true },
-  { href: "/admin", label: "Admin", icon: ShieldCheck, matchPrefix: true },
+  { href: "/settings?tab=admin-system", label: "Admin", icon: ShieldCheck },
 ];
 
 export function GlobalHeader() {

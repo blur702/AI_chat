@@ -18,6 +18,25 @@ import type {
   CloneResponse,
   PushRequest,
   PushResponse,
+  ComposerRequireRequest,
+  ComposerRemoveRequest,
+  ComposerUpdateRequest,
+  ComposerOperationResponse,
+  ModuleEnableRequest,
+  ModuleDisableRequest,
+  ThemeEnableRequest,
+  ThemeDisableRequest,
+  DrushOperationResponse,
+  ModuleThemeListItem,
+  ModuleThemeListResponse,
+  ContentTypeCreateRequest,
+  ContentTypeCreateResponse,
+  BlockContentCreateRequest,
+  BlockContentResponse,
+  BlockContentListResponse,
+  BlockContentUpdateRequest,
+  ThemeScaffoldRequest,
+  ThemeScaffoldResponse,
 } from "../types";
 
 export interface UseDrupalReturn {
@@ -62,6 +81,37 @@ export interface UseDrupalReturn {
   stagingStarting: boolean;
   stagingStopping: boolean;
   refreshStaging: () => Promise<void>;
+  // Module/Theme management
+  modules: ModuleThemeListItem[];
+  modulesLoading: boolean;
+  themes: ModuleThemeListItem[];
+  themesLoading: boolean;
+  fetchModules: (statusFilter?: string) => Promise<void>;
+  fetchThemes: (statusFilter?: string) => Promise<void>;
+  enableModules: (data: ModuleEnableRequest) => Promise<DrushOperationResponse | null>;
+  disableModules: (data: ModuleDisableRequest) => Promise<DrushOperationResponse | null>;
+  enableTheme: (data: ThemeEnableRequest) => Promise<DrushOperationResponse | null>;
+  disableTheme: (data: ThemeDisableRequest) => Promise<DrushOperationResponse | null>;
+  modulesOperating: boolean;
+  themesOperating: boolean;
+  // Composer
+  composerRequire: (data: ComposerRequireRequest) => Promise<ComposerOperationResponse | null>;
+  composerRemove: (data: ComposerRemoveRequest) => Promise<ComposerOperationResponse | null>;
+  composerUpdate: (data: ComposerUpdateRequest) => Promise<ComposerOperationResponse | null>;
+  composerOperating: boolean;
+  // Content type creation
+  createContentType: (data: ContentTypeCreateRequest) => Promise<ContentTypeCreateResponse | null>;
+  creatingContentType: boolean;
+  // Block content
+  blocks: BlockContentResponse[];
+  blocksLoading: boolean;
+  fetchBlocks: (bundle: string) => Promise<void>;
+  createBlock: (bundle: string, data: BlockContentCreateRequest) => Promise<BlockContentResponse | null>;
+  updateBlock: (bundle: string, blockUuid: string, data: BlockContentUpdateRequest) => Promise<BlockContentResponse | null>;
+  blocksOperating: boolean;
+  // Theme scaffolding
+  scaffoldTheme: (data: ThemeScaffoldRequest) => Promise<ThemeScaffoldResponse | null>;
+  scaffoldingTheme: boolean;
 }
 
 /**
@@ -98,6 +148,28 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   const [cloning, setCloning] = useState(false);
   const [stagingStarting, setStagingStarting] = useState(false);
   const [stagingStopping, setStagingStopping] = useState(false);
+
+  // Module/Theme state
+  const [modules, setModules] = useState<ModuleThemeListItem[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(false);
+  const [themes, setThemes] = useState<ModuleThemeListItem[]>([]);
+  const [themesLoading, setThemesLoading] = useState(false);
+  const [modulesOperating, setModulesOperating] = useState(false);
+  const [themesOperating, setThemesOperating] = useState(false);
+
+  // Composer state
+  const [composerOperating, setComposerOperating] = useState(false);
+
+  // Content type creation state
+  const [creatingContentType, setCreatingContentType] = useState(false);
+
+  // Block content state
+  const [blocks, setBlocks] = useState<BlockContentResponse[]>([]);
+  const [blocksLoading, setBlocksLoading] = useState(false);
+  const [blocksOperating, setBlocksOperating] = useState(false);
+
+  // Theme scaffolding state
+  const [scaffoldingTheme, setScaffoldingTheme] = useState(false);
 
   const fetchSite = useCallback(async () => {
     try {
@@ -396,6 +468,262 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     }
   }, [projectId, fetchStagingStatus]);
 
+  // Module/Theme management
+
+  const fetchModules = useCallback(
+    async (statusFilter?: string) => {
+      try {
+        setModulesLoading(true);
+        setError(null);
+        const data = await getClient().listDrupalModules(projectId, statusFilter);
+        setModules(data.items);
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to load modules"));
+      } finally {
+        setModulesLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  const fetchThemes = useCallback(
+    async (statusFilter?: string) => {
+      try {
+        setThemesLoading(true);
+        setError(null);
+        const data = await getClient().listDrupalThemes(projectId, statusFilter);
+        setThemes(data.items);
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to load themes"));
+      } finally {
+        setThemesLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  const enableModules = useCallback(
+    async (data: ModuleEnableRequest): Promise<DrushOperationResponse | null> => {
+      try {
+        setModulesOperating(true);
+        setError(null);
+        const result = await getClient().enableDrupalModules(projectId, data);
+        await fetchModules();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to enable modules"));
+        return null;
+      } finally {
+        setModulesOperating(false);
+      }
+    },
+    [projectId, fetchModules],
+  );
+
+  const disableModules = useCallback(
+    async (data: ModuleDisableRequest): Promise<DrushOperationResponse | null> => {
+      try {
+        setModulesOperating(true);
+        setError(null);
+        const result = await getClient().disableDrupalModules(projectId, data);
+        await fetchModules();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to disable modules"));
+        return null;
+      } finally {
+        setModulesOperating(false);
+      }
+    },
+    [projectId, fetchModules],
+  );
+
+  const enableTheme = useCallback(
+    async (data: ThemeEnableRequest): Promise<DrushOperationResponse | null> => {
+      try {
+        setThemesOperating(true);
+        setError(null);
+        const result = await getClient().enableDrupalTheme(projectId, data);
+        await fetchThemes();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to enable theme"));
+        return null;
+      } finally {
+        setThemesOperating(false);
+      }
+    },
+    [projectId, fetchThemes],
+  );
+
+  const disableTheme = useCallback(
+    async (data: ThemeDisableRequest): Promise<DrushOperationResponse | null> => {
+      try {
+        setThemesOperating(true);
+        setError(null);
+        const result = await getClient().disableDrupalTheme(projectId, data);
+        await fetchThemes();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to disable theme"));
+        return null;
+      } finally {
+        setThemesOperating(false);
+      }
+    },
+    [projectId, fetchThemes],
+  );
+
+  // Composer operations
+
+  const composerRequire = useCallback(
+    async (data: ComposerRequireRequest): Promise<ComposerOperationResponse | null> => {
+      try {
+        setComposerOperating(true);
+        setError(null);
+        const result = await getClient().composerRequire(projectId, data);
+        await fetchModules();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Composer require failed"));
+        return null;
+      } finally {
+        setComposerOperating(false);
+      }
+    },
+    [projectId, fetchModules],
+  );
+
+  const composerRemove = useCallback(
+    async (data: ComposerRemoveRequest): Promise<ComposerOperationResponse | null> => {
+      try {
+        setComposerOperating(true);
+        setError(null);
+        const result = await getClient().composerRemove(projectId, data);
+        await fetchModules();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Composer remove failed"));
+        return null;
+      } finally {
+        setComposerOperating(false);
+      }
+    },
+    [projectId, fetchModules],
+  );
+
+  const composerUpdate = useCallback(
+    async (data: ComposerUpdateRequest): Promise<ComposerOperationResponse | null> => {
+      try {
+        setComposerOperating(true);
+        setError(null);
+        const result = await getClient().composerUpdate(projectId, data);
+        await fetchModules();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Composer update failed"));
+        return null;
+      } finally {
+        setComposerOperating(false);
+      }
+    },
+    [projectId, fetchModules],
+  );
+
+  // Content type creation
+
+  const createContentType = useCallback(
+    async (data: ContentTypeCreateRequest): Promise<ContentTypeCreateResponse | null> => {
+      try {
+        setCreatingContentType(true);
+        setError(null);
+        const result = await getClient().createDrupalContentType(projectId, data);
+        await fetchContentTypes();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to create content type"));
+        return null;
+      } finally {
+        setCreatingContentType(false);
+      }
+    },
+    [projectId, fetchContentTypes],
+  );
+
+  // Block content management
+
+  const fetchBlocks = useCallback(
+    async (bundle: string) => {
+      try {
+        setBlocksLoading(true);
+        setError(null);
+        const data = await getClient().listDrupalBlocks(projectId, bundle);
+        setBlocks(data.blocks);
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to load blocks"));
+      } finally {
+        setBlocksLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  const createBlock = useCallback(
+    async (bundle: string, data: BlockContentCreateRequest): Promise<BlockContentResponse | null> => {
+      try {
+        setBlocksOperating(true);
+        setError(null);
+        const result = await getClient().createDrupalBlock(projectId, bundle, data);
+        await fetchBlocks(bundle);
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to create block"));
+        return null;
+      } finally {
+        setBlocksOperating(false);
+      }
+    },
+    [projectId, fetchBlocks],
+  );
+
+  const updateBlock = useCallback(
+    async (bundle: string, blockUuid: string, data: BlockContentUpdateRequest): Promise<BlockContentResponse | null> => {
+      try {
+        setBlocksOperating(true);
+        setError(null);
+        const result = await getClient().updateDrupalBlock(projectId, bundle, blockUuid, data);
+        await fetchBlocks(bundle);
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to update block"));
+        return null;
+      } finally {
+        setBlocksOperating(false);
+      }
+    },
+    [projectId, fetchBlocks],
+  );
+
+  // Theme scaffolding
+
+  const scaffoldTheme = useCallback(
+    async (data: ThemeScaffoldRequest): Promise<ThemeScaffoldResponse | null> => {
+      try {
+        setScaffoldingTheme(true);
+        setError(null);
+        const result = await getClient().scaffoldDrupalTheme(projectId, data);
+        await fetchThemes();
+        return result;
+      } catch (err) {
+        setError(extractErrorMessage(err, "Failed to scaffold theme"));
+        return null;
+      } finally {
+        setScaffoldingTheme(false);
+      }
+    },
+    [projectId, fetchThemes],
+  );
+
   return {
     site,
     siteLoading,
@@ -437,5 +765,36 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     stagingStarting,
     stagingStopping,
     refreshStaging,
+    // Module/Theme management
+    modules,
+    modulesLoading,
+    themes,
+    themesLoading,
+    fetchModules,
+    fetchThemes,
+    enableModules,
+    disableModules,
+    enableTheme,
+    disableTheme,
+    modulesOperating,
+    themesOperating,
+    // Composer
+    composerRequire,
+    composerRemove,
+    composerUpdate,
+    composerOperating,
+    // Content type creation
+    createContentType,
+    creatingContentType,
+    // Block content
+    blocks,
+    blocksLoading,
+    fetchBlocks,
+    createBlock,
+    updateBlock,
+    blocksOperating,
+    // Theme scaffolding
+    scaffoldTheme,
+    scaffoldingTheme,
   };
 }

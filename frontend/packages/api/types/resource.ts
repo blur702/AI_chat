@@ -13,12 +13,26 @@ export type OffloadPreference =
 
 export type OffloadDecision = "offload" | "cancel";
 
+export interface PerGpuStats {
+  gpu_index: number;
+  name: string;
+  total_mb: number;
+  used_mb: number;
+  free_mb: number;
+  utilization_percent: number;
+}
+
 export interface VRAMStats {
   total_mb: number;
   used_mb: number;
   free_mb: number;
   utilization_percent: number;
   gpu_count: number;
+  per_gpu?: PerGpuStats[];
+}
+
+export interface GpuVramStats extends VRAMStats {
+  per_gpu: PerGpuStats[];
 }
 
 export interface Resource {
@@ -96,6 +110,7 @@ export interface ResourceStatusResponse {
   vram_stats: VRAMStats;
   system_stats: SystemStats | null;
   loaded_resources: Resource[];
+  offloaded_resources: Resource[];
   queue_size: number;
   active_operations_count: number;
   timestamp: string;

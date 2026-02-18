@@ -150,6 +150,29 @@ class VRAMTracker:
             "gpu_count": self._gpu_count,
         }
 
+    def get_per_gpu_stats(self) -> list:
+        """Get per-GPU VRAM statistics. Returns one entry per physical GPU."""
+        if not self._initialized:
+            return []
+        result = []
+        for gpu_index, handle in enumerate(self._gpu_handles):
+            mem_info = self._pynvml.nvmlDeviceGetMemoryInfo(handle)
+            raw_name = self._pynvml.nvmlDeviceGetName(handle)
+            name = raw_name.decode("utf-8") if isinstance(raw_name, bytes) else raw_name
+            total_mb = mem_info.total // (1024 * 1024)
+            used_mb = mem_info.used // (1024 * 1024)
+            free_mb = mem_info.free // (1024 * 1024)
+            utilization_percent = round(used_mb / total_mb * 100, 2) if total_mb > 0 else 0.0
+            result.append({
+                "gpu_index": gpu_index,
+                "name": name,
+                "total_mb": total_mb,
+                "used_mb": used_mb,
+                "free_mb": free_mb,
+                "utilization_percent": utilization_percent,
+            })
+        return result
+
     def cleanup(self) -> None:
         """
         Shutdown pynvml and release GPU handles.
@@ -340,6 +363,12 @@ class ResourceManager(BaseKernelService):
     # -------------------------------------------------------------------------
     # VRAM Stats Caching
     # -------------------------------------------------------------------------
+
+    def get_per_gpu_stats(self) -> list:
+        """Delegate to VRAMTracker.get_per_gpu_stats()."""
+        if self._vram_tracker is None:
+            return []
+        return self._vram_tracker.get_per_gpu_stats()
 
     async def get_cached_vram_stats(self) -> dict:
         """
@@ -687,6 +716,27 @@ class ResourceManager(BaseKernelService):
                 return resources
         except Exception as e:
             logger.error(f"Failed to get loaded resources: {e}")
+            return []
+
+    async def get_offloaded_resources(self) -> List[Resource]:
+        """
+        Query database for resources with status="cpu_offloaded", ordered by last_used_at.
+
+        Returns:
+            List of Resource objects that have been offloaded to system RAM.
+        """
+        try:
+            async with self._session_factory() as session:
+                result = await session.execute(
+                    select(Resource)
+                    .where(Resource.status == "cpu_offloaded")
+                    .order_by(Resource.last_used_at.asc().nullsfirst())
+                )
+                resources = list(result.scalars().all())
+                logger.debug(f"Found {len(resources)} offloaded resources")
+                return resources
+        except Exception as e:
+            logger.error(f"Failed to get offloaded resources: {e}")
             return []
 
     async def find_preemptable_resources(self, required_vram_mb: int) -> List[str]:

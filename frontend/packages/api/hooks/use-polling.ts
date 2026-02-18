@@ -27,6 +27,8 @@ export interface UsePollingReturn<T> {
   error: unknown | null;
   isTimedOut: boolean;
   cancel: () => void;
+  /** Perform an immediate fetch outside the polling interval. */
+  refresh: () => Promise<void>;
 }
 
 export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T> {
@@ -50,6 +52,8 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
   const attemptRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   const cleanup = useCallback(() => {
     cancelledRef.current = true;
@@ -124,5 +128,17 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, interval]);
 
-  return { data, isPolling, error, isTimedOut, cancel };
+  const refresh = useCallback(async () => {
+    try {
+      const result = await fetcherRef.current();
+      setData(result);
+      setError(null);
+    } catch (err) {
+      setError(err);
+      onError?.(err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { data, isPolling, error, isTimedOut, cancel, refresh };
 }

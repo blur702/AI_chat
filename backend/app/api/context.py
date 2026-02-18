@@ -133,6 +133,7 @@ async def update_user_preferences(
         imggen_auto_delete_days=pref.imggen_auto_delete_days,
         imggen_max_generations=pref.imggen_max_generations,
         comfyui_base_url=pref.comfyui_base_url,
+        mode_prompt_overrides=pref.mode_prompt_overrides,
     )
 
 

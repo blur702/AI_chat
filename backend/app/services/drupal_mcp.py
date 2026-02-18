@@ -444,6 +444,179 @@ class DrupalMCPService(BaseKernelService):
             logger.warning("Failed to update node %s on %s: %s", uuid, site_url, e)
             raise
 
+    # --- Block Content CRUD (JSON:API) ---
+
+    async def list_blocks(
+        self,
+        site_url: str,
+        username: str,
+        password: str,
+        bundle: str,
+    ) -> List[Dict[str, Any]]:
+        """List block_content entities for a given bundle via JSON:API."""
+        self._validate_bundle(bundle)
+        base = self._base_url(site_url)
+        headers = self._headers(username, password)
+        url = (
+            f"{base}/jsonapi/block_content/{bundle}"
+            f"?fields[block_content--{bundle}]=info,status,changed,body"
+            f"&sort=-changed"
+            f"&page[limit]=50"
+        )
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._http_timeout, verify=self._verify_ssl
+            ) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                blocks = []
+                for item in data.get("data", []):
+                    attrs = item.get("attributes", {})
+                    body_field = attrs.get("body") or {}
+                    blocks.append({
+                        "uuid": item.get("id", ""),
+                        "bundle": bundle,
+                        "info": attrs.get("info", ""),
+                        "status": attrs.get("status", True),
+                        "body": body_field.get("value") if isinstance(body_field, dict) else None,
+                        "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
+                    })
+                return blocks
+        except Exception as e:
+            logger.warning("Failed to list blocks (%s) from %s: %s", bundle, site_url, e)
+            return []
+
+    async def create_block(
+        self,
+        site_url: str,
+        username: str,
+        password: str,
+        bundle: str,
+        info: str,
+        body: Optional[str] = None,
+        body_format: str = "basic_html",
+        block_status: bool = True,
+    ) -> Dict[str, Any]:
+        """Create a new block_content entity via JSON:API."""
+        self._validate_bundle(bundle)
+        base = self._base_url(site_url)
+        headers = self._write_headers(username, password)
+        url = f"{base}/jsonapi/block_content/{bundle}"
+
+        attributes: Dict[str, Any] = {
+            "info": info,
+            "status": block_status,
+        }
+        if body is not None:
+            attributes["body"] = {"value": body, "format": body_format}
+
+        payload = {
+            "data": {
+                "type": f"block_content--{bundle}",
+                "attributes": attributes,
+            }
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._http_timeout, verify=self._verify_ssl
+            ) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                item = data.get("data", {})
+                attrs = item.get("attributes", {})
+                body_field = attrs.get("body") or {}
+                return {
+                    "uuid": item.get("id", ""),
+                    "bundle": bundle,
+                    "info": attrs.get("info", ""),
+                    "status": attrs.get("status", True),
+                    "body": body_field.get("value") if isinstance(body_field, dict) else None,
+                    "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
+                }
+        except httpx.HTTPStatusError as e:
+            detail = ""
+            try:
+                detail = e.response.text
+            except Exception:
+                pass
+            logger.warning("Failed to create block on %s: %s %s", site_url, e, detail)
+            raise
+        except Exception as e:
+            logger.warning("Failed to create block on %s: %s", site_url, e)
+            raise
+
+    async def update_block(
+        self,
+        site_url: str,
+        username: str,
+        password: str,
+        bundle: str,
+        uuid: str,
+        info: Optional[str] = None,
+        body: Optional[str] = None,
+        body_format: Optional[str] = None,
+        block_status: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Update an existing block_content entity via JSON:API PATCH."""
+        self._validate_bundle(bundle)
+        self._validate_uuid(uuid)
+        base = self._base_url(site_url)
+        headers = self._write_headers(username, password)
+        url = f"{base}/jsonapi/block_content/{bundle}/{uuid}"
+
+        attributes: Dict[str, Any] = {}
+        if info is not None:
+            attributes["info"] = info
+        if body is not None:
+            body_obj: Dict[str, Any] = {"value": body}
+            if body_format is not None:
+                body_obj["format"] = body_format
+            attributes["body"] = body_obj
+        if block_status is not None:
+            attributes["status"] = block_status
+
+        payload = {
+            "data": {
+                "type": f"block_content--{bundle}",
+                "id": uuid,
+                "attributes": attributes,
+            }
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._http_timeout, verify=self._verify_ssl
+            ) as client:
+                resp = await client.patch(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                item = data.get("data", {})
+                attrs = item.get("attributes", {})
+                body_field = attrs.get("body") or {}
+                return {
+                    "uuid": item.get("id", ""),
+                    "bundle": bundle,
+                    "info": attrs.get("info", ""),
+                    "status": attrs.get("status", True),
+                    "body": body_field.get("value") if isinstance(body_field, dict) else None,
+                    "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
+                }
+        except httpx.HTTPStatusError as e:
+            detail = ""
+            try:
+                detail = e.response.text
+            except Exception:
+                pass
+            logger.warning("Failed to update block %s on %s: %s %s", uuid, site_url, e, detail)
+            raise
+        except Exception as e:
+            logger.warning("Failed to update block %s on %s: %s", uuid, site_url, e)
+            raise
+
     # --- Legacy endpoints (kept for drush/pull/push — will 404 gracefully) ---
 
     async def run_drush(
