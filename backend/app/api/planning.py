@@ -415,6 +415,7 @@ async def advance_to_next_phase(
     if not session:
         raise HTTPException(status_code=404, detail="Planning session not found")
     _check_ownership(session, user_id)
+    await validate_project_access(session.project_id, str(user_id), db)
     if session.status != "in_progress":
         raise HTTPException(status_code=400, detail="Session is not in progress")
 
@@ -732,16 +733,17 @@ async def execute_task(
 
     action_type = action_type_map.get(task.task_type)
     if action_type and phase and phase.session:
-        from app.models.automation_action import AutomationAction
+        if task.automation_action_id is None:
+            from app.models.automation_action import AutomationAction
 
-        action = AutomationAction(
-            project_id=phase.session.project_id,
-            action_type=action_type,
-            action_data=task.task_data,
-        )
-        db.add(action)
-        await db.flush()
-        task.automation_action_id = action.id
+            action = AutomationAction(
+                project_id=phase.session.project_id,
+                action_type=action_type,
+                action_data=task.task_data,
+            )
+            db.add(action)
+            await db.flush()
+            task.automation_action_id = action.id
 
     task.status = "in_progress"
     await db.commit()

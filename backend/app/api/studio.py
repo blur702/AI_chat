@@ -315,8 +315,10 @@ async def upload_media(
         while chunk := await file.read(1024 * 1024):  # 1 MB chunks
             total_bytes += len(chunk)
             if total_bytes > MAX_UPLOAD_BYTES:
-                await f.close()
-                os.remove(file_path)
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
@@ -490,8 +492,10 @@ async def upload_recording(
         while chunk := await file.read(1024 * 1024):
             total_bytes += len(chunk)
             if total_bytes > MAX_UPLOAD_BYTES:
-                await f.close()
-                os.remove(file_path)
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",

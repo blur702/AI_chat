@@ -705,8 +705,14 @@ async def clone_production(
             details["post_clone"] = f"warning: {e}"
             logger.warning("Post-clone setup issue for project %s: %s", project_id, e)
 
-        # Update last sync timestamp
-        site.last_sync_at = datetime.now(timezone.utc)
+        # Check if any step had errors
+        has_errors = any(
+            str(v).startswith("error:") for v in details.values()
+        )
+
+        # Only update last sync timestamp if there were no errors
+        if not has_errors:
+            site.last_sync_at = datetime.now(timezone.utc)
         await db.commit()
 
         # Get preview URL
@@ -718,8 +724,8 @@ async def clone_production(
                 preview_url = f"http://localhost:{port}"
 
         return CloneResponse(
-            success=True,
-            message="Production site cloned into staging sandbox",
+            success=not has_errors,
+            message="Production site cloned into staging sandbox" if not has_errors else "Clone completed with errors",
             preview_url=preview_url,
             details=details,
         )

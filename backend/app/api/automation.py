@@ -254,6 +254,13 @@ async def execute_action(
         logger.info("Enqueued automation execution for action %s", action_id)
     except Exception as exc:
         logger.exception("Failed to enqueue automation task for action %s", action_id)
+        # Roll back executed_at so the action can be retried
+        await db.execute(
+            sa_update(AutomationAction)
+            .where(AutomationAction.id == action_id)
+            .values(executed_at=None)
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to enqueue execution task",

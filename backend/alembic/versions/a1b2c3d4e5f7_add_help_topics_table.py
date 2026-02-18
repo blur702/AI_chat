@@ -21,6 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Create help_topics table with vector embedding support."""
+    op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
     op.execute('CREATE EXTENSION IF NOT EXISTS vector')
     op.create_table('help_topics',
         sa.Column('slug', sa.String(length=255), nullable=False),

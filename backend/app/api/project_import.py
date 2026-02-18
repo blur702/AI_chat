@@ -107,8 +107,10 @@ async def import_from_git(
     # Enqueue ARQ task
     try:
         pool = await create_pool(get_redis_settings())
-        await pool.enqueue_job("import_git_project_task", str(import_record.id))
-        await pool.close()
+        try:
+            await pool.enqueue_job("import_git_project_task", str(import_record.id))
+        finally:
+            await pool.close()
     except Exception as exc:
         logger.error("Failed to enqueue git import: %s", exc)
         import_record.status = "failed"
@@ -219,10 +221,12 @@ async def import_from_archive(
     # Enqueue ARQ task
     try:
         pool = await create_pool(get_redis_settings())
-        await pool.enqueue_job(
-            "import_archive_project_task", str(import_record.id), temp_path
-        )
-        await pool.close()
+        try:
+            await pool.enqueue_job(
+                "import_archive_project_task", str(import_record.id), temp_path
+            )
+        finally:
+            await pool.close()
     except Exception as exc:
         logger.error("Failed to enqueue archive import: %s", exc)
         import_record.status = "failed"
@@ -296,8 +300,10 @@ async def import_from_website(
 
     try:
         pool = await create_pool(get_redis_settings())
-        await pool.enqueue_job("import_website_project_task", str(import_record.id))
-        await pool.close()
+        try:
+            await pool.enqueue_job("import_website_project_task", str(import_record.id))
+        finally:
+            await pool.close()
     except Exception as exc:
         logger.error("Failed to enqueue website import: %s", exc)
         import_record.status = "failed"
@@ -499,13 +505,19 @@ async def create_snapshot(
     sandbox: SandboxManager = Depends(get_sandbox_manager),
 ) -> SnapshotInfo:
     """Create a named snapshot of the project container."""
+    import re as _re
     user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
-    image_id = await sandbox.create_snapshot(project_id, data.name)
+    # Sanitize snapshot_name to prevent Docker image name injection
+    safe_name = _re.sub(r"[^a-zA-Z0-9_-]", "-", data.name.strip())
+    if not safe_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid snapshot name")
+
+    image_id = await sandbox.create_snapshot(project_id, safe_name)
 
     return SnapshotInfo(
-        name=data.name,
+        name=safe_name,
         image_id=image_id,
     )
 
