@@ -266,6 +266,159 @@ class SandboxManager(BaseKernelService):
     async def is_exported_image_owned_by_project(self, project_id: UUID, image_id: str) -> bool:
         return await self._portability.is_exported_image_owned_by_project(project_id, image_id)
 
+    # -- Drupal staging helpers ------------------------------------------------
+
+    async def get_container_info(self, project_id: str) -> Optional[dict]:
+        """Return basic container info (id, running, port) or None."""
+        container_id = self._containers.get(project_id)
+        if not container_id:
+            return None
+        try:
+            container = await asyncio.to_thread(
+                self._client.containers.get, container_id
+            )
+            attrs = container.attrs or {}
+            state = attrs.get("State", {})
+            ports = attrs.get("NetworkSettings", {}).get("Ports", {})
+            # Find first mapped host port
+            exposed_port = None
+            for _cport, bindings in ports.items():
+                if bindings:
+                    exposed_port = bindings[0].get("HostPort")
+                    if exposed_port:
+                        break
+            return {
+                "id": container_id,
+                "running": state.get("Running", False),
+                "port": exposed_port,
+                "exposed_port": exposed_port,
+            }
+        except Exception:
+            return None
+
+    async def exec_in_container(self, container_id: str, command: str) -> str:
+        """Run a command inside a sandbox container. Returns stdout."""
+        return await self._run.exec_simple(container_id, command)
+
+    async def write_file_in_container(
+        self, container_id: str, file_path: str, content: str
+    ) -> None:
+        """Write a file inside a sandbox container."""
+        await self._file_ops.write_file(container_id, file_path, content)
+
+    async def upload_and_extract(
+        self, container_id: str, local_tar_path: str, dest_dir: str
+    ) -> None:
+        """Upload a tar.gz from the host and extract it inside the container."""
+        import io
+        import tarfile as tarfile_mod
+
+        container = await asyncio.to_thread(
+            self._client.containers.get, container_id
+        )
+        # Docker put_archive expects a tar stream. Wrap our .tar.gz in a
+        # tar that contains a single entry, or just pipe the raw tarball.
+        with open(local_tar_path, "rb") as f:
+            data = f.read()
+
+        # put_archive expects a plain tar; if the file is gzip-compressed,
+        # decompress first then re-wrap it.
+        buf = io.BytesIO()
+        with tarfile_mod.open(fileobj=io.BytesIO(data), mode="r:gz") as src:
+            with tarfile_mod.open(fileobj=buf, mode="w") as dst:
+                for member in src.getmembers():
+                    dst.addfile(member, src.extractfile(member) if member.isreg() else None)
+        buf.seek(0)
+        await asyncio.to_thread(container.put_archive, dest_dir, buf)
+
+    async def download_archive(
+        self, container_id: str, container_path: str, local_dest: str
+    ) -> None:
+        """Tar a path inside the container and save to a local file."""
+        container = await asyncio.to_thread(
+            self._client.containers.get, container_id
+        )
+        bits, _stat = await asyncio.to_thread(
+            container.get_archive, container_path
+        )
+        with open(local_dest, "wb") as f:
+            for chunk in bits:
+                f.write(chunk)
+
+    async def exec_in_sidecar(
+        self,
+        project_id: str,
+        sidecar_name: str,
+        command: str,
+        stdin_file: Optional[str] = None,
+    ) -> str:
+        """Run a command in a project's sidecar container, optionally piping stdin."""
+        container_name = f"sandbox-{project_id[:12]}-{sidecar_name}"
+        container = await asyncio.to_thread(
+            self._client.containers.get, container_name
+        )
+        if stdin_file:
+            # Upload stdin file as tar, then pipe it
+            import io
+            import tarfile as tarfile_mod
+
+            with open(stdin_file, "rb") as f:
+                data = f.read()
+            buf = io.BytesIO()
+            with tarfile_mod.open(fileobj=buf, mode="w") as tar:
+                info = tarfile_mod.TarInfo(name="stdin_data")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+            buf.seek(0)
+            await asyncio.to_thread(container.put_archive, "/tmp", buf)
+            command = f"cat /tmp/stdin_data | {command}"
+
+        exec_instance = await asyncio.to_thread(
+            self._client.api.exec_create,
+            container.id,
+            ["sh", "-c", command],
+            stdout=True,
+            stderr=True,
+            tty=False,
+        )
+        output = await asyncio.to_thread(
+            self._client.api.exec_start,
+            exec_instance["Id"],
+            stream=False,
+            demux=False,
+        )
+        return (output or b"").decode("utf-8", errors="replace")
+
+    async def exec_sidecar_stream(
+        self,
+        project_id: str,
+        sidecar_name: str,
+        command: str,
+        output_file: str,
+    ) -> None:
+        """Exec a command in a sidecar and write output to a local file."""
+        container_name = f"sandbox-{project_id[:12]}-{sidecar_name}"
+        container = await asyncio.to_thread(
+            self._client.containers.get, container_name
+        )
+        exec_instance = await asyncio.to_thread(
+            self._client.api.exec_create,
+            container.id,
+            ["sh", "-c", command],
+            stdout=True,
+            stderr=False,
+            tty=False,
+        )
+        output = await asyncio.to_thread(
+            self._client.api.exec_start,
+            exec_instance["Id"],
+            stream=True,
+            demux=False,
+        )
+        with open(output_file, "wb") as f:
+            for chunk in output:
+                f.write(chunk)
+
     # -- Internal helpers -----------------------------------------------------
 
     async def _cleanup_loop(self) -> None:
