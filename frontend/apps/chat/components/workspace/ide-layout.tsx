@@ -75,6 +75,10 @@ const KBBuilderPanel = dynamic(
   () => import("./kb-builder/kb-builder-panel").then((m) => m.KBBuilderPanel),
   { ssr: false, loading: PanelSkeleton },
 );
+const IssuesPanel = dynamic(
+  () => import("./issues/issues-panel").then((m) => m.IssuesPanel),
+  { ssr: false, loading: PanelSkeleton },
+);
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -463,6 +467,9 @@ export function IDELayout({ projectId }: IDELayoutProps) {
           )}
           {mobileTab === "kb-builder" && (
             <KBBuilderPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+          )}
+          {mobileTab === "issues" && (
+            <IssuesPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
           )}
         </div>
         <MobileIdeTabs activeTab={mobileTab} onTabChange={setMobileTab} />

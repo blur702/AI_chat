@@ -101,7 +101,7 @@ export function useVramManagement(): UseVramManagementReturn {
           decision: "offload",
           remember: false,
         });
-        await refreshModels();
+        await Promise.all([refreshModels(), refreshVram(), refreshResourceStatus()]);
         return result;
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to offload resource");
@@ -111,7 +111,7 @@ export function useVramManagement(): UseVramManagementReturn {
         setLocalActionLoading(null);
       }
     },
-    [refreshModels],
+    [refreshModels, refreshVram, refreshResourceStatus],
   );
 
   const reloadFromRam = useCallback(
@@ -124,7 +124,7 @@ export function useVramManagement(): UseVramManagementReturn {
           estimated_vram_mb: estimatedVramMb,
           user_id: userId,
         });
-        await refreshModels();
+        await Promise.all([refreshModels(), refreshVram(), refreshResourceStatus()]);
         return result;
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to reload resource");
@@ -134,7 +134,7 @@ export function useVramManagement(): UseVramManagementReturn {
         setLocalActionLoading(null);
       }
     },
-    [refreshModels],
+    [refreshModels, refreshVram, refreshResourceStatus],
   );
 
   const refresh = useCallback(async () => {
