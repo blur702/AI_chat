@@ -51,7 +51,7 @@ class NoteUpdateRequest(BaseModel):
     body: Optional[str] = Field(default=None, max_length=50000)
     project_id: Optional[str] = None
     category_id: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[str] = Field(default=None, pattern=r"^(active|completed|archived)$")
     pinned: Optional[bool] = None
 
 

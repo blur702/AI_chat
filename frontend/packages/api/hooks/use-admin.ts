@@ -100,7 +100,7 @@ export function useAdmin(enabled = true): UseAdminReturn {
         intervalRef.current = null;
       }
     };
-  }, [autoRefreshEnabled, autoRefreshInterval, refreshMetrics, refreshDebugInfo]);
+  }, [enabled, autoRefreshEnabled, autoRefreshInterval, refreshMetrics, refreshDebugInfo]);
 
   return {
     metrics,

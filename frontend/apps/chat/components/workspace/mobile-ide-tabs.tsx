@@ -17,6 +17,8 @@ import {
   Layers,
   LayoutTemplate,
   Map as MapIcon,
+  Database,
+  Bug,
 } from "lucide-react";
 
 export type MobileIdeTab =
@@ -54,6 +56,8 @@ const TABS: { id: MobileIdeTab; label: string; icon: typeof Code2 }[] = [
   { id: "context", label: "Context", icon: Layers },
   { id: "ui-builder", label: "Builder", icon: LayoutTemplate },
   { id: "planning", label: "Plans", icon: MapIcon },
+  { id: "kb-builder", label: "KB Build", icon: Database },
+  { id: "issues", label: "Issues", icon: Bug },
 ];
 
 interface MobileIdeTabsProps {
@@ -76,10 +80,8 @@ export function MobileIdeTabs({ activeTab, onTabChange }: MobileIdeTabsProps) {
           aria-selected={activeTab === id}
           onClick={() => onTabChange(id)}
           className={cn(
-            "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors min-h-[56px]",
-            activeTab === id
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
+            "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] transition-colors",
+            activeTab === id ? "text-primary" : "text-muted-foreground hover:text-foreground",
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />

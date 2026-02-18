@@ -69,7 +69,11 @@ export interface UseDrupalReturn {
   fetchContentTypes: () => Promise<void>;
   fetchNodes: (bundle: string) => Promise<void>;
   createNode: (bundle: string, data: DrupalNodeCreateRequest) => Promise<DrupalNode>;
-  updateNode: (bundle: string, nodeUuid: string, data: DrupalNodeUpdateRequest) => Promise<DrupalNode>;
+  updateNode: (
+    bundle: string,
+    nodeUuid: string,
+    data: DrupalNodeUpdateRequest,
+  ) => Promise<DrupalNode>;
   // Staging
   stagingStatus: StagingStatus | null;
   stagingLoading: boolean;
@@ -106,8 +110,15 @@ export interface UseDrupalReturn {
   blocks: BlockContentResponse[];
   blocksLoading: boolean;
   fetchBlocks: (bundle: string) => Promise<void>;
-  createBlock: (bundle: string, data: BlockContentCreateRequest) => Promise<BlockContentResponse | null>;
-  updateBlock: (bundle: string, blockUuid: string, data: BlockContentUpdateRequest) => Promise<BlockContentResponse | null>;
+  createBlock: (
+    bundle: string,
+    data: BlockContentCreateRequest,
+  ) => Promise<BlockContentResponse | null>;
+  updateBlock: (
+    bundle: string,
+    blockUuid: string,
+    data: BlockContentUpdateRequest,
+  ) => Promise<BlockContentResponse | null>;
   blocksOperating: boolean;
   // Theme scaffolding
   scaffoldTheme: (data: ThemeScaffoldRequest) => Promise<ThemeScaffoldResponse | null>;
@@ -210,6 +221,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     setContentTypes([]);
     setNodes([]);
     setSelectedBundle(null);
+    setModules([]);
+    setModulesLoading(false);
+    setModulesOperating(false);
+    setThemes([]);
+    setThemesLoading(false);
+    setThemesOperating(false);
+    setBlocks([]);
+    setBlocksLoading(false);
+    setBlocksOperating(false);
+    setStagingStatus(null);
     refresh();
   }, [refresh]);
 
@@ -227,7 +248,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setConnecting(false);
       }
     },
-    [projectId, refresh]
+    [projectId, refresh],
   );
 
   const disconnect = useCallback(async () => {
@@ -282,7 +303,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setDrushRunning(false);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   const pull = useCallback(async () => {
@@ -339,7 +360,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setNodesLoading(false);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   const createNode = useCallback(
@@ -355,11 +376,15 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         throw err;
       }
     },
-    [projectId, fetchNodes]
+    [projectId, fetchNodes],
   );
 
   const updateNode = useCallback(
-    async (bundle: string, nodeUuid: string, data: DrupalNodeUpdateRequest): Promise<DrupalNode> => {
+    async (
+      bundle: string,
+      nodeUuid: string,
+      data: DrupalNodeUpdateRequest,
+    ): Promise<DrupalNode> => {
       setError(null);
       try {
         const node = await getClient().updateDrupalNode(projectId, bundle, nodeUuid, data);
@@ -371,7 +396,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         throw err;
       }
     },
-    [projectId, fetchNodes]
+    [projectId, fetchNodes],
   );
 
   // Auto-fetch content types when site is connected
@@ -421,7 +446,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setCloning(false);
       }
     },
-    [projectId, fetchStagingStatus]
+    [projectId, fetchStagingStatus],
   );
 
   const pushToProduction = useCallback(
@@ -439,7 +464,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
         setPushing(false);
       }
     },
-    [projectId, fetchSyncStatus, fetchStagingStatus]
+    [projectId, fetchSyncStatus, fetchStagingStatus],
   );
 
   const startStaging = useCallback(async () => {
@@ -669,7 +694,10 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   );
 
   const createBlock = useCallback(
-    async (bundle: string, data: BlockContentCreateRequest): Promise<BlockContentResponse | null> => {
+    async (
+      bundle: string,
+      data: BlockContentCreateRequest,
+    ): Promise<BlockContentResponse | null> => {
       try {
         setBlocksOperating(true);
         setError(null);
@@ -687,7 +715,11 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   );
 
   const updateBlock = useCallback(
-    async (bundle: string, blockUuid: string, data: BlockContentUpdateRequest): Promise<BlockContentResponse | null> => {
+    async (
+      bundle: string,
+      blockUuid: string,
+      data: BlockContentUpdateRequest,
+    ): Promise<BlockContentResponse | null> => {
       try {
         setBlocksOperating(true);
         setError(null);

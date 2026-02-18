@@ -109,6 +109,8 @@ describe("Field help coverage", () => {
 
   it("help topic bodies are comprehensive and non-trivial", () => {
     const topics = collectHelpTopicBodies();
+    // Guard: ensure the regex didn't silently miss topics
+    expect(topics.length).toBeGreaterThan(10);
     const tooShort = topics
       .filter((topic) => topic.body.trim().length < 120)
       .map((topic) => ({ slug: topic.slug, length: topic.body.trim().length }));

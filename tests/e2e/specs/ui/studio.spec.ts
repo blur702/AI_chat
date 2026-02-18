@@ -6,7 +6,7 @@ import { ADMIN_ID, ADMIN_PW } from "../../helpers/credentials";
 const ORIGIN = process.env.BASE_URL ?? "https://ssdd.kevinalthaus.com";
 
 test.describe("Video Studio — full e2e", () => {
-  let projectId: string;
+  const projectIds: string[] = [];
 
   test.beforeEach(async () => {
     flushRateLimits();
@@ -14,14 +14,12 @@ test.describe("Video Studio — full e2e", () => {
   });
 
   test.afterAll(async ({ request }) => {
-    // Clean up: delete the test project if it was created
-    if (projectId) {
+    for (const id of projectIds) {
       try {
-        // Login to get auth cookie
         await request.post("/api/auth/login", {
           data: { identifier: ADMIN_ID, password: ADMIN_PW },
         });
-        await request.delete(`/api/studio/projects/${projectId}`, {
+        await request.delete(`/api/studio/projects/${id}`, {
           headers: { Origin: ORIGIN },
         });
       } catch {
@@ -65,12 +63,12 @@ test.describe("Video Studio — full e2e", () => {
     });
     expect(createRes.ok()).toBeTruthy();
     const project = await createRes.json();
-    projectId = project.id;
+    projectIds.push(project.id);
     expect(project.name).toBe("E2E Test Video");
     expect(project.status).toBe("draft");
 
     // --- Step 2: Navigate to project editor ---
-    await page.goto(`/studio/${projectId}`);
+    await page.goto(`/studio/${projectIds[0]}`);
     await page.waitForLoadState("networkidle");
 
     // Editor should load with the project name visible
@@ -168,7 +166,7 @@ test.describe("Video Studio — full e2e", () => {
     };
 
     // Save timeline via API
-    const saveRes = await page.request.put(`/api/studio/projects/${projectId}`, {
+    const saveRes = await page.request.put(`/api/studio/projects/${projectIds[0]}`, {
       headers: { Origin: ORIGIN },
       data: {
         name: "E2E Test Video — Text & Subtitles",
@@ -182,7 +180,7 @@ test.describe("Video Studio — full e2e", () => {
     expect(savedProject.duration_seconds).toBe(9);
 
     // --- Step 4: Verify timeline was saved correctly ---
-    const getRes = await page.request.get(`/api/studio/projects/${projectId}`);
+    const getRes = await page.request.get(`/api/studio/projects/${projectIds[0]}`);
     expect(getRes.ok()).toBeTruthy();
     const fetchedProject = await getRes.json();
     expect(fetchedProject.timeline_data).toBeTruthy();
@@ -212,7 +210,7 @@ test.describe("Video Studio — full e2e", () => {
 
     // --- Step 7: Test export API (HTML format — no FFmpeg required) ---
     const exportRes = await page.request.post(
-      `/api/studio/projects/${projectId}/export`,
+      `/api/studio/projects/${projectIds[0]}/export`,
       {
         headers: { Origin: ORIGIN },
         data: { format: "html" },
@@ -258,7 +256,7 @@ test.describe("Video Studio — full e2e", () => {
     }
 
     // --- Step 8: Test media listing (should be empty for this project) ---
-    const mediaRes = await page.request.get(`/api/studio/projects/${projectId}/media`);
+    const mediaRes = await page.request.get(`/api/studio/projects/${projectIds[0]}/media`);
     expect(mediaRes.ok()).toBeTruthy();
     const mediaData = await mediaRes.json();
     expect(mediaData.assets).toHaveLength(0);
@@ -283,6 +281,7 @@ test.describe("Video Studio — full e2e", () => {
     expect(createRes.ok()).toBeTruthy();
     const project = await createRes.json();
     const uiProjectId = project.id;
+    projectIds.push(uiProjectId);
 
     await page.goto(`/studio/${uiProjectId}`);
     await page.waitForLoadState("networkidle");
@@ -300,11 +299,6 @@ test.describe("Video Studio — full e2e", () => {
     await page.screenshot({
       path: "test-results/studio-editor-panels.png",
       fullPage: true,
-    });
-
-    // Clean up
-    await page.request.delete(`/api/studio/projects/${uiProjectId}`, {
-      headers: { Origin: ORIGIN },
     });
   });
 });

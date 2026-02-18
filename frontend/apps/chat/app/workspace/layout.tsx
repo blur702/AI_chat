@@ -7,17 +7,17 @@ import { ServiceStatusBanner } from "@/components/service-status-banner";
 import { WorkspaceStatusBar } from "@/components/workspace/workspace-status-bar";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
     }
-  }, [isAuthenticated, router, pathname]);
+  }, [isAuthenticated, isLoading, router, pathname]);
 
-  if (!isAuthenticated) return null;
+  if (isLoading || !isAuthenticated) return null;
 
   return (
     <div className="flex h-[calc(100vh-2.5rem)] flex-col">

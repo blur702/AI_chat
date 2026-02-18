@@ -29,7 +29,7 @@ interface IssuesPanelProps {
 export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const scannedRef = useRef(false);
+  const scannedRef = useRef<string | null>(null);
 
   const { issues, loading, error, refresh, updateIssue, deleteIssue, startFix, scanProjectIssues } =
     useIssues({
@@ -40,8 +40,8 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
 
   // Auto-scan on mount
   useEffect(() => {
-    if (!scannedRef.current) {
-      scannedRef.current = true;
+    if (scannedRef.current !== projectId) {
+      scannedRef.current = projectId;
       scanProjectIssues(projectId).catch(() => {});
     }
   }, [projectId, scanProjectIssues]);

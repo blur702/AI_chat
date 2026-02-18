@@ -89,10 +89,17 @@ export function KanbanBoard({
   }
 
   // Group notes by project
-  const generalNotes = notes.filter((n) => !n.project_id);
+  const notesByProject = new Map<string | null, typeof notes>();
+  for (const note of notes) {
+    const key = note.project_id ?? null;
+    const bucket = notesByProject.get(key);
+    if (bucket) bucket.push(note);
+    else notesByProject.set(key, [note]);
+  }
+  const generalNotes = notesByProject.get(null) ?? [];
   const projectGroups = projects.map((p) => ({
     project: p,
-    notes: notes.filter((n) => n.project_id === p.id),
+    notes: notesByProject.get(p.id) ?? [],
   }));
 
   return (

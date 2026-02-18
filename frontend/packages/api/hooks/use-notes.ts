@@ -57,7 +57,9 @@ export function useNotes(filters?: {
       const res = await getClient().listNoteCategories();
       setCategories(res.categories);
     } catch (err) {
-      // Silently ignore category load failures
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Failed to load note categories:", err);
+      }
     }
   }, []);
 

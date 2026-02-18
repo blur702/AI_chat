@@ -82,8 +82,10 @@ function DraggableLocalModel({
   onLoad: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: model.name, data: { type: "local", model } });
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: model.name,
+    data: { type: "local", model },
+  });
 
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
@@ -115,7 +117,7 @@ function DraggableLocalModel({
       {sizeGb > 8 && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="outline" className="text-[10px] shrink-0">
+            <Badge variant="outline" className="shrink-0 text-[10px]">
               Multi-GPU
             </Badge>
           </TooltipTrigger>
@@ -123,9 +125,7 @@ function DraggableLocalModel({
         </Tooltip>
       )}
 
-      <span className="text-xs text-muted-foreground shrink-0">
-        {formatSize(model.size)}
-      </span>
+      <span className="shrink-0 text-xs text-muted-foreground">{formatSize(model.size)}</span>
 
       <Tooltip>
         <TooltipTrigger asChild>
@@ -160,8 +160,10 @@ function DraggableRunningModel({
   onOffload: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: model.name, data: { type: "running", model } });
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: model.name,
+    data: { type: "running", model },
+  });
 
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
@@ -189,7 +191,7 @@ function DraggableRunningModel({
 
       <span className="flex-1 truncate font-medium">{model.name}</span>
 
-      <span className="text-xs text-muted-foreground shrink-0">
+      <span className="shrink-0 text-xs text-muted-foreground">
         {formatMb(model.size_vram ? model.size_vram / 1024 / 1024 : null)}
       </span>
 
@@ -257,13 +259,11 @@ function GpuCard({
         isOver && "ring-2 ring-primary",
       )}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Cpu className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-semibold">GPU {gpu.gpu_index}</span>
-          <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-            {gpu.name}
-          </span>
+          <span className="max-w-[180px] truncate text-xs text-muted-foreground">{gpu.name}</span>
         </div>
         <Badge className={cn("text-[10px]", utilizationColor(gpu.utilization_percent))}>
           {gpu.utilization_percent.toFixed(0)}%
@@ -276,11 +276,11 @@ function GpuCard({
           {formatMb(gpu.used_mb)} / {formatMb(gpu.total_mb)}
         </span>
       </div>
-      <Progress value={pct} className="h-2 mb-3" />
+      <Progress value={pct} className="mb-3 h-2" />
 
       <div className="space-y-1.5">
         {runningModels.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-2 text-center">
+          <p className="py-2 text-center text-xs italic text-muted-foreground">
             No models loaded — drag a model here
           </p>
         ) : (
@@ -316,9 +316,7 @@ function RamZone({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "ram" });
 
-  const ramPct = systemStats
-    ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100
-    : 0;
+  const ramPct = systemStats ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100 : 0;
 
   return (
     <div
@@ -328,7 +326,7 @@ function RamZone({
         isOver && "ring-2 ring-blue-500",
       )}
     >
-      <div className="flex items-center gap-2 mb-3">
+      <div className="mb-3 flex items-center gap-2">
         <MemoryStick className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-semibold">System RAM</span>
       </div>
@@ -341,13 +339,13 @@ function RamZone({
               {formatMb(systemStats.ram_used_mb)} / {formatMb(systemStats.ram_total_mb)}
             </span>
           </div>
-          <Progress value={ramPct} className="h-2 mb-3" />
+          <Progress value={ramPct} className="mb-3 h-2" />
         </>
       )}
 
       <div className="space-y-1.5">
         {offloadedResources.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-2 text-center">
+          <p className="py-2 text-center text-xs italic text-muted-foreground">
             Drag a running model here to offload
           </p>
         ) : (
@@ -356,9 +354,9 @@ function RamZone({
               key={r.resource_id}
               className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm"
             >
-              <ArrowDownToLine className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <ArrowDownToLine className="h-3.5 w-3.5 shrink-0 text-blue-500" />
               <span className="flex-1 truncate font-medium">{r.resource_id}</span>
-              <span className="text-xs text-muted-foreground shrink-0">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {r.vram_mb ? formatMb(r.vram_mb) : "—"}
               </span>
               <Tooltip>
@@ -390,25 +388,23 @@ function RamZone({
 function HelpSection() {
   return (
     <Collapsible>
-      <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+      <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
         <ChevronDown className="h-3.5 w-3.5" />
         How VRAM management works
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 space-y-2 text-xs text-muted-foreground rounded-md border p-3">
+      <CollapsibleContent className="mt-2 space-y-2 rounded-md border p-3 text-xs text-muted-foreground">
         <p>
-          <strong className="text-foreground">VRAM</strong> — Video RAM on
-          the GPU. Models must be loaded into VRAM to run inference. Each GPU
-          has a fixed amount.
+          <strong className="text-foreground">VRAM</strong> — Video RAM on the GPU. Models must be
+          loaded into VRAM to run inference. Each GPU has a fixed amount.
         </p>
         <p>
-          <strong className="text-foreground">Offloading</strong> — Moves a
-          model from GPU VRAM to system RAM. The model stays in memory and
-          can be quickly reloaded without re-downloading.
+          <strong className="text-foreground">Offloading</strong> — Moves a model from GPU VRAM to
+          system RAM. The model stays in memory and can be quickly reloaded without re-downloading.
         </p>
         <p>
-          <strong className="text-foreground">Preemption</strong> — When
-          loading a model that requires more VRAM than is free, lower-priority
-          models are automatically offloaded or unloaded to make room.
+          <strong className="text-foreground">Preemption</strong> — When loading a model that
+          requires more VRAM than is free, lower-priority models are automatically offloaded or
+          unloaded to make room.
         </p>
       </CollapsibleContent>
     </Collapsible>
@@ -421,7 +417,7 @@ function HelpSection() {
 
 function DragGhost({ name }: { name: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm shadow-lg opacity-90">
+    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm opacity-90 shadow-lg">
       <GripVertical className="h-4 w-4 text-muted-foreground" />
       <span className="font-medium">{name}</span>
     </div>
@@ -452,9 +448,7 @@ export function VramManagement() {
 
   const { userId } = useAuth();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"local" | "running" | null>(null);
@@ -476,7 +470,7 @@ export function VramManagement() {
       }
 
       if (active.data.current?.type === "running" && over?.id === "ram") {
-        offloadToRam(String(active.id), userId ?? "");
+        offloadToRam(String(active.id), userId ?? undefined);
       }
 
       setActiveId(null);
@@ -514,7 +508,7 @@ export function VramManagement() {
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4">
+          <div className="space-y-4 lg:col-span-2">
             <Skeleton className="h-48 w-full rounded-lg" />
             <Skeleton className="h-32 w-full rounded-lg" />
           </div>
@@ -545,25 +539,16 @@ export function VramManagement() {
         <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span className="flex-1">{error}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs"
-            onClick={refresh}
-          >
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={refresh}>
             Retry
           </Button>
         </div>
       )}
 
-      <DndContext
-        sensors={sensors}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      >
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Left column: GPUs + RAM */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="space-y-4 lg:col-span-2">
             {gpus.length === 0 && !loading && (
               <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
                 No GPUs detected
@@ -591,12 +576,12 @@ export function VramManagement() {
 
           {/* Right column: Available models */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Available Models
             </h3>
 
             {localModels.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic py-4 text-center">
+              <p className="py-4 text-center text-xs italic text-muted-foreground">
                 All local models are currently loaded.
               </p>
             ) : (
@@ -615,9 +600,7 @@ export function VramManagement() {
         </div>
 
         {/* Drag overlay ghost */}
-        <DragOverlay>
-          {activeId ? <DragGhost name={activeId} /> : null}
-        </DragOverlay>
+        <DragOverlay>{activeId ? <DragGhost name={activeId} /> : null}</DragOverlay>
       </DndContext>
 
       {/* Help section */}

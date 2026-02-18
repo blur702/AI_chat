@@ -50,13 +50,14 @@ export default function SettingsPage() {
 
   // Derive initial tab from URL (supports ?tab=admin-system etc.)
   const urlTab = searchParams.get("tab") ?? "profile";
-  const [activeTab, setActiveTab] = useState(urlTab);
+  const initialTab = !isAdmin && urlTab.startsWith("admin-") ? "profile" : urlTab;
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Sync tab from URL changes
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t) setActiveTab(t);
-  }, [searchParams]);
+    if (t) setActiveTab(!isAdmin && t.startsWith("admin-") ? "profile" : t);
+  }, [searchParams, isAdmin]);
 
   const {
     user,
@@ -100,7 +101,7 @@ export default function SettingsPage() {
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className={`flex h-full flex-col overflow-auto p-6 md:p-8 mx-auto w-full ${
+        className={`mx-auto flex h-full w-full flex-col overflow-auto p-6 md:p-8 ${
           isWide ? "max-w-6xl" : "max-w-3xl"
         }`}
       >
@@ -117,7 +118,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList aria-label="Settings sections" className="w-full flex flex-wrap gap-1">
+            <TabsList aria-label="Settings sections" className="flex w-full flex-wrap gap-1">
               <TabsTrigger value="profile">{t("profile")}</TabsTrigger>
               <TabsTrigger value="security">{t("security")}</TabsTrigger>
               <TabsTrigger value="notifications">{t("notifications")}</TabsTrigger>
@@ -146,18 +147,11 @@ export default function SettingsPage() {
             {/* --- Settings Tabs --- */}
 
             <TabsContent value="profile">
-              <ProfileTab
-                user={user}
-                updateProfile={updateProfile}
-                profileSaving={profileSaving}
-              />
+              <ProfileTab user={user} updateProfile={updateProfile} profileSaving={profileSaving} />
             </TabsContent>
 
             <TabsContent value="security">
-              <SecurityTab
-                changePassword={changePassword}
-                passwordSaving={passwordSaving}
-              />
+              <SecurityTab changePassword={changePassword} passwordSaving={passwordSaving} />
             </TabsContent>
 
             <TabsContent value="notifications">
@@ -188,9 +182,10 @@ export default function SettingsPage() {
 
             <TabsContent value="prompts" className="space-y-6 pt-6">
               <div>
-                <h2 className="text-lg font-semibold mb-1">System Prompts</h2>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Create and manage reusable system prompts. Assign them to projects or individual chats.
+                <h2 className="mb-1 text-lg font-semibold">System Prompts</h2>
+                <p className="mb-6 text-sm text-muted-foreground">
+                  Create and manage reusable system prompts. Assign them to projects or individual
+                  chats.
                 </p>
               </div>
               <PromptLibrary />
@@ -198,8 +193,8 @@ export default function SettingsPage() {
 
             <TabsContent value="snippets" className="space-y-6 pt-6">
               <div>
-                <h2 className="text-lg font-semibold mb-1">Context Snippets</h2>
-                <p className="text-sm text-muted-foreground mb-6">
+                <h2 className="mb-1 text-lg font-semibold">Context Snippets</h2>
+                <p className="mb-6 text-sm text-muted-foreground">
                   Create reusable text snippets to quickly insert into context layers.
                 </p>
               </div>

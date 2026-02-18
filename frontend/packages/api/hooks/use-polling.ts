@@ -54,6 +54,8 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   const cleanup = useCallback(() => {
     cancelledRef.current = true;
@@ -135,7 +137,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
       setError(null);
     } catch (err) {
       setError(err);
-      onError?.(err);
+      onErrorRef.current?.(err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

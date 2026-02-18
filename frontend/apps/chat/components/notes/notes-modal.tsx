@@ -52,11 +52,13 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const exportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
     };
   }, []);
 
@@ -133,7 +135,8 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
       a.click();
       URL.revokeObjectURL(url);
       setExportDone(true);
-      setTimeout(() => setExportDone(false), 2000);
+      if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
+      exportTimeoutRef.current = setTimeout(() => setExportDone(false), 2000);
     } catch (err) {
       console.error("Failed to export app bugs:", err);
     }

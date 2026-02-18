@@ -446,6 +446,19 @@ class DrupalMCPService(BaseKernelService):
 
     # --- Block Content CRUD (JSON:API) ---
 
+    def _map_block_response(self, item: Dict[str, Any], bundle: str) -> Dict[str, Any]:
+        """Extract block_content response fields from a JSON:API item."""
+        attrs = item.get("attributes", {})
+        body_field = attrs.get("body") or {}
+        return {
+            "uuid": item.get("id", ""),
+            "bundle": bundle,
+            "info": attrs.get("info", ""),
+            "status": attrs.get("status", True),
+            "body": body_field.get("value") if isinstance(body_field, dict) else None,
+            "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
+        }
+
     async def list_blocks(
         self,
         site_url: str,
@@ -473,16 +486,7 @@ class DrupalMCPService(BaseKernelService):
                 data = resp.json()
                 blocks = []
                 for item in data.get("data", []):
-                    attrs = item.get("attributes", {})
-                    body_field = attrs.get("body") or {}
-                    blocks.append({
-                        "uuid": item.get("id", ""),
-                        "bundle": bundle,
-                        "info": attrs.get("info", ""),
-                        "status": attrs.get("status", True),
-                        "body": body_field.get("value") if isinstance(body_field, dict) else None,
-                        "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
-                    })
+                    blocks.append(self._map_block_response(item, bundle))
                 return blocks
         except Exception as e:
             logger.warning("Failed to list blocks (%s) from %s: %s", bundle, site_url, e)
@@ -527,16 +531,7 @@ class DrupalMCPService(BaseKernelService):
                 resp.raise_for_status()
                 data = resp.json()
                 item = data.get("data", {})
-                attrs = item.get("attributes", {})
-                body_field = attrs.get("body") or {}
-                return {
-                    "uuid": item.get("id", ""),
-                    "bundle": bundle,
-                    "info": attrs.get("info", ""),
-                    "status": attrs.get("status", True),
-                    "body": body_field.get("value") if isinstance(body_field, dict) else None,
-                    "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
-                }
+                return self._map_block_response(item, bundle)
         except httpx.HTTPStatusError as e:
             detail = ""
             try:
@@ -595,16 +590,7 @@ class DrupalMCPService(BaseKernelService):
                 resp.raise_for_status()
                 data = resp.json()
                 item = data.get("data", {})
-                attrs = item.get("attributes", {})
-                body_field = attrs.get("body") or {}
-                return {
-                    "uuid": item.get("id", ""),
-                    "bundle": bundle,
-                    "info": attrs.get("info", ""),
-                    "status": attrs.get("status", True),
-                    "body": body_field.get("value") if isinstance(body_field, dict) else None,
-                    "body_format": body_field.get("format") if isinstance(body_field, dict) else None,
-                }
+                return self._map_block_response(item, bundle)
         except httpx.HTTPStatusError as e:
             detail = ""
             try:

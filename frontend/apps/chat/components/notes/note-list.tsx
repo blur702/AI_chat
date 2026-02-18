@@ -53,6 +53,7 @@ export function NoteList({
       {/* Filters */}
       <div className="flex items-center gap-2">
         <select
+          aria-label="Filter notes by status"
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value)}
           className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
@@ -64,6 +65,7 @@ export function NoteList({
         </select>
 
         <select
+          aria-label="Filter notes by category"
           value={categoryFilter}
           onChange={(e) => onCategoryFilterChange(e.target.value)}
           className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"

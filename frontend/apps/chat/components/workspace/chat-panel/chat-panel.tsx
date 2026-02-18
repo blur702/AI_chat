@@ -90,7 +90,7 @@ export function ChatPanel({
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.content && sendMessage) {
+      if (typeof detail?.content === "string" && sendMessage) {
         sendMessage(detail.content).catch(() => {});
       }
     };

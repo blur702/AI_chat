@@ -468,7 +468,7 @@ export const WorkspaceToolbar = memo(function WorkspaceToolbar({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="shrink-0 gap-1.5" onClick={onIssuesClick}>
               <Bug className="h-4 w-4" />
-              {!isMobile && "Issues"}
+              {!isMobile && t("issues")}
             </Button>
           </TooltipTrigger>
           <TooltipContent>

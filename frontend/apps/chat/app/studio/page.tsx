@@ -71,11 +71,19 @@ export default function StudioPage() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Delete this project?")) return;
-    await fetch(`/api/studio/projects/${id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+    try {
+      const res = await fetch(`/api/studio/projects/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        console.error("Failed to delete project:", res.status);
+        return;
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Delete project error:", err);
+    }
   };
 
   const formatDuration = (seconds: number | null) => {
@@ -109,68 +117,73 @@ export default function StudioPage() {
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mx-auto max-w-6xl">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 animate-pulse rounded-lg border bg-muted" />
-            ))}
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="rounded-lg border bg-muted/30 py-20 text-center">
-            <Film className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
-            <h2 className="mb-2 text-xl font-semibold">No projects yet</h2>
-            <p className="mb-4 text-muted-foreground">
-              Create your first video project to get started
-            </p>
-            <Button onClick={handleCreate} disabled={creating}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Project
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <button
-                type="button"
-                key={project.id}
-                onClick={() => router.push(`/studio/${project.id}`)}
-                className="group relative cursor-pointer rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md w-full"
-              >
-                <div className="mb-3 flex aspect-video items-center justify-center rounded bg-muted">
-                  <Film className="h-10 w-10 text-muted-foreground/30" />
-                </div>
-                <h3 className="truncate font-semibold">{project.name}</h3>
-                {project.description && (
-                  <p className="mt-1 truncate text-sm text-muted-foreground">
-                    {project.description}
-                  </p>
-                )}
-                <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatDuration(project.duration_seconds)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(project.updated_at)}
-                  </span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] capitalize">
-                    {project.status}
-                  </span>
-                </div>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => handleDelete(project.id, e)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDelete(project.id, e as unknown as React.MouseEvent); } }}
-                  className="absolute right-3 top-3 rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+          {loading ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-48 animate-pulse rounded-lg border bg-muted" />
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="rounded-lg border bg-muted/30 py-20 text-center">
+              <Film className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
+              <h2 className="mb-2 text-xl font-semibold">No projects yet</h2>
+              <p className="mb-4 text-muted-foreground">
+                Create your first video project to get started
+              </p>
+              <Button onClick={handleCreate} disabled={creating}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Project
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {projects.map((project) => (
+                <button
+                  type="button"
+                  key={project.id}
+                  onClick={() => router.push(`/studio/${project.id}`)}
+                  className="group relative w-full cursor-pointer rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+                  <div className="mb-3 flex aspect-video items-center justify-center rounded bg-muted">
+                    <Film className="h-10 w-10 text-muted-foreground/30" />
+                  </div>
+                  <h3 className="truncate font-semibold">{project.name}</h3>
+                  {project.description && (
+                    <p className="mt-1 truncate text-sm text-muted-foreground">
+                      {project.description}
+                    </p>
+                  )}
+                  <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDuration(project.duration_seconds)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(project.updated_at)}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] capitalize">
+                      {project.status}
+                    </span>
+                  </div>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => handleDelete(project.id, e)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleDelete(project.id, e as unknown as React.MouseEvent);
+                      }
+                    }}
+                    className="absolute right-3 top-3 rounded p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

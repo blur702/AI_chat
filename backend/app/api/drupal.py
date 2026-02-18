@@ -1425,7 +1425,8 @@ async def create_content_type(
                     f"field_type: text_with_summary\n"
                 )
                 body_config_file = f"field.field.node.{body.machine_name}.body.yml"
-                write_body_cmd = f"cat > {shlex.quote(f'{tmp_dir}/{body_config_file}')} << 'CONFIGEOF'\n{body_field_yaml}CONFIGEOF"
+                body_b64 = base64.b64encode(body_field_yaml.encode()).decode()
+                write_body_cmd = f"echo {shlex.quote(body_b64)} | base64 -d > {shlex.quote(f'{tmp_dir}/{body_config_file}')}"
                 await ssh.execute(write_body_cmd, timeout=10)
                 await ssh.execute(import_cmd, timeout=60)
 
@@ -1514,7 +1515,8 @@ async def scaffold_theme(
 
     files_created = []
     for remote_path, content in files_to_create.items():
-        write_cmd = f"cat > {shlex.quote(remote_path)} << 'THEMEEOF'\n{content}THEMEEOF"
+        content_b64 = base64.b64encode(content.encode()).decode()
+        write_cmd = f"echo {shlex.quote(content_b64)} | base64 -d > {shlex.quote(remote_path)}"
         await ssh.execute(write_cmd, timeout=10)
         files_created.append(os.path.basename(remote_path))
 

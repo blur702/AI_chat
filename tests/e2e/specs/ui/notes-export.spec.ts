@@ -53,7 +53,10 @@ test.describe("Notes — App Bugs export", () => {
     expect(errorsCat).toBeTruthy();
 
     // --- Create a test bug note ---
-    const baseUrl = page.url().split("/chat")[0] || "https://ssdd.kevinalthaus.com";
+    const baseUrl = page.url().split("/chat")[0];
+    if (!baseUrl) {
+      throw new Error("Could not determine base URL from current page");
+    }
     const noteRes = await page.request.post("/api/notes", {
       headers: { Origin: baseUrl },
       data: {
@@ -74,7 +77,7 @@ test.describe("Notes — App Bugs export", () => {
     expect(exportData.count).toBeGreaterThanOrEqual(1);
     expect(exportData.markdown).toContain("# App Bugs to Fix");
     expect(exportData.markdown).toContain("Test Bug: Export button broken");
-    expect(exportData.markdown).toContain("D:\\AICHAT");
+    expect(exportData.markdown).toContain("Codebase root:");
     expect(exportData.markdown).toContain("bug(s) reported in the AICHAT workstation app");
 
     // --- Test the UI export button ---
@@ -102,9 +105,12 @@ test.describe("Notes — App Bugs export", () => {
     expect(clipboardText).toContain("Test Bug: Export button broken");
 
     // Clean up: delete the test note
-    await page.request.delete(`/api/notes/${createdNote.id}`, {
+    const deleteRes = await page.request.delete(`/api/notes/${createdNote.id}`, {
       headers: { Origin: baseUrl },
     });
+    if (!deleteRes.ok()) {
+      console.warn(`Test cleanup: failed to delete note ${createdNote.id}`);
+    }
 
     // Report console errors
     if (consoleErrors.length > 0) {

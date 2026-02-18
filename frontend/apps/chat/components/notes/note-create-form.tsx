@@ -20,6 +20,7 @@ export function NoteCreateForm({ categories, projects, onSubmit }: NoteCreateFor
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    if (submitting) return;
     if (!body.trim()) return;
     setSubmitting(true);
     try {

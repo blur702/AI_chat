@@ -390,6 +390,9 @@ export function useStudioMedia(projectId: string) {
    * Build the authenticated URL for streaming or downloading a media file.
    * Returns an object URL backed by a Blob so it works cross-origin.
    *
+   * @important Callers are responsible for calling URL.revokeObjectURL() on the
+   * returned URL when done to avoid memory leaks.
+   *
    * @param mediaId - The UUID of the media asset to stream.
    */
   const getMediaFileUrl = useCallback(async (mediaId: string): Promise<string> => {

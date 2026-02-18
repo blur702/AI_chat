@@ -33,7 +33,7 @@ function parseJwt(token: string): Record<string, unknown> | null {
       atob(base64)
         .split("")
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
+        .join(""),
     );
     return JSON.parse(jsonPayload);
   } catch {
@@ -88,15 +88,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(emptyState);
 
   useEffect(() => {
+    let cancelled = false;
     const restoreSession = async () => {
       try {
         const user = await getClient().getCurrentUser();
-        setState(stateFromUser(user));
+        if (!cancelled) setState(stateFromUser(user));
       } catch {
-        setState({ ...emptyState, isLoading: false });
+        if (!cancelled) setState({ ...emptyState, isLoading: false });
       }
     };
     void restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback((token: string): boolean => {
@@ -133,18 +137,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    []
+    [],
   );
 
   const logout = useCallback(() => {
-    void getClient().logout().catch(() => undefined);
-    setState(emptyState);
+    void getClient()
+      .logout()
+      .catch(() => undefined);
+    setState({ ...emptyState, isLoading: false });
   }, []);
 
   return React.createElement(
     AuthContext.Provider,
     { value: { ...state, login, loginWithCredentials, logout } },
-    children
+    children,
   );
 }
 

@@ -11,18 +11,20 @@ export function NotesManagement() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [error, setError] = useState<string | null>(null);
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
     try {
+      setError(null);
       const res = await getClient().adminListNotes({
         status: statusFilter === "all" ? undefined : statusFilter,
         limit: 200,
       });
       setNotes(res.notes);
       setTotal(res.count);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
       setLoading(false);
     }
@@ -37,13 +39,14 @@ export function NotesManagement() {
     try {
       await getClient().deleteNote(id);
       await fetchNotes();
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete note");
     }
   };
 
   return (
     <div className="space-y-4">
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold">Notes Management</h3>
