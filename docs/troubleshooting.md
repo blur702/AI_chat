@@ -137,6 +137,19 @@ Recent behavior:
 - The auth bootstrap check is skipped on `/login` to reduce expected unauthenticated console noise.
 - WebSocket reconnect is halted when the JWT is expired to prevent repeated socket errors in the console.
 
+### 502 After Container Rebuild
+
+After rebuilding backend or chat containers, nginx may briefly return 502 until the new containers are healthy. Recovery:
+
+```bash
+docker compose up -d --build backend chat
+docker compose restart nginx
+# Wait for health checks to pass
+docker compose ps
+```
+
+Playwright E2E tests may see transient 502s during this window. The console audit test (`tests/e2e/specs/ui/console-audit.spec.ts`) filters these as benign network errors.
+
 ## Development Issues
 
 ### Frontend Package Import Errors

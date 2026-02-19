@@ -58,6 +58,28 @@ pnpm type-check
 pnpm lint
 ```
 
+## E2E Test Suites
+
+Playwright specs live in `tests/e2e/specs/`:
+
+| Suite | Path | What it covers |
+| --- | --- | --- |
+| API | `api/` | Auth flows, kernel health, projects CRUD, security, UI components |
+| UI | `ui/` | Login, chat, projects, settings, workspace, studio, notes export, console audit |
+| A11y | `a11y/` | Keyboard navigation, ARIA roles, screen reader compat |
+| Visual | `visual/` | Screenshot regression for login and chat |
+| Performance | `performance/` | Core Web Vitals thresholds |
+| Responsive | `responsive/` | Mobile and tablet layout assertions |
+
+**Console Audit** (`ui/console-audit.spec.ts`): visits every app route (login, projects, chat, notes, studio, settings, admin, MCP, drupal, palettes, workspace), captures `console.error` and `pageerror`, clicks through major interactive elements, and asserts zero unexpected JavaScript errors.
+
+Run E2E:
+
+```bash
+cd tests/e2e
+BASE_URL=https://ssdd.kevinalthaus.com npx playwright test --no-deps
+```
+
 ## CI Workflows
 
 Automation runs from GitHub Actions in `.github/workflows/`:

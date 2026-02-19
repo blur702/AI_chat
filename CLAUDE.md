@@ -76,6 +76,8 @@ Coverage guardrails:
 
 If a field or UI control is added, update both slug usage and seed topic body.
 
+Help topic feedback (`HelpTopicFeedback` model) tracks user votes on help content via `POST /api/help/{slug}/feedback`.
+
 ## Notes
 
 - Primary app endpoint is through Nginx (`http://localhost` / `https://localhost`).

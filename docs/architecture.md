@@ -36,6 +36,11 @@ graph TB
         Containers["Docker Containers<br/>(per-project)"]
     end
 
+    subgraph external_layer["External/Optional"]
+        SearXNG["SearXNG Search<br/>(port 8080)"]
+        DrupalLocal["Local Drupal CMS"]
+    end
+
     Browser --> Nginx
     Nginx -->|"/ (frontend)"| Chat
     Nginx -->|"/api (REST + WS)"| API
@@ -49,6 +54,8 @@ graph TB
     Worker --> Redis
     Worker --> ComfyUI
     Worker --> Postgres
+    Kernel --> SearXNG
+    Kernel --> DrupalLocal
 ```
 
 ### Port Mapping
@@ -64,6 +71,7 @@ All internal ports are standard; host ports are offset to avoid conflicts. See t
 | Redis      | 6379     | 6380         |
 | Ollama     | 11434    | 11434        |
 | ComfyUI    | 8188     | 8188         |
+| SearXNG    | 8080     | 8080         |
 
 ## Layer Descriptions
 

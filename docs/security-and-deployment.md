@@ -70,8 +70,13 @@ docker compose up -d --build backend
 docker compose up -d --build chat
 ```
 
-Nginx restart is usually unnecessary after backend container recreation because upstreams are resolved dynamically.
-Reload/restart Nginx only when its config or certificates change.
+After rebuilding backend or chat containers, restart Nginx to re-resolve Docker DNS for the new upstream IPs:
+
+```bash
+docker compose restart nginx
+```
+
+Also restart Nginx when its config or certificates change.
 
 ## Health And Monitoring
 
