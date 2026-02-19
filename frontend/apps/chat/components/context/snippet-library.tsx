@@ -16,6 +16,7 @@ import {
 import { useSnippets } from "@workstation/api";
 import type { ContextSnippetCreateRequest, ContextSnippetUpdateRequest } from "@workstation/api";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 export function SnippetLibrary() {
   const { snippets, loading, error, createSnippet, updateSnippet, deleteSnippet } =
@@ -250,8 +251,12 @@ export function SnippetLibrary() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label htmlFor="snippet-name" className="text-sm font-medium">
+              <label htmlFor="snippet-name" className="text-sm font-medium flex items-center gap-1.5">
                 Name
+                <FieldHelp
+                  slug="snippet-library-name"
+                  tip="Human-readable title to quickly find this snippet later."
+                />
               </label>
               <Input
                 id="snippet-name"
@@ -263,9 +268,13 @@ export function SnippetLibrary() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="snippet-description" className="text-sm font-medium">
+              <label htmlFor="snippet-description" className="text-sm font-medium flex items-center gap-1.5">
                 Description{" "}
                 <span className="text-muted-foreground font-normal">(optional)</span>
+                <FieldHelp
+                  slug="snippet-library-description"
+                  tip="Optional one-line summary of the snippet purpose."
+                />
               </label>
               <Input
                 id="snippet-description"
@@ -277,8 +286,12 @@ export function SnippetLibrary() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="snippet-content" className="text-sm font-medium">
+              <label htmlFor="snippet-content" className="text-sm font-medium flex items-center gap-1.5">
                 Content
+                <FieldHelp
+                  slug="snippet-library-content"
+                  tip="The reusable text inserted into prompts or context quickly."
+                />
               </label>
               <textarea
                 id="snippet-content"
@@ -295,8 +308,12 @@ export function SnippetLibrary() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="snippet-tags" className="text-sm font-medium">
-                Tags{" "}
+              <label htmlFor="snippet-tags" className="text-sm font-medium flex items-center gap-1.5">
+                Tags
+                <FieldHelp
+                  slug="snippet-library-tags"
+                  tip="Keywords used to filter and organize snippets."
+                />
                 <span className="text-muted-foreground font-normal">
                   (comma-separated, optional)
                 </span>

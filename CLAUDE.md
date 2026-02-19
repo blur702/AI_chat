@@ -100,5 +100,8 @@ If a field or UI control is added, update both slug usage and seed topic body.
 - Bugs with `is_app_issue = true` are **cross-project, app-level bugs** — highest priority, not tied to a single project.
 - `GET /api/issues/export` returns markdown with App Issues under `# App Issues` first, then per-project bugs under `# Project Bugs`.
 - `GET /api/issues?is_app_issue=true` returns only app-level issues.
-- Workflow: address every item under `# App Issues` before per-project bugs.
+- Workflow:
+  1. User (or automation) flags a bug with `is_app_issue=true` via `POST /api/issues` or `PUT /api/issues/{issue_id}`.
+  2. User or automation calls `GET /api/issues/export` to produce a markdown report.
+  3. Claude Code reads that export and resolves items listed under `# App Issues` before per-project items.
 - After fixing, update status via `PUT /api/issues/{issue_id}` with `{"status": "resolved"}`.

@@ -85,10 +85,11 @@ Nginx terminates TLS and routes traffic:
 |-----------|----------------|--------------------------------|
 | `/`       | `chat:3001`    | Next.js frontend               |
 | `/api`    | `backend:8000` | REST API                       |
+| `/api/context/conversations/{id}/messages/stream` | `backend:8000` | Dedicated SSE streaming route |
 | `/api/ws` | `backend:8000` | WebSocket (long timeout)       |
 | `/health` | nginx          | Container health check         |
 
-Proxy buffering is disabled for streaming responses. See [nginx/README.md](../nginx/README.md) for TLS setup and troubleshooting.
+Nginx performs dynamic Docker DNS re-resolution for upstreams and uses dedicated SSE settings (buffering/compression disabled) on the message stream route. See [nginx/README.md](../nginx/README.md) for TLS setup and troubleshooting.
 
 ### Backend -- FastAPI
 
@@ -245,6 +246,7 @@ Long-running operations (image generation, document ingestion for large files) a
 
 ## Related Documentation
 
+- **Documentation hub**: [docs/README.md](./README.md)
 - **Kernel architecture and service interface**: [backend/app/kernel/README.md](../backend/app/kernel/README.md)
 - **WebSocket reconnection and state snapshots**: [backend/docs/websocket_reconnection.md](../backend/docs/websocket_reconnection.md)
 - **Nginx routing and TLS setup**: [nginx/README.md](../nginx/README.md)

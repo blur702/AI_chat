@@ -17,3 +17,9 @@ For full guidance, use:
 
 - `SkipNav`: add near top of layout and point to `#main-content`.
 - `announceToScreenReader(message, priority?)`: announce async state changes.
+
+## Related Docs
+
+- Catalog: [`frontend/packages/ui/COMPONENTS.md`](../../COMPONENTS.md)
+- Accessibility: [`frontend/packages/ui/ACCESSIBILITY.md`](../../ACCESSIBILITY.md)
+- Responsive: [`frontend/packages/ui/RESPONSIVE.md`](../../RESPONSIVE.md)

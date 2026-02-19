@@ -11,6 +11,7 @@ import {
   Badge,
 } from "@workstation/ui";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface PreemptionDialogProps {
   open: boolean;
@@ -81,13 +82,19 @@ export function PreemptionDialog({
           )}
 
           <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <span className="inline-flex items-center gap-1.5">
+              Remember my choice for future preemption decisions
+              <FieldHelp
+                slug="resource-remember-preference"
+                tip="Save this decision for future preemption confirmation prompts."
+              />
+            </span>
             <input
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
               className="rounded border-muted-foreground"
             />
-            Remember my choice for future preemption decisions
           </label>
         </div>
 

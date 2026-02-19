@@ -2,19 +2,29 @@
 
 import { useCallback } from "react";
 import { Input } from "@workstation/ui";
+import { FieldHelp } from "@/components/help/field-help";
+import { useStudioStore } from "./use-studio-store";
 
 function Label({
   className,
+  helpSlug = "studio-overview",
+  helpTip = "Adjust this clip property to control playback and export output.",
   children,
   ...props
-}: React.LabelHTMLAttributes<HTMLLabelElement> & { className?: string }) {
+}: React.LabelHTMLAttributes<HTMLLabelElement> & {
+  className?: string;
+  helpSlug?: string;
+  helpTip?: string;
+}) {
   return (
     <label className={`text-xs font-medium ${className || ""}`} {...props}>
-      {children}
+      <span className="inline-flex items-center gap-1.5">
+        {children}
+        <FieldHelp slug={helpSlug} tip={helpTip} />
+      </span>
     </label>
   );
 }
-import { useStudioStore } from "./use-studio-store";
 
 export function PropertiesPanel() {
   const { selectedClipId, selectedTrackId, timeline, updateClip } = useStudioStore();

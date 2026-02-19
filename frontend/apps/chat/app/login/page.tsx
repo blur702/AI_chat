@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@workstation/api";
 import { Button, Input } from "@workstation/ui";
+import { FieldHelp } from "@/components/help/field-help";
 
 function LoginForm() {
   const [identifier, setIdentifier] = useState("");
@@ -46,8 +47,12 @@ function LoginForm() {
 
       <div className="w-full max-w-sm space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">
+          <label className="text-sm font-medium text-muted-foreground inline-flex items-center gap-1.5">
             Email or Username
+            <FieldHelp
+              slug="settings-email"
+              tip="Use your account email or username to sign in."
+            />
           </label>
           <Input
             placeholder="admin@workstation.local or admin"
@@ -61,8 +66,12 @@ function LoginForm() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">
+          <label className="text-sm font-medium text-muted-foreground inline-flex items-center gap-1.5">
             Password
+            <FieldHelp
+              slug="settings-password"
+              tip="Account password used to authenticate this sign-in."
+            />
           </label>
           <Input
             type="password"

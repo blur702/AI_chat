@@ -21,9 +21,12 @@ from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.models.project import Project
 from app.models.system_prompt import SystemPrompt
+from app.models.chat import Chat
 from app.schemas.context import (
+    ChatSummary,
     ProjectCreateRequest,
     ProjectCreateResponse,
+    ProjectDetailResponse,
     ProjectListResponse,
     ProjectSummary,
     ProjectUpdateRequest,
@@ -239,6 +242,55 @@ async def _list_projects_handler(
     )
 
 
+async def _get_project_handler(
+    project_id: UUID,
+    payload: dict,
+    db: AsyncSession,
+) -> ProjectDetailResponse:
+    user_id = get_user_id(payload)
+    await validate_project_access(project_id, user_id, db)
+
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.is_deleted == False)  # noqa: E712
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    # Fetch chats for this project
+    chat_result = await db.execute(
+        select(Chat)
+        .where(Chat.project_id == project_id, Chat.is_deleted == False)  # noqa: E712
+        .order_by(Chat.created_at.desc())
+    )
+    chats = chat_result.scalars().all()
+
+    return ProjectDetailResponse(
+        project_id=str(project.id),
+        user_id=str(project.user_id),
+        name=project.name,
+        path=project.path,
+        type=project.type,
+        template_id=project.template_id,
+        system_prompt_id=str(project.system_prompt_id) if project.system_prompt_id else None,
+        settings=project.settings,
+        custom_context=project.custom_context,
+        important_files=project.important_files,
+        chats=[
+            ChatSummary(
+                id=str(c.id),
+                title=c.title,
+                is_pinned=c.is_pinned if hasattr(c, "is_pinned") else False,
+                is_archived=c.is_archived if hasattr(c, "is_archived") else False,
+                chat_mode=c.chat_mode if hasattr(c, "chat_mode") else None,
+                created_at=c.created_at.isoformat() if c.created_at else None,
+                updated_at=c.updated_at.isoformat() if c.updated_at else None,
+            )
+            for c in chats
+        ],
+    )
+
+
 async def _update_project_handler(
     project_id: UUID,
     body: ProjectUpdateRequest,
@@ -402,6 +454,16 @@ async def list_projects(
     return await _list_projects_handler(payload, db, limit=limit, offset=offset)
 
 
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
+async def get_project(
+    project_id: UUID,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> ProjectDetailResponse:
+    """Get full project detail including chats."""
+    return await _get_project_handler(project_id, payload, db)
+
+
 @router.put("/{project_id}", response_model=ProjectUpdateResponse)
 async def update_project(
     project_id: UUID,
@@ -451,6 +513,16 @@ async def list_projects_alias(
 ) -> ProjectListResponse:
     """Backward-compatible alias for listing projects at /api/context/projects."""
     return await _list_projects_handler(payload, db, limit=limit, offset=offset)
+
+
+@context_projects_router.get("/projects/{project_id}", response_model=ProjectDetailResponse, include_in_schema=False)
+async def get_project_alias(
+    project_id: UUID,
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> ProjectDetailResponse:
+    """Backward-compatible alias for getting a project at /api/context/projects/{project_id}."""
+    return await _get_project_handler(project_id, payload, db)
 
 
 @context_projects_router.put("/projects/{project_id}", response_model=ProjectUpdateResponse, include_in_schema=False)

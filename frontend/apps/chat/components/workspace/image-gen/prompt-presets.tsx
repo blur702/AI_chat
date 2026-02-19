@@ -20,6 +20,7 @@ import {
   DialogTitle,
   Input,
 } from "@workstation/ui";
+import { FieldHelp } from "@/components/help/field-help";
 
 const PRESET_CATEGORIES = [
   "general",
@@ -157,7 +158,13 @@ export function PromptPresets({
 
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium inline-flex items-center gap-1.5">
+                Name
+                <FieldHelp
+                  slug="imagegen-preset-name"
+                  tip="Preset label shown in the Load Preset menu."
+                />
+              </label>
               <Input
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
@@ -166,7 +173,13 @@ export function PromptPresets({
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-sm font-medium inline-flex items-center gap-1.5">
+                Category
+                <FieldHelp
+                  slug="imagegen-preset-category"
+                  tip="Grouping used to organize presets in the dropdown."
+                />
+              </label>
               <select
                 className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={saveCategory}

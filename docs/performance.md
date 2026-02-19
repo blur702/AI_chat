@@ -80,7 +80,7 @@ Actionable performance rules for the AI Workstation project. Not a textbook -- s
 
 ### Nginx
 
-- **GZip is configured** at the Nginx layer as well as FastAPI middleware. Ensure Nginx `gzip_types` includes `application/json`, `text/event-stream`, and `application/javascript`.
+- **GZip is configured** at the Nginx layer as well as FastAPI middleware for regular API/static responses. Do not gzip SSE message streams.
 - **Static file caching headers.** Set `Cache-Control: public, max-age=31536000, immutable` for hashed Next.js assets (`/_next/static/`). Set short TTLs for HTML pages.
 - **WebSocket proxy timeouts.** Set `proxy_read_timeout` and `proxy_send_timeout` to at least 3600s for the `/api/ws/` location to prevent idle disconnects.
 
@@ -131,3 +131,9 @@ Actionable performance rules for the AI Workstation project. Not a textbook -- s
 - **ARQ job queue depth and failure rate.** If jobs pile up, image generation and KB ingestion will stall.
 - **VRAM usage** via `/api/resources/vram`. Alert above 90% to prevent OOM on the GPU.
 - **PostgreSQL connection pool saturation.** Log when `DB_POOL_SIZE + DB_MAX_OVERFLOW` connections are all in use.
+
+## Related Docs
+
+- Documentation hub: [`docs/README.md`](./README.md)
+- Architecture: [`docs/architecture.md`](./architecture.md)
+- Security and deployment: [`docs/security-and-deployment.md`](./security-and-deployment.md)

@@ -186,7 +186,13 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="imggenPrompt" className="text-sm font-medium">Default Prompt</label>
+          <label htmlFor="imggenPrompt" className="text-sm font-medium flex items-center gap-1.5">
+            Default Prompt
+            <FieldHelp
+              slug="imagegen-prompt"
+              tip="Starter prompt loaded into image generation forms by default."
+            />
+          </label>
           <textarea
             id="imggenPrompt"
             value={imggenPrompt}
@@ -271,8 +277,12 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
 
             {imggenSoundNotif && (
               <div className="space-y-2 pl-4">
-                <label htmlFor="imggenNotifSound" className="text-sm font-medium">
+                <label htmlFor="imggenNotifSound" className="text-sm font-medium inline-flex items-center gap-1.5">
                   Notification Sound
+                  <FieldHelp
+                    slug="settings-notification-sound"
+                    tip="Select the sound played when image generation completes."
+                  />
                 </label>
                 <select
                   id="imggenNotifSound"

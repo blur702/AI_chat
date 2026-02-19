@@ -64,6 +64,7 @@ export function useServiceStatus(): UseServiceStatusReturn {
   const [allReady, setAllReady] = useState(false);
 
   const mountedRef = useRef(true);
+  const backendReachableRef = useRef(true);
 
   const poll = useCallback(async () => {
     try {
@@ -71,6 +72,7 @@ export function useServiceStatus(): UseServiceStatusReturn {
       if (!mountedRef.current) return;
 
       setBackendReachable(true);
+      backendReachableRef.current = true;
       setUnreachableSince(null);
       setUnreachableDuration(0);
       setKernelStatus(status);
@@ -91,6 +93,7 @@ export function useServiceStatus(): UseServiceStatusReturn {
     } catch {
       if (!mountedRef.current) return;
       setBackendReachable(false);
+      backendReachableRef.current = false;
       setCriticalReady(false);
       setAllReady(false);
       setUnreachableSince((prev) => prev ?? Date.now());
@@ -117,7 +120,11 @@ export function useServiceStatus(): UseServiceStatusReturn {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const schedule = () => {
-      const ms = criticalReadyRef.current ? POLL_SLOW_MS : POLL_FAST_MS;
+      const ms = !backendReachableRef.current
+        ? POLL_SLOW_MS
+        : criticalReadyRef.current
+          ? POLL_SLOW_MS
+          : POLL_FAST_MS;
       timeoutId = setTimeout(async () => {
         await poll();
         if (mountedRef.current) schedule();

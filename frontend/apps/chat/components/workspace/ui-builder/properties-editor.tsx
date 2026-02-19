@@ -3,6 +3,7 @@
 import { Input, Badge } from "@workstation/ui";
 import { Trash2 } from "lucide-react";
 import type { BuilderNode } from "./use-ui-builder-state";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface PropertiesEditorProps {
   node: BuilderNode;
@@ -17,6 +18,31 @@ interface PropDef {
   enum?: string[];
   minimum?: number;
   maximum?: number;
+}
+
+function getPropertyHelp(def: PropDef, key: string): { slug: string; tip: string } {
+  if (def.enum) {
+    return {
+      slug: "tool-parameter-select",
+      tip: `Choose one predefined option for ${key}.`,
+    };
+  }
+  if (def.type === "boolean") {
+    return {
+      slug: "tool-parameter-boolean",
+      tip: `Enable or disable the ${key} option.`,
+    };
+  }
+  if (def.type === "number") {
+    return {
+      slug: "tool-parameter-number",
+      tip: `Numeric value used for ${key}.`,
+    };
+  }
+  return {
+    slug: "tool-parameter-text",
+    tip: `Text value used for ${key}.`,
+  };
 }
 
 export function PropertiesEditor({
@@ -50,14 +76,18 @@ export function PropertiesEditor({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
-        {Object.entries(properties).map(([key, def]) => (
-          <div key={key} className="space-y-1">
-            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              {key}
-            </label>
-            {renderPropInput(key, def, node.props[key], handleChange)}
-          </div>
-        ))}
+        {Object.entries(properties).map(([key, def]) => {
+          const help = getPropertyHelp(def, key);
+          return (
+            <div key={key} className="space-y-1">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider inline-flex items-center gap-1.5">
+                {key}
+                <FieldHelp slug={help.slug} tip={help.tip} />
+              </label>
+              {renderPropInput(key, def, node.props[key], handleChange)}
+            </div>
+          );
+        })}
 
         {Object.keys(properties).length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-4">
@@ -97,6 +127,10 @@ function renderPropInput(
     const checked = Boolean(value ?? def.default ?? false);
     return (
       <label className="flex items-center gap-2">
+        <FieldHelp
+          slug="tool-parameter-boolean"
+          tip={`Toggle the ${key} property on or off.`}
+        />
         <input
           type="checkbox"
           checked={checked}

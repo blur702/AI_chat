@@ -29,11 +29,12 @@ class Issue(UUIDMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    project_id: Mapped[UUID] = mapped_column(
+    project_id: Mapped[Optional[UUID]] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
+    is_app_issue: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     note_id: Mapped[Optional[UUID]] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("notes.id", ondelete="SET NULL"),
@@ -59,7 +60,7 @@ class Issue(UUIDMixin, TimestampMixin, Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="issues")
-    project: Mapped["Project"] = relationship("Project", lazy="selectin")
+    project: Mapped[Optional["Project"]] = relationship("Project", lazy="selectin")
     note: Mapped[Optional["Note"]] = relationship(
         "Note",
         foreign_keys=[note_id],
@@ -75,6 +76,12 @@ class Issue(UUIDMixin, TimestampMixin, Base):
             "is_deleted",
         ),
         Index("idx_issues_project_open", "project_id", "is_deleted"),
+        Index(
+            "idx_issues_app_issues",
+            "user_id",
+            "is_deleted",
+            postgresql_where="is_app_issue = true",
+        ),
     )
 
     def soft_delete(self) -> None:

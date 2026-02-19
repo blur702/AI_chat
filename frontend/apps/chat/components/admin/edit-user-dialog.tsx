@@ -12,6 +12,7 @@ import {
   Input,
 } from "@workstation/ui";
 import type { AdminUser, AdminUserUpdateRequest } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface EditUserDialogProps {
   user: AdminUser | null;
@@ -84,7 +85,13 @@ export function EditUserDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-                First Name
+                <span className="inline-flex items-center gap-1.5">
+                  First Name
+                  <FieldHelp
+                    slug="settings-first-name"
+                    tip="Used to identify this user in activity feeds and admin views."
+                  />
+                </span>
               </label>
               <Input
                 className="h-8 text-xs"
@@ -94,7 +101,13 @@ export function EditUserDialog({
             </div>
             <div>
               <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-                Last Name
+                <span className="inline-flex items-center gap-1.5">
+                  Last Name
+                  <FieldHelp
+                    slug="settings-last-name"
+                    tip="Shown with first name across user lists and notifications."
+                  />
+                </span>
               </label>
               <Input
                 className="h-8 text-xs"
@@ -106,7 +119,13 @@ export function EditUserDialog({
 
           <div>
             <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-              Screen Name
+              <span className="inline-flex items-center gap-1.5">
+                Screen Name
+                <FieldHelp
+                  slug="settings-display-name"
+                  tip="Display name shown in chat and collaboration surfaces."
+                />
+              </span>
             </label>
             <Input
               className="h-8 text-xs"
@@ -117,7 +136,13 @@ export function EditUserDialog({
 
           <div>
             <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-              Email
+              <span className="inline-flex items-center gap-1.5">
+                Email
+                <FieldHelp
+                  slug="settings-email"
+                  tip="Login and notification address for this user."
+                />
+              </span>
             </label>
             <Input
               className="h-8 text-xs"
@@ -130,7 +155,13 @@ export function EditUserDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-                Role
+                <span className="inline-flex items-center gap-1.5">
+                  Role
+                  <FieldHelp
+                    slug="admin-user-role"
+                    tip="Controls this user's access level across the platform."
+                  />
+                </span>
               </label>
               <select
                 value={role}
@@ -143,7 +174,13 @@ export function EditUserDialog({
             </div>
             <div>
               <label className="text-[10px] font-medium text-muted-foreground mb-1 block">
-                Status
+                <span className="inline-flex items-center gap-1.5">
+                  Status
+                  <FieldHelp
+                    slug="admin-user-status"
+                    tip="Active users can sign in; inactive users are blocked."
+                  />
+                </span>
               </label>
               <select
                 value={String(isActive)}

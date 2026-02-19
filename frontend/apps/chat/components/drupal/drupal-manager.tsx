@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useDrupal } from "@workstation/api/hooks";
 import type { DrupalNode } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 import { ConnectDialog } from "../workspace/drupal/connect-dialog";
 import { DrushTerminal } from "../workspace/drupal/drush-terminal";
 import { SyncStatus } from "../workspace/drupal/sync-status";
@@ -447,7 +448,13 @@ function ContentTab({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="drupal-node-title" className="text-[11px] font-medium">Title</label>
+              <label htmlFor="drupal-node-title" className="text-[11px] font-medium inline-flex items-center gap-1.5">
+                Title
+                <FieldHelp
+                  slug="drupal-node-title"
+                  tip="Primary node title shown in Drupal listings and page headers."
+                />
+              </label>
               <Input
                 id="drupal-node-title"
                 value={editTitle}
@@ -458,7 +465,13 @@ function ContentTab({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="drupal-node-body" className="text-[11px] font-medium">Body</label>
+              <label htmlFor="drupal-node-body" className="text-[11px] font-medium inline-flex items-center gap-1.5">
+                Body
+                <FieldHelp
+                  slug="drupal-node-body"
+                  tip="Main content field for the selected Drupal node."
+                />
+              </label>
               <Textarea
                 id="drupal-node-body"
                 value={editBody}
@@ -469,7 +482,13 @@ function ContentTab({
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-[11px] font-medium">Published</label>
+              <label className="text-[11px] font-medium inline-flex items-center gap-1.5">
+                Published
+                <FieldHelp
+                  slug="drupal-node-published"
+                  tip="Controls whether the node is visible to public site visitors."
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setEditStatus(!editStatus)}

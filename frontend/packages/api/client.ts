@@ -243,6 +243,7 @@ export class WorkstationClient {
     path: string,
     options: RequestInit = {},
     timeoutMs?: number,
+    maxRetriesOverride?: number,
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -270,7 +271,9 @@ export class WorkstationClient {
     let lastError: unknown;
 
     try {
-      for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      const maxRetries = maxRetriesOverride ?? this.maxRetries;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
           const response = await fetch(`${this.baseUrl}${path}`, fetchOpts);
 
@@ -279,13 +282,14 @@ export class WorkstationClient {
 
             // On 401, clear token and redirect to login
             // Skip redirect when already on /login or for the login endpoint itself
-            if (
-              response.status === 401 &&
-              typeof window !== "undefined" &&
-              !path.endsWith("/auth/login")
-            ) {
+            if (response.status === 401) {
               this.token = null;
-              if (!window.location.pathname.startsWith("/login")) {
+              const shouldRedirect =
+                typeof window !== "undefined" &&
+                !path.endsWith("/auth/login") &&
+                !window.location.pathname.startsWith("/login");
+
+              if (shouldRedirect) {
                 window.location.href = "/login";
               }
               throw new ApiError(response.status, response.statusText, body);
@@ -309,7 +313,7 @@ export class WorkstationClient {
                 );
               }
 
-              if (attempt < this.maxRetries) {
+              if (attempt < maxRetries) {
                 lastError = new ApiError(429, "Too Many Requests", body, retryAfterSec);
                 await new Promise((r) => setTimeout(r, retryAfterMs));
                 continue;
@@ -334,7 +338,7 @@ export class WorkstationClient {
             }
 
             // Only retry on server errors (5xx), not client errors (4xx)
-            if (response.status >= 500 && attempt < this.maxRetries) {
+            if (response.status >= 500 && attempt < maxRetries) {
               lastError = new ApiError(response.status, response.statusText, body);
               await this.delay(attempt);
               continue;
@@ -357,7 +361,7 @@ export class WorkstationClient {
           if (err instanceof ApiError && err.status > 0 && err.status < 500) throw err;
 
           lastError = err;
-          if (attempt < this.maxRetries) {
+          if (attempt < maxRetries) {
             await this.delay(attempt);
             continue;
           }
@@ -408,13 +412,14 @@ export class WorkstationClient {
         });
 
         if (!response.ok) {
-          if (
-            response.status === 401 &&
-            typeof window !== "undefined" &&
-            !path.endsWith("/auth/login")
-          ) {
+          if (response.status === 401) {
             this.token = null;
-            if (!window.location.pathname.startsWith("/login")) {
+            const shouldRedirect =
+              typeof window !== "undefined" &&
+              !path.endsWith("/auth/login") &&
+              !window.location.pathname.startsWith("/login");
+
+            if (shouldRedirect) {
               window.location.href = "/login";
             }
           }
@@ -498,7 +503,7 @@ export class WorkstationClient {
 
   /** Fetch a detailed status summary for all kernel services. */
   async kernelStatus(): Promise<KernelStatusResponse> {
-    return this.request("/api/kernel/status");
+    return this.request("/api/kernel/status", {}, undefined, 0);
   }
 
   // Auth
@@ -577,7 +582,7 @@ export class WorkstationClient {
 
   /** Fetch the overall resource manager status, including loaded model information. */
   async getResourceStatus(): Promise<ResourceStatusResponse> {
-    return this.request("/api/resources/status");
+    return this.request("/api/resources/status", {}, undefined, 0);
   }
 
   /** Check whether a resource preemption is required before loading a new model. */
@@ -915,7 +920,11 @@ export class WorkstationClient {
           body: JSON.stringify({ model_name: modelName }),
         });
         if (!response.ok || !response.body) {
-          if (response.status === 401 && typeof window !== "undefined") {
+          if (
+            response.status === 401 &&
+            typeof window !== "undefined" &&
+            !window.location.pathname.startsWith("/login")
+          ) {
             this.token = null;
             window.location.href = "/login";
             return;
@@ -1223,29 +1232,71 @@ export class WorkstationClient {
     const url = `${this.baseUrl}/api/context/conversations/${chatId}/messages/stream`;
 
     const controller = new AbortController();
+    const requestBody: Record<string, string> = { content };
+    if (model) requestBody.model = model;
+    if (chatMode) requestBody.chat_mode = chatMode;
 
     (async () => {
+      let streamStarted = false;
+      let fallbackAttempted = false;
+
+      const tryNonStreamingFallback = async (): Promise<boolean> => {
+        if (streamStarted || fallbackAttempted) return false;
+        fallbackAttempted = true;
+
+        try {
+          const fallback = await this.request<{
+            message_id: string;
+            assistant_message_id: string;
+            content: string;
+            model: string;
+            created_at?: string;
+          }>(
+            `/api/context/conversations/${chatId}/messages`,
+            {
+              method: "POST",
+              body: JSON.stringify(requestBody),
+            },
+            undefined,
+            0,
+          );
+
+          if (fallback.content) {
+            onToken(fallback.content);
+          }
+          onDone({
+            message_id: fallback.assistant_message_id || fallback.message_id,
+            model: fallback.model,
+            created_at: fallback.created_at,
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
       try {
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
+          Accept: "text/event-stream",
         };
         if (this.token) {
           headers["Authorization"] = `Bearer ${this.token}`;
         }
-        const body: Record<string, string> = { content };
-        if (model) body.model = model;
-        if (chatMode) body.chat_mode = chatMode;
         const response = await fetch(url, {
           method: "POST",
           signal: controller.signal,
           headers,
           credentials: "include",
-          body: JSON.stringify(body),
+          body: JSON.stringify(requestBody),
         });
         if (!response.ok || !response.body) {
           if (response.status === 401 && typeof window !== "undefined") {
             this.token = null;
             window.location.href = "/login";
+            return;
+          }
+          if (response.status >= 500 && (await tryNonStreamingFallback())) {
             return;
           }
           onError(`HTTP ${response.status}: ${response.statusText}`);
@@ -1259,6 +1310,7 @@ export class WorkstationClient {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          streamStarted = true;
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
@@ -1297,6 +1349,7 @@ export class WorkstationClient {
         }
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        if (await tryNonStreamingFallback()) return;
         onError(err instanceof Error ? err.message : "Stream connection failed");
       }
     })();
@@ -2282,6 +2335,36 @@ export class WorkstationClient {
     await this.request(`/api/help/${encodeURIComponent(topicId)}`, { method: "DELETE" });
   }
 
+  /** Submit "helpful / not helpful" feedback for a help topic. */
+  async submitHelpFeedback(
+    topicId: string,
+    data: import("./types").HelpFeedbackSubmitRequest,
+  ): Promise<import("./types").HelpFeedbackSubmitResponse> {
+    return this.request(`/api/help/${encodeURIComponent(topicId)}/feedback`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Get feedback summary for one help topic. */
+  async getHelpFeedbackSummary(
+    topicId: string,
+  ): Promise<import("./types").HelpFeedbackSummary> {
+    return this.request(`/api/help/${encodeURIComponent(topicId)}/feedback`);
+  }
+
+  /** Get feedback summaries for multiple topics (optionally filtered by section). */
+  async listHelpFeedbackSummaries(
+    params?: { section_id?: string; limit?: number; offset?: number },
+  ): Promise<import("./types").HelpFeedbackSummaryListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.section_id) searchParams.set("section_id", params.section_id);
+    if (params?.limit !== undefined) searchParams.set("limit", String(params.limit));
+    if (params?.offset !== undefined) searchParams.set("offset", String(params.offset));
+    const query = searchParams.toString();
+    return this.request(`/api/help/feedback/summary${query ? `?${query}` : ""}`);
+  }
+
   // ---- Prompt Presets ----
 
   /** List prompt presets with optional category, text search, and ownership filters. */
@@ -2560,9 +2643,19 @@ export class WorkstationClient {
     });
   }
 
-  /** Export all App Bugs notes as markdown for Claude Code. */
+  /** @deprecated Use exportBugs() instead. */
   async exportAppBugs(): Promise<{ markdown: string; count: number }> {
     return this.request("/api/notes/export/app-bugs");
+  }
+
+  // ---- Issue/Bug Export ----
+
+  /** Export open/in-progress bugs as markdown for Claude Code. */
+  async exportBugs(projectId?: string): Promise<{ markdown: string; count: number }> {
+    const params = new URLSearchParams();
+    if (projectId) params.set("project_id", projectId);
+    const qs = params.toString();
+    return this.request(`/api/issues/export${qs ? `?${qs}` : ""}`);
   }
 
   // ---- Note Categories ----
@@ -2603,6 +2696,7 @@ export class WorkstationClient {
   /** List issues with optional filters. */
   async listIssues(params?: {
     project_id?: string;
+    is_app_issue?: boolean;
     status?: string;
     severity?: string;
     limit?: number;
@@ -2610,6 +2704,7 @@ export class WorkstationClient {
   }): Promise<IssueListResponse> {
     const sp = new URLSearchParams();
     if (params?.project_id) sp.set("project_id", params.project_id);
+    if (params?.is_app_issue !== undefined) sp.set("is_app_issue", String(params.is_app_issue));
     if (params?.status) sp.set("status", params.status);
     if (params?.severity) sp.set("severity", params.severity);
     if (params?.limit !== undefined) sp.set("limit", String(params.limit));

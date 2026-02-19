@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 // -------------------------------------------------------------------
 // Section filter dropdown
@@ -183,7 +184,10 @@ function TopicFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
           <div className="space-y-1.5">
-            <label htmlFor="topic-title" className="text-xs font-medium">Title</label>
+            <label htmlFor="topic-title" className="text-xs font-medium flex items-center gap-1">
+              Title
+              <FieldHelp slug="admin-help-topic-title" tip="Short human-readable title shown in help search and topic cards." />
+            </label>
             <Input
               id="topic-title"
               value={form.title}
@@ -197,7 +201,10 @@ function TopicFormDialog({
 
           {/* Slug */}
           <div className="space-y-1.5">
-            <label htmlFor="topic-slug" className="text-xs font-medium">Slug</label>
+            <label htmlFor="topic-slug" className="text-xs font-medium flex items-center gap-1">
+              Slug
+              <FieldHelp slug="admin-help-topic-slug" tip="Stable URL-safe identifier used by FieldHelp and openHelp links." />
+            </label>
             <Input
               id="topic-slug"
               value={form.slug}
@@ -210,7 +217,10 @@ function TopicFormDialog({
 
           {/* Section */}
           <div className="space-y-1.5">
-            <label htmlFor="topic-section" className="text-xs font-medium">Section</label>
+            <label htmlFor="topic-section" className="text-xs font-medium flex items-center gap-1">
+              Section
+              <FieldHelp slug="admin-help-topic-section" tip="Groups related topics for easier browsing in the help panel." />
+            </label>
             <div className="flex gap-2">
               <Input
                 id="topic-section"
@@ -231,7 +241,10 @@ function TopicFormDialog({
 
           {/* Body */}
           <div className="space-y-1.5">
-            <label htmlFor="topic-body" className="text-xs font-medium">Body</label>
+            <label htmlFor="topic-body" className="text-xs font-medium flex items-center gap-1">
+              Body
+              <FieldHelp slug="admin-help-topic-body" tip="Main instructional content. Start with a quick answer, then details and practical tips." />
+            </label>
             <textarea
               id="topic-body"
               value={form.body}
@@ -245,7 +258,10 @@ function TopicFormDialog({
 
           {/* Tags */}
           <div className="space-y-1.5">
-            <label htmlFor="topic-tags" className="text-xs font-medium">Tags (comma-separated)</label>
+            <label htmlFor="topic-tags" className="text-xs font-medium flex items-center gap-1">
+              Tags (comma-separated)
+              <FieldHelp slug="admin-help-topic-tags" tip="Keywords that improve search recall and help users discover related topics." />
+            </label>
             <Input
               id="topic-tags"
               value={form.tags}
@@ -464,6 +480,9 @@ export function HelpTopicManagement() {
       {/* Search + Section filter */}
       <div className="space-y-3">
         <div className="relative">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <FieldHelp slug="admin-help-topic-search" tip="Search existing help topics by title, body, slug, or tags." />
+          </div>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={searchQuery}
@@ -549,6 +568,12 @@ export function HelpTopicManagement() {
                                 <code className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                                   {topic.slug}
                                 </code>
+                                <Badge variant="outline" className="text-[10px] py-0 shrink-0">
+                                  Up {topic.helpful_count ?? 0}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] py-0 shrink-0">
+                                  Down {topic.unhelpful_count ?? 0}
+                                </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground line-clamp-2">
                                 {topic.body}

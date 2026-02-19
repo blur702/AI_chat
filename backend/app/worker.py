@@ -22,6 +22,8 @@ from uuid import UUID
 from arq import create_pool
 from arq.connections import RedisSettings
 
+from app.tasks.coderabbit_poll import poll_coderabbit_review
+
 logger = logging.getLogger(__name__)
 
 
@@ -2141,6 +2143,7 @@ class WorkerSettings:
         verify_plan_phase_task,
         bulk_ingest_kb_task,
         export_video_task,
+        poll_coderabbit_review,
     ]
     max_jobs = 20
     job_timeout = 600

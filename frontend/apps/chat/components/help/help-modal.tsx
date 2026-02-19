@@ -12,12 +12,22 @@ import { useHelp } from "./help-provider";
 import { useHelpTopics } from "@workstation/api/hooks/use-help-topics";
 import type { HelpTopic, HelpSearchResult } from "@workstation/api/hooks/use-help-topics";
 
+function getQuickAnswer(body: string): string {
+  const trimmed = body.trim();
+  if (!trimmed) return "";
+  const stop = trimmed.search(/[.!?]\s/);
+  if (stop <= 0) return trimmed;
+  return trimmed.slice(0, stop + 1);
+}
+
 export function HelpModal() {
   const { isOpen, activeSection, closeHelp } = useHelp();
-  const { topics, loading, error, search } = useHelpTopics();
+  const { topics, loading, error, search, submitFeedback } = useHelpTopics();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<HelpSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [feedbackSavingFor, setFeedbackSavingFor] = useState<string | null>(null);
+  const [feedbackState, setFeedbackState] = useState<Record<string, "helpful" | "unhelpful">>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleId = useId();
@@ -53,6 +63,7 @@ export function HelpModal() {
     if (!isOpen) {
       setSearchQuery("");
       setSearchResults(null);
+      setFeedbackSavingFor(null);
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
@@ -154,6 +165,28 @@ export function HelpModal() {
       }, 300);
     },
     [search]
+  );
+
+  const handleFeedback = useCallback(
+    async (topicId: string, helpful: boolean) => {
+      if (feedbackSavingFor === topicId) return;
+      setFeedbackSavingFor(topicId);
+      try {
+        await submitFeedback(
+          topicId,
+          helpful,
+          activeSection ?? undefined,
+          searchQuery.trim() || undefined,
+        );
+        setFeedbackState((prev) => ({
+          ...prev,
+          [topicId]: helpful ? "helpful" : "unhelpful",
+        }));
+      } finally {
+        setFeedbackSavingFor(null);
+      }
+    },
+    [activeSection, feedbackSavingFor, searchQuery, submitFeedback],
   );
 
   // Escape to close
@@ -287,8 +320,53 @@ export function HelpModal() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {topic.body}
+                          {getQuickAnswer(topic.body)}
                         </p>
+                        {getQuickAnswer(topic.body) !== topic.body.trim() && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-primary hover:underline">
+                              Read full details
+                            </summary>
+                            <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                              {topic.body}
+                            </p>
+                          </details>
+                        )}
+                        {"helpful_count" in topic && (
+                          <div className="mt-2 flex items-center gap-1">
+                            <Badge variant="outline" className="text-[10px]">
+                              Helpful: {topic.helpful_count}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              Needs detail: {topic.unhelpful_count}
+                            </Badge>
+                            {topic.helpful_ratio != null && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {Math.round(topic.helpful_ratio * 100)}% useful
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                            onClick={() => handleFeedback(topic.id, true)}
+                            disabled={feedbackSavingFor === topic.id}
+                            aria-label={`Mark ${topic.title} as helpful`}
+                          >
+                            {feedbackState[topic.id] === "helpful" ? "Thanks - helpful" : "Helpful"}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                            onClick={() => handleFeedback(topic.id, false)}
+                            disabled={feedbackSavingFor === topic.id}
+                            aria-label={`Mark ${topic.title} as needing more detail`}
+                          >
+                            {feedbackState[topic.id] === "unhelpful" ? "Thanks - we'll improve" : "Needs more detail"}
+                          </button>
+                        </div>
                         {topic.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {topic.tags.map((tag) => (

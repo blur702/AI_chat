@@ -1,12 +1,13 @@
 // ---- Issue Types ----
 
 export interface IssueCreateRequest {
-  project_id: string;
+  project_id?: string | null;
   title: string;
   description?: string | null;
   severity?: "low" | "medium" | "high" | "critical";
   reproduction_steps?: string | null;
   note_id?: string | null;
+  is_app_issue?: boolean;
 }
 
 export interface IssueUpdateRequest {
@@ -18,12 +19,14 @@ export interface IssueUpdateRequest {
   fix_branch?: string | null;
   fix_pr_url?: string | null;
   coderabbit_review_url?: string | null;
+  is_app_issue?: boolean;
 }
 
 export interface IssueResponse {
   id: string;
-  project_id: string;
+  project_id?: string | null;
   project_name?: string | null;
+  is_app_issue?: boolean;
   note_id?: string | null;
   title: string;
   description?: string | null;

@@ -19,6 +19,7 @@ from app.models.context_snippet import ContextSnippet
 from app.models.drupal_site import DrupalSite
 from app.models.event import Event
 from app.models.help_topic import HelpTopic
+from app.models.help_topic_feedback import HelpTopicFeedback
 from app.models.image_generation import ImageGeneration
 from app.models.issue import Issue
 from app.models.context_compaction import ContextCompaction
@@ -51,6 +52,7 @@ __all__ = [
     "DrupalSite",
     "Event",
     "HelpTopic",
+    "HelpTopicFeedback",
     "ImageGeneration",
     "Issue",
     "KBChunk",

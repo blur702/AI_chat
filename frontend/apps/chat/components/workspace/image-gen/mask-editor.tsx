@@ -159,7 +159,13 @@ export function MaskEditor({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-        <label className="text-[11px] text-muted-foreground">Brush: {brushSize}px</label>
+        <label className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+          Brush: {brushSize}px
+          <FieldHelp
+            slug="imagegen-mask-editor"
+            tip="Brush size controls how wide each inpaint mask stroke is."
+          />
+        </label>
         <Button
           type="button"
           size="sm"

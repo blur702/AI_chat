@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { useSystemPrompts } from "@workstation/api";
 import { Loader2 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface PromptSelectorProps {
   value: string | undefined;
@@ -16,7 +17,13 @@ export function PromptSelector({ value, onChange, label = "System Prompt" }: Pro
 
   return (
     <div className="space-y-2">
-      <label htmlFor={selectId} className="text-sm font-medium">{label}</label>
+      <label htmlFor={selectId} className="text-sm font-medium inline-flex items-center gap-1.5">
+        {label}
+        <FieldHelp
+          slug="settings-system-prompt"
+          tip="Select a reusable system prompt to control assistant behavior."
+        />
+      </label>
       <div className="relative">
         <select
           id={selectId}

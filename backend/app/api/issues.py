@@ -53,8 +53,9 @@ async def _enqueue_coderabbit_poll(request: Request, issue_id: str, defer_by: in
 def _issue_to_response(i: Issue) -> IssueResponse:
     return IssueResponse(
         id=str(i.id),
-        project_id=str(i.project_id),
+        project_id=str(i.project_id) if i.project_id else None,
         project_name=i.project.name if i.project else None,
+        is_app_issue=i.is_app_issue,
         note_id=str(i.note_id) if i.note_id else None,
         title=i.title,
         description=i.description,
@@ -74,6 +75,7 @@ def _issue_to_response(i: Issue) -> IssueResponse:
 @router.get("", response_model=IssueListResponse)
 async def list_issues(
     project_id: UUID | None = Query(default=None),
+    is_app_issue: bool | None = Query(default=None),
     issue_status: str | None = Query(default=None, alias="status"),
     severity: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
@@ -88,6 +90,8 @@ async def list_issues(
     )
     if project_id is not None:
         base_q = base_q.where(Issue.project_id == project_id)
+    if is_app_issue is not None:
+        base_q = base_q.where(Issue.is_app_issue == is_app_issue)
     if issue_status is not None:
         base_q = base_q.where(Issue.status == issue_status)
     if severity is not None:
@@ -100,6 +104,70 @@ async def list_issues(
     )
     rows = result.scalars().all()
     return IssueListResponse(issues=[_issue_to_response(i) for i in rows], count=total)
+
+
+# ---- Export ----
+
+@router.get("/export")
+async def export_bugs(
+    project_id: UUID | None = Query(default=None),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Export open/in-progress bugs as markdown for pasting into Claude Code."""
+    user_id = get_user_id(payload)
+    base_q = select(Issue).where(
+        Issue.user_id == user_id,
+        Issue.is_deleted == False,  # noqa: E712
+        Issue.status.in_(["open", "in_progress"]),
+    )
+    if project_id is not None:
+        base_q = base_q.where(Issue.project_id == project_id)
+
+    result = await db.execute(base_q.order_by(Issue.created_at.asc()))
+    bugs = result.scalars().all()
+
+    if not bugs:
+        return {"markdown": "# Bugs to Fix\n\nNo open bugs.\n", "count": 0}
+
+    def _render_bug(idx: int, bug: Issue) -> list[str]:
+        title = bug.title or "Untitled"
+        severity = bug.severity or "medium"
+        created = bug.created_at.strftime("%Y-%m-%d") if bug.created_at else "unknown"
+        chunk = [f"## {idx}. [{severity.upper()}] {title}"]
+        chunk.append(f"**Created:** {created}  **Status:** {bug.status}")
+        if bug.fix_branch:
+            chunk.append(f"**Branch:** `{bug.fix_branch}`")
+        if bug.description:
+            chunk.append(bug.description)
+        if bug.reproduction_steps:
+            chunk.append(f"\n**Reproduction steps:**\n{bug.reproduction_steps}")
+        chunk.append("")
+        return chunk
+
+    app_bugs = [b for b in bugs if b.is_app_issue]
+    project_bugs = [b for b in bugs if not b.is_app_issue]
+
+    lines = [
+        "# Bugs to Fix\n",
+        f"{len(bugs)} bug(s) tracked. Fix each one.",
+        "Codebase root: `/app`\n",
+    ]
+
+    # App-level issues first (skip section if filtering by project_id)
+    if app_bugs and project_id is None:
+        lines.append("# App Issues\n")
+        for i, bug in enumerate(app_bugs, 1):
+            lines.extend(_render_bug(i, bug))
+
+    # Per-project issues
+    if project_bugs:
+        if app_bugs and project_id is None:
+            lines.append("# Project Bugs\n")
+        for i, bug in enumerate(project_bugs, 1):
+            lines.extend(_render_bug(i, bug))
+
+    return {"markdown": "\n".join(lines), "count": len(bugs)}
 
 
 @router.post("", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
@@ -117,6 +185,7 @@ async def create_issue(
         description=body.description,
         severity=body.severity,
         reproduction_steps=body.reproduction_steps,
+        is_app_issue=body.is_app_issue,
     )
     db.add(row)
     await db.commit()
@@ -173,6 +242,7 @@ async def update_issue(
     for field in (
         "title", "description", "severity", "status",
         "reproduction_steps", "fix_branch", "fix_pr_url", "coderabbit_review_url",
+        "is_app_issue",
     ):
         if field in data:
             setattr(row, field, data[field])
@@ -208,52 +278,6 @@ async def delete_issue(
     await db.commit()
 
 
-# ---- Export ----
-
-@router.get("/export")
-async def export_bugs(
-    project_id: UUID | None = Query(default=None),
-    payload: dict = Depends(get_current_user_payload),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """Export open/in-progress bugs as markdown for pasting into Claude Code."""
-    user_id = get_user_id(payload)
-    base_q = select(Issue).where(
-        Issue.user_id == user_id,
-        Issue.is_deleted == False,  # noqa: E712
-        Issue.status.in_(["open", "in_progress"]),
-    )
-    if project_id is not None:
-        base_q = base_q.where(Issue.project_id == project_id)
-
-    result = await db.execute(base_q.order_by(Issue.created_at.asc()))
-    bugs = result.scalars().all()
-
-    if not bugs:
-        return {"markdown": "# Bugs to Fix\n\nNo open bugs.\n", "count": 0}
-
-    lines = [
-        "# Bugs to Fix\n",
-        f"{len(bugs)} bug(s) tracked. Fix each one.",
-        "Codebase root: `/app`\n",
-    ]
-    for i, bug in enumerate(bugs, 1):
-        title = bug.title or "Untitled"
-        severity = bug.severity or "medium"
-        created = bug.created_at.strftime("%Y-%m-%d") if bug.created_at else "unknown"
-        lines.append(f"## {i}. [{severity.upper()}] {title}")
-        lines.append(f"**Created:** {created}  **Status:** {bug.status}")
-        if bug.fix_branch:
-            lines.append(f"**Branch:** `{bug.fix_branch}`")
-        if bug.description:
-            lines.append(bug.description)
-        if bug.reproduction_steps:
-            lines.append(f"\n**Reproduction steps:**\n{bug.reproduction_steps}")
-        lines.append("")
-
-    return {"markdown": "\n".join(lines), "count": len(bugs)}
-
-
 # ---- Workflow ----
 
 @router.post("/{issue_id}/start-fix", response_model=StartFixResponse)
@@ -277,22 +301,23 @@ async def start_fix(
 
     branch_name = f"fix/issue-{str(issue.id)[:8]}"
 
-    # Try to create git branch via sandbox
-    kernel = getattr(request.app.state, "kernel", None)
-    if kernel:
-        sandbox_mgr = kernel.get_service("sandbox_manager")
-        if sandbox_mgr:
-            try:
-                container_id = await sandbox_mgr.get_or_create_container(
-                    issue.project_id
-                )
-                if container_id:
-                    await sandbox_mgr.exec_in_container(
-                        container_id,
-                        f"git checkout -b {shlex.quote(branch_name)}",
+    # Try to create git branch via sandbox (skip for app issues with no project)
+    if issue.project_id is not None:
+        kernel = getattr(request.app.state, "kernel", None)
+        if kernel:
+            sandbox_mgr = kernel.get_service("sandbox_manager")
+            if sandbox_mgr:
+                try:
+                    container_id = await sandbox_mgr.get_or_create_container(
+                        issue.project_id
                     )
-            except Exception as e:
-                logger.warning("Failed to create fix branch in sandbox: %s", e)
+                    if container_id:
+                        await sandbox_mgr.exec_in_container(
+                            container_id,
+                            f"git checkout -b {shlex.quote(branch_name)}",
+                        )
+                except Exception as e:
+                    logger.warning("Failed to create fix branch in sandbox: %s", e)
 
     issue.status = "in_progress"
     issue.fix_branch = branch_name

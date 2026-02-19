@@ -135,7 +135,7 @@ export function NoteItem({
                   size="icon"
                   className="h-6 w-6"
                   onClick={() => onPromoteToIssue(note.id)}
-                  title="Promote to Issue"
+                  title="Promote to Bug"
                 >
                   <Bug className="h-3 w-3" />
                 </Button>
@@ -183,7 +183,7 @@ export function NoteItem({
             )}
             {note.issue_id && (
               <Badge variant="destructive" className="h-4 text-[10px]">
-                Issue
+                Bug
               </Badge>
             )}
             {note.status !== "active" && (

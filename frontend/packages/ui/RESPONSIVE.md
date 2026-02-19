@@ -59,3 +59,9 @@ Common defaults in this package:
 | `.mobile-stack` | column layout for mobile |
 | `.mobile-hide` | hidden below `md` |
 | `.mobile-show` | shown below `md` |
+
+## Related Docs
+
+- Component catalog: [`frontend/packages/ui/COMPONENTS.md`](./COMPONENTS.md)
+- Accessibility: [`frontend/packages/ui/ACCESSIBILITY.md`](./ACCESSIBILITY.md)
+- Docs hub: [`docs/README.md`](../../../docs/README.md)

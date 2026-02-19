@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getClient } from "../client";
 import type {
   VRAMStats,
@@ -109,16 +109,19 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
   const [sortField, setSortField] = useState<ResourceSortField>("priority");
   const [sortOrder, setSortOrder] = useState<ResourceSortOrder>("desc");
   const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>("");
+  const refreshFailureCountRef = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
       setError(null);
       const status = await getClient().getResourceStatus();
+      refreshFailureCountRef.current = 0;
       setFullStatus(status);
       setVramStats(status.vram_stats);
       setSystemStats(status.system_stats);
       setResources(status.loaded_resources);
     } catch (err) {
+      refreshFailureCountRef.current += 1;
       setError(extractErrorMessage(err, "Failed to fetch resources"));
     } finally {
       setLoading(false);
@@ -126,11 +129,28 @@ export function useResources(autoRefreshMs?: number): UseResourcesReturn {
   }, []);
 
   useEffect(() => {
-    refresh();
-    if (autoRefreshMs && autoRefreshMs > 0) {
-      const interval = setInterval(refresh, autoRefreshMs);
-      return () => clearInterval(interval);
-    }
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const poll = async () => {
+      await refresh();
+      if (cancelled || !autoRefreshMs || autoRefreshMs <= 0) return;
+
+      // Exponential backoff when backend is unavailable to avoid console flood.
+      const backoffMultiplier = Math.min(
+        Math.pow(2, Math.max(0, refreshFailureCountRef.current)),
+        12,
+      );
+      const nextMs = Math.min(autoRefreshMs * backoffMultiplier, 60_000);
+      timer = setTimeout(poll, nextMs);
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [refresh, autoRefreshMs]);
 
   const offloadResource = useCallback(

@@ -123,7 +123,7 @@ export function GlobalHeader() {
           className="mr-2 flex shrink-0 items-center gap-1.5 text-sm font-semibold text-foreground"
         >
           <MessageSquare className="h-4 w-4 text-primary" />
-          {!isMobile && <span>SSDD</span>}
+          {!isMobile && <span>AI Workshop</span>}
         </Link>
 
         {/* Nav links - scrollable on mobile */}

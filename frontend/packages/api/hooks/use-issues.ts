@@ -33,6 +33,7 @@ export interface UseIssuesReturn {
 
 export function useIssues(filters?: {
   project_id?: string;
+  is_app_issue?: boolean;
   status?: string;
   severity?: string;
 }): UseIssuesReturn {
@@ -49,11 +50,11 @@ export function useIssues(filters?: {
       setIssues(res.issues);
       setCount(res.count);
     } catch (err) {
-      setError(extractErrorMessage(err, "Failed to load issues"));
+      setError(extractErrorMessage(err, "Failed to load bugs"));
     } finally {
       setLoading(false);
     }
-  }, [filters?.project_id, filters?.status, filters?.severity]);
+  }, [filters?.project_id, filters?.is_app_issue, filters?.status, filters?.severity]);
 
   useEffect(() => {
     refresh();
@@ -67,7 +68,7 @@ export function useIssues(filters?: {
         await refresh();
         return result;
       } catch (err) {
-        setError(extractErrorMessage(err, "Failed to create issue"));
+        setError(extractErrorMessage(err, "Failed to create bug"));
         throw err;
       }
     },
@@ -82,7 +83,7 @@ export function useIssues(filters?: {
         await refresh();
         return result;
       } catch (err) {
-        setError(extractErrorMessage(err, "Failed to update issue"));
+        setError(extractErrorMessage(err, "Failed to update bug"));
         throw err;
       }
     },
@@ -96,7 +97,7 @@ export function useIssues(filters?: {
         await getClient().deleteIssue(id);
         await refresh();
       } catch (err) {
-        setError(extractErrorMessage(err, "Failed to delete issue"));
+        setError(extractErrorMessage(err, "Failed to delete bug"));
         throw err;
       }
     },

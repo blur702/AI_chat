@@ -489,49 +489,7 @@ HELP_TOPICS = [
         "body": "Palette colors define the actual hex values and optional semantic roles like primary, surface, text, and accent. These roles make downstream use in UI and generation workflows much easier. Tip: always verify contrast for text and interactive states.",
         "tags": ["workspace", "palette", "design"]
     },
-    {
-        "slug": "sidebar-settings",
-        "section_id": "sidebar",
-        "title": "Sidebar Settings",
-        "body": "Sidebar Settings is the quick entry point to account, AI, notification, and feature preferences. Changes here affect behavior across chat, workspace, and integrations. Tip: review settings after major upgrades to catch new defaults.",
-        "tags": ["sidebar", "settings"]
-    },
-    {
-        "slug": "sidebar-palettes",
-        "section_id": "sidebar",
-        "title": "Palettes",
-        "body": "Palettes opens your shared color library for creation, editing, and reuse across design-related workflows. It connects naturally with UI Builder and visual generation tasks. Tip: standardize naming and tags so teams can reuse palettes without guesswork.",
-        "tags": ["sidebar", "palette", "navigation"]
-    },
-    {
-        "slug": "sidebar-projects",
-        "section_id": "sidebar",
-        "title": "Projects",
-        "body": "Projects is the navigation hub for creating, opening, and organizing all workspaces. Most app functionality is project-scoped, including files, tools, and context. Tip: keep projects focused by objective so history and assets remain clean.",
-        "tags": ["sidebar", "projects"]
-    },
-    {
-        "slug": "sidebar-ide",
-        "section_id": "sidebar",
-        "title": "Open IDE",
-        "body": "Open IDE jumps into the full workspace where editing, running, planning, and tool execution happen together. It is the primary surface for implementation work. Tip: use IDE mode for multi-step tasks that require both code and assistant orchestration.",
-        "tags": ["sidebar", "workspace", "ide"]
-    },
-    {
-        "slug": "sidebar-help",
-        "section_id": "sidebar",
-        "title": "Help",
-        "body": "Help opens searchable documentation for features, field guidance, and workflow concepts across the application. It is designed to answer operational questions in place. Tip: search by feature name first, then refine with section-specific keywords.",
-        "tags": ["sidebar", "help"]
-    },
-    {
-        "slug": "sidebar-logout",
-        "section_id": "sidebar",
-        "title": "Log Out",
-        "body": "Log Out ends the current authenticated session and returns you to the login screen. This is important on shared devices and high-sensitivity environments. Tip: log out explicitly after admin or production-integrated sessions.",
-        "tags": ["sidebar", "auth"]
-    },
-    {
+                            {
         "slug": "chat-stop",
         "section_id": "chat",
         "title": "Stop Generating",
@@ -573,14 +531,7 @@ HELP_TOPICS = [
         "body": "Site URL is the root address for your Drupal instance and is used to build JSON:API and staging operations. Connection tests validate this endpoint before saving credentials. Tip: use the canonical public URL that reflects production routing behavior.",
         "tags": ["drupal", "integration"]
     },
-    {
-        "slug": "drupal-connect-api-key",
-        "section_id": "drupal",
-        "title": "Drupal Connect: API Key",
-        "body": "API key support is retained for older Drupal integration flows where token-based auth is used. Newer connections typically rely on username/password Basic Auth through JSON:API. Tip: use this only when your deployment is configured for key-based access.",
-        "tags": ["drupal", "integration", "security"]
-    },
-    {
+        {
         "slug": "drupal-connect-site-name",
         "section_id": "drupal",
         "title": "Drupal Connect: Site Name",
@@ -629,119 +580,14 @@ HELP_TOPICS = [
         "body": "Persist stores events in the database in addition to real-time broadcast, enabling audit, replay, and historical analysis. Use persistence for important business or operational signals. Tip: persist events that matter for compliance, debugging, or reporting.",
         "tags": ["events", "storage"]
     },
-    {
-        "slug": "app-overview",
-        "section_id": "app-guides",
-        "title": "Platform Overview",
-        "body": "The platform is organized around projects, where chat, workspace tools, files, and integrations share the same context. Most features are strongest when used together: chat plans and reasons, tools execute, files store outcomes, and history/events document what happened. Tip: start every session by confirming the active project and target environment.",
-        "tags": ["guide", "overview", "workflow"]
-    },
-    {
-        "slug": "app-chat-overview",
-        "section_id": "app-guides",
-        "title": "Chat Workflow Overview",
-        "body": "Chat is your orchestration layer for ideation, planning, implementation guidance, and tool-assisted execution. It works best when combined with context panels, tool approvals, and file updates in workspace. Tip: phrase requests with objective, constraints, and expected output format to reduce back-and-forth.",
-        "tags": ["guide", "chat", "workflow"]
-    },
-    {
-        "slug": "app-workspace-overview",
-        "section_id": "app-guides",
-        "title": "Workspace Overview",
-        "body": "Workspace combines files, run controls, tools, planning, and panel-specific capabilities in one operational surface. It is where assistant guidance turns into concrete project changes and verifiable outputs. Tip: move between Chat and Workspace frequently to keep reasoning and execution aligned.",
-        "tags": ["guide", "workspace", "workflow"]
-    },
-    {
-        "slug": "app-mcp-overview",
-        "section_id": "app-guides",
-        "title": "MCP Workspace Overview",
-        "body": "MCP workspace pairs chat with live external capability layers so actions can be executed through structured tools and reflected in connected previews. In Drupal-style flows, this means conversation-driven updates with near real-time validation in preview panes. Tip: keep staging or sandbox targets active while testing MCP-driven changes.",
-        "tags": ["guide", "mcp", "integration"]
-    },
-    {
-        "slug": "app-drupal-overview",
-        "section_id": "app-guides",
-        "title": "Drupal Integration Overview",
-        "body": "Drupal integration supports connection management, content operations, staging clone/push, and preview validation from one interface. It fits into the broader workflow by combining chat guidance, tool actions, and environment controls. Tip: validate credentials and staging status before large synchronization tasks.",
-        "tags": ["guide", "drupal", "integration"]
-    },
-    {
-        "slug": "app-studio-overview",
-        "section_id": "app-guides",
-        "title": "Studio Overview",
-        "body": "Studio focuses on creative production workflows such as timeline-based work, media settings, and output export paths. It integrates with project resources and backend rendering services for reproducible results. Tip: lock core project settings before long renders to avoid mismatched outputs.",
-        "tags": ["guide", "studio", "media"]
-    },
-    {
-        "slug": "app-settings-overview",
-        "section_id": "app-guides",
-        "title": "Settings Overview",
-        "body": "Settings controls account, AI defaults, notifications, and feature-specific preferences that shape behavior across the entire app. Good defaults reduce friction in every new chat and project workflow. Tip: revisit settings after changing model providers or adding new integrations.",
-        "tags": ["guide", "settings", "configuration"]
-    },
-    {
-        "slug": "app-projects-overview",
-        "section_id": "app-guides",
-        "title": "Projects and Imports Overview",
-        "body": "Projects define boundaries for files, context, tools, and integrations. Import and export features let you bootstrap work from websites and package outcomes for deployment. Tip: keep one clear objective per project to simplify retrieval, governance, and collaboration.",
-        "tags": ["guide", "projects", "import", "export"]
-    },
-    {
-        "slug": "app-admin-overview",
-        "section_id": "app-guides",
-        "title": "Admin Console Overview",
-        "body": "Admin tools manage users, service health, help topics, and system-level configuration. Changes here can affect all users and workflows, so they should be deliberate and documented. Tip: test policy and configuration changes in non-production environments first.",
-        "tags": ["guide", "admin", "operations"]
-    },
-    {
-        "slug": "app-imagegen-overview",
-        "section_id": "app-guides",
-        "title": "Image Generation Workflow Overview",
-        "body": "Image generation combines prompt engineering, model selection, sampling settings, and optional controls like LoRA, ControlNet, and reference images. Outputs feed into project assets and can be reused in downstream design or media workflows. Tip: tune one variable at a time for reliable comparisons.",
-        "tags": ["guide", "image", "workflow"]
-    },
-    {
-        "slug": "app-kb-overview",
-        "section_id": "app-guides",
-        "title": "Knowledge Base Workflow Overview",
-        "body": "Knowledge base workflows transform documents through extraction, chunking, embedding, and indexing so chat and tools can retrieve relevant context quickly. Quality depends on clean source data and coherent indexing settings. Tip: run a pilot index and query test before bulk ingestion.",
-        "tags": ["guide", "kb", "retrieval"]
-    },
-    {
-        "slug": "app-tools-overview",
-        "section_id": "app-guides",
-        "title": "Tools Integration Overview",
-        "body": "Tools are execution primitives that let the assistant perform concrete operations such as command execution, API calls, and workflow actions. They connect reasoning in chat to real system changes in workspace. Tip: require explicit approvals for sensitive tools and track outcomes in history/events.",
-        "tags": ["guide", "tools", "integration"]
-    },
-    {
-        "slug": "field-help-overview",
-        "section_id": "help",
-        "title": "Using Field Help",
-        "body": "Each help icon gives you a quick tip for the field you are editing. Select Read more to open full guidance in the Help panel. Tip: if you are unsure what to enter, start with the recommended default and refine after your first run.",
-        "tags": ["help", "fields", "basics"]
-    },
-    {
+                                                        {
         "slug": "tool-parameter-text",
         "section_id": "workspace",
         "title": "Tool Parameter: Text Input",
         "body": "Text parameters pass plain string values to tools. Enter short, specific values so the tool can interpret your intent clearly. Tip: avoid trailing punctuation or extra spaces unless they are meaningful to the command.",
         "tags": ["workspace", "tools", "parameters"]
     },
-    {
-        "slug": "tool-parameter-number",
-        "section_id": "workspace",
-        "title": "Tool Parameter: Number Input",
-        "body": "Number parameters expect numeric values such as limits, sizes, or thresholds. Use whole numbers unless the field explicitly supports decimals. Tip: start conservative (for example, smaller limits) and increase only if needed.",
-        "tags": ["workspace", "tools", "parameters"]
-    },
-    {
-        "slug": "tool-parameter-select",
-        "section_id": "workspace",
-        "title": "Tool Parameter: Select Option",
-        "body": "Select parameters provide safe predefined choices. Pick the option that best matches your task rather than typing a custom value. Tip: when in doubt, use the default option first and compare results.",
-        "tags": ["workspace", "tools", "parameters"]
-    },
-    {
+            {
         "slug": "tool-parameter-boolean",
         "section_id": "workspace",
         "title": "Tool Parameter: Toggle",
@@ -1001,42 +847,7 @@ HELP_TOPICS = [
         "body": "Video Studio is a timeline-based editor for creating e-learning videos, product demos, and presentations. Projects contain tracks for screen recordings, text overlays, subtitles, and imported media. The editor provides a preview canvas, properties panel, and timeline with drag-and-drop clip arrangement. Use the Media Bin to upload or record assets, the Subtitle Editor for caption tracks, and Export to render finished videos as HTML or download media. Projects auto-save with Ctrl+S. Tip: start by creating a project from the dashboard, then record your screen or upload media before building the timeline.",
         "tags": ["studio", "video", "timeline", "media"]
     },
-    {
-        "slug": "studio-screen-recorder",
-        "section_id": "studio",
-        "title": "Screen Recorder",
-        "body": "The screen recorder captures your browser tab, application window, or entire screen as a video clip that is automatically added to the project's Media Bin. Recording uses the browser's MediaRecorder API with WebM format. You can select the capture source, toggle microphone audio, and control recording via start/stop buttons. Recorded clips appear in the Media Bin and can be dragged onto timeline tracks. Tip: close unnecessary tabs and notifications before recording to keep the capture clean, and use tab capture for the highest quality.",
-        "tags": ["studio", "recording", "screen-capture"]
-    },
-    {
-        "slug": "studio-media-bin",
-        "section_id": "studio",
-        "title": "Media Bin",
-        "body": "The Media Bin stores all assets (videos, images, audio) associated with a studio project. Upload files by dragging them into the bin or clicking the upload button. Assets are stored on the server and can be placed on timeline tracks by dragging them onto the timeline. Each asset shows a thumbnail preview, duration, and file size. Delete unused assets to keep projects organized. Tip: organize your media before building the timeline — rename clips for clarity and remove unused takes.",
-        "tags": ["studio", "media", "assets", "upload"]
-    },
-    {
-        "slug": "studio-subtitle-editor",
-        "section_id": "studio",
-        "title": "Subtitle Editor",
-        "body": "The Subtitle Editor creates and manages caption tracks synchronized to the video timeline. Add subtitle cues with start time, end time, and text content. Subtitles can be styled with font size, color, and position (top, center, bottom). Import existing SRT or VTT files, or create subtitles manually cue by cue. The preview canvas shows subtitle rendering in real time as you scrub through the timeline. Tip: keep individual subtitle cues under 2 lines and 42 characters per line for readability across screen sizes.",
-        "tags": ["studio", "subtitles", "captions", "accessibility"]
-    },
-    {
-        "slug": "studio-timeline",
-        "section_id": "studio",
-        "title": "Timeline Editor",
-        "body": "The timeline arranges clips across multiple tracks in chronological order. Each track holds one type of content (video, text, subtitle, audio). Drag clips to reposition them, resize handles to adjust duration, and use the playhead to scrub through the project. Timeline settings control canvas resolution (width/height), frame rate, and background color. Tracks can be locked to prevent accidental edits, muted to hide content during preview, or reordered by dragging. Tip: use separate tracks for text overlays and subtitles to keep the timeline organized and avoid overlapping content.",
-        "tags": ["studio", "timeline", "tracks", "editing"]
-    },
-    {
-        "slug": "studio-export",
-        "section_id": "studio",
-        "title": "Export",
-        "body": "Export renders the finished studio project into a downloadable format. HTML export creates a self-contained web page with embedded media and subtitle rendering that can be opened in any browser. The export process runs as a background job — you can monitor progress and download the result when complete. Export captures all timeline tracks, text overlays, subtitles, and media at the project's configured resolution. Tip: preview the full project before exporting to catch timing issues, and use HTML export for sharing without requiring video codecs.",
-        "tags": ["studio", "export", "render", "html"]
-    },
-    # ---- VRAM Management (Admin) ----
+                        # ---- VRAM Management (Admin) ----
     {
         "slug": "admin-vram-overview",
         "section_id": "admin",
@@ -1044,56 +855,273 @@ HELP_TOPICS = [
         "body": "VRAM Management provides a visual dashboard for monitoring GPU memory usage and controlling which AI models are loaded. Each GPU card shows current VRAM utilization with a progress bar, running models, and available local models. Use drag-and-drop to move models between GPUs and RAM, or click action buttons to load, unload, or offload individual models. The RAM zone displays resources that have been offloaded from GPU memory but remain in system RAM for quick reload. System stats show overall CPU, RAM, and disk usage. Tip: offload idle models to RAM before starting image generation to free VRAM without losing the ability to quickly reload them.",
         "tags": ["admin", "vram", "gpu", "models", "monitoring"]
     },
+    {
+        "slug": "admin-help-topic-title",
+        "section_id": "admin",
+        "title": "Help Topic Title",
+        "body": "Title is the primary label users see in the help modal and search results, so it should clearly describe the question being answered. Keep titles short, concrete, and task-focused. Tip: prefer phrases like 'Reset Password' or 'Model Selector' over vague labels such as 'General Notes'.",
+        "tags": ["admin", "help", "content"]
+    },
+    {
+        "slug": "admin-help-topic-slug",
+        "section_id": "admin",
+        "title": "Help Topic Slug",
+        "body": "Slug is the stable identifier used by FieldHelp and openHelp links to deep-link users to a specific help entry. Use lowercase words separated by hyphens and avoid renaming established slugs unless you update every UI reference. Tip: treat slugs like API contracts for help navigation.",
+        "tags": ["admin", "help", "slug"]
+    },
+    {
+        "slug": "admin-help-topic-section",
+        "section_id": "admin",
+        "title": "Help Topic Section",
+        "body": "Section groups related topics in the help panel, which improves browsing when users do not know the exact term to search. Use consistent section IDs such as admin, workspace, image-gen, or settings. Tip: place new topics in an existing section whenever possible to reduce fragmentation.",
+        "tags": ["admin", "help", "organization"]
+    },
+    {
+        "slug": "admin-help-topic-body",
+        "section_id": "admin",
+        "title": "Help Topic Body",
+        "body": "Body contains the actual guidance users read after opening a topic. Start with a clear one-sentence answer, then explain concepts, expected behavior, and practical troubleshooting steps. Tip: include at least one concrete example and one operational tip so the guidance is actionable.",
+        "tags": ["admin", "help", "writing"]
+    },
+    {
+        "slug": "admin-help-topic-tags",
+        "section_id": "admin",
+        "title": "Help Topic Tags",
+        "body": "Tags improve discovery by matching alternate wording users type in search. Use short keywords that reflect intent, domain, and common synonyms. For example, a login topic might include auth, token, and session. Tip: keep tags focused and avoid duplicating full sentences in the tag list.",
+        "tags": ["admin", "help", "search"]
+    },
+    {
+        "slug": "admin-help-topic-search",
+        "section_id": "admin",
+        "title": "Help Topic Search",
+        "body": "Help topic search filters entries by title, body text, slug, and tags so admins can quickly find and edit stale content. Use search before creating a new topic to avoid duplicates. Tip: search for both user language and technical terms to confirm coverage before publishing changes.",
+        "tags": ["admin", "help", "search"]
+    },
     # ---- Notes (per-field) ----
-    {
-        "slug": "notes-categories",
-        "section_id": "notes",
-        "title": "Note Categories",
-        "body": "Categories organize notes by topic — for example, Errors, Ideas, or TODO. System categories (Errors, App Bugs) are created automatically for every user and cannot be deleted. Create custom categories with names, slugs, and optional color tags to match your workflow. Each note can belong to one category, and you can filter the note list by category. Categories are user-scoped, so each user has their own set. Tip: use the Errors category for runtime issues you want to promote to trackable Issues later.",
-        "tags": ["notes", "categories", "organization"]
+                    # ---- Issues (per-field) ----
+                {
+        "slug": "admin-user-role",
+        "section_id": "admin",
+        "title": "User Role",
+        "body": "Role controls account permissions across the app. User is standard access, while Admin includes management actions such as user administration and advanced controls. Tip: grant admin only to operators who require governance features.",
+        "tags": ["admin", "users", "permissions"]
     },
     {
-        "slug": "notes-kanban",
-        "section_id": "notes",
-        "title": "Kanban Board",
-        "body": "The Kanban board organizes notes into columns by project. Each column represents a project (or General for unassigned notes). Drag notes between columns to reassign them to a different project. Hold Shift while dropping to copy a note instead of moving it. The board provides a visual overview of note distribution across projects, making it easy to spot which projects have accumulated the most observations or tasks. Tip: use the Kanban view when you need a quick overview across all projects, and switch to the list view for detailed filtering by category or status.",
-        "tags": ["notes", "kanban", "organization", "drag-drop"]
+        "slug": "admin-user-status",
+        "section_id": "admin",
+        "title": "User Status",
+        "body": "Status determines whether an account can sign in. Active users can authenticate and use assigned features; inactive users are blocked without deleting history. Tip: set users inactive when access should be paused temporarily.",
+        "tags": ["admin", "users", "access"]
     },
     {
-        "slug": "notes-ai-title",
-        "section_id": "notes",
-        "title": "AI-Generated Title",
-        "body": "When enabled, the AI Title toggle sends your note body to the AI model to generate a concise, descriptive title. This saves time when capturing quick thoughts where writing a good title upfront would slow you down. The generated title typically summarizes the key point of the note in 5-10 words. You can edit the title afterward if the generated version needs refinement. Tip: write at least 2-3 sentences in the note body before using AI Title — very short notes produce generic titles.",
-        "tags": ["notes", "ai", "title", "productivity"]
+        "slug": "admin-auto-refresh",
+        "section_id": "admin",
+        "title": "Auto Refresh",
+        "body": "Auto refresh reloads panel data on a schedule so statuses stay current without manual clicks. Use short intervals during troubleshooting and longer intervals for normal monitoring. Tip: slower intervals reduce resource usage on busy environments.",
+        "tags": ["admin", "monitoring", "refresh"]
     },
     {
-        "slug": "notes-promote-to-issue",
-        "section_id": "notes",
-        "title": "Promote Note to Issue",
-        "body": "Promoting a note converts it into a trackable Issue with severity levels, status workflow, and fix branch integration. The note must be assigned to a project before promotion. The new Issue inherits the note title and body as its description, and the note is automatically moved to the Errors category. Once promoted, the note shows a link to its Issue, and the Issue back-references the original note. This is a one-way operation — you cannot un-promote an Issue back to a note. Tip: use promotion when a casual observation becomes a concrete bug that needs a fix branch, PR tracking, and status workflow.",
-        "tags": ["notes", "issues", "promotion", "workflow"]
+        "slug": "chat-instructions",
+        "section_id": "workspace",
+        "title": "Chat Instructions",
+        "body": "Chat instructions apply only to the current conversation and do not change project defaults. Use this for temporary constraints, tone adjustments, or one-off task rules. Tip: keep chat instructions short and task-specific for predictable results.",
+        "tags": ["chat", "instructions", "context"]
     },
-    # ---- Issues (per-field) ----
     {
-        "slug": "issues-severity",
+        "slug": "prompt-library-name",
+        "section_id": "workspace",
+        "title": "Prompt Name",
+        "body": "Prompt name is the label shown in selectors and lists. It should quickly communicate intent, such as Code Review Strict or Bug Triage. Tip: use consistent naming prefixes so related prompts stay grouped.",
+        "tags": ["prompts", "naming", "library"]
+    },
+    {
+        "slug": "prompt-library-description",
+        "section_id": "workspace",
+        "title": "Prompt Description",
+        "body": "Description explains when a prompt should be used and what it optimizes for. It helps teammates choose correctly without opening full content. Tip: include one sentence with scope and expected outcome.",
+        "tags": ["prompts", "documentation", "library"]
+    },
+    {
+        "slug": "prompt-library-content",
+        "section_id": "workspace",
+        "title": "Prompt Content",
+        "body": "Prompt content is the instruction body sent to the model when this preset is selected. Be explicit about constraints, output format, and tone. Tip: add one short example of desired output when consistency matters.",
+        "tags": ["prompts", "instructions", "models"]
+    },
+    {
+        "slug": "snippet-library-name",
+        "section_id": "workspace",
+        "title": "Snippet Name",
+        "body": "Snippet name is a quick identifier used in snippet lists and insert menus. Choose a short, meaningful title that reflects purpose. Tip: prefer action-oriented names like Deploy Checklist over generic labels.",
+        "tags": ["snippets", "naming", "library"]
+    },
+    {
+        "slug": "snippet-library-description",
+        "section_id": "workspace",
+        "title": "Snippet Description",
+        "body": "Snippet description gives optional context about when to use the snippet and why it exists. This helps reduce duplicates with similar content. Tip: mention intended workflow in one sentence.",
+        "tags": ["snippets", "documentation", "library"]
+    },
+    {
+        "slug": "snippet-library-content",
+        "section_id": "workspace",
+        "title": "Snippet Content",
+        "body": "Snippet content is the reusable text inserted into prompts or context. Keep it focused so it composes well with other snippets. Tip: split large templates into smaller reusable blocks when possible.",
+        "tags": ["snippets", "content", "reuse"]
+    },
+    {
+        "slug": "snippet-library-tags",
+        "section_id": "workspace",
+        "title": "Snippet Tags",
+        "body": "Tags are keywords used for filtering and discovery. Good tags include domain, language, and workflow terms such as python, api, or onboarding. Tip: keep tags short and consistent for reliable search.",
+        "tags": ["snippets", "tags", "search"]
+    },
+    {
+        "slug": "palette-seed-color",
+        "section_id": "drupal",
+        "title": "Palette Seed Color",
+        "body": "Seed color is the starting hue used to generate related colors. The harmony algorithm builds around this value to produce coherent results. Tip: use your brand primary color as the seed when designing themes.",
+        "tags": ["drupal", "palette", "color"]
+    },
+    {
+        "slug": "palette-harmony",
+        "section_id": "drupal",
+        "title": "Palette Harmony",
+        "body": "Harmony selects the color relationship strategy, such as complementary or triadic. Different harmonies produce different contrast and mood characteristics. Tip: choose complementary for contrast and analogous for softer blends.",
+        "tags": ["drupal", "palette", "design"]
+    },
+    {
+        "slug": "drupal-node-title",
+        "section_id": "drupal",
+        "title": "Drupal Node Title",
+        "body": "Node title is the main headline for content entries and appears in listings and page headers. Keep it concise and descriptive. Tip: avoid duplicate titles within the same content type.",
+        "tags": ["drupal", "content", "nodes"]
+    },
+    {
+        "slug": "drupal-node-body",
+        "section_id": "drupal",
+        "title": "Drupal Node Body",
+        "body": "Node body contains the primary content for the selected entry. It can include formatted text based on site configuration. Tip: preview content after edits to confirm rendering and layout.",
+        "tags": ["drupal", "content", "nodes"]
+    },
+    {
+        "slug": "drupal-node-published",
+        "section_id": "drupal",
+        "title": "Drupal Published Status",
+        "body": "Published status controls visitor visibility. Published content is public; unpublished remains hidden. Tip: keep drafts unpublished until review and QA are complete.",
+        "tags": ["drupal", "content", "publishing"]
+    },
+    {
+        "slug": "drupal-module-name",
+        "section_id": "drupal",
+        "title": "Module Name",
+        "body": "Module name is the human-readable label shown in Drupal admin. It should clearly describe purpose. Tip: use names that align with feature language used by editors.",
+        "tags": ["drupal", "modules", "scaffold"]
+    },
+    {
+        "slug": "drupal-module-machine-name",
+        "section_id": "drupal",
+        "title": "Module Machine Name",
+        "body": "Machine name is the stable code identifier used in file names and internal references. It must use lowercase letters, numbers, and underscores, starting with a letter. Tip: choose a short prefix to keep service IDs readable.",
+        "tags": ["drupal", "modules", "scaffold"]
+    },
+    {
+        "slug": "drupal-module-description",
+        "section_id": "drupal",
+        "title": "Module Description",
+        "body": "Description summarizes module functionality for admins and maintainers. It appears in module listings. Tip: include the primary feature and scope in one sentence.",
+        "tags": ["drupal", "modules", "documentation"]
+    },
+    {
+        "slug": "drupal-module-package",
+        "section_id": "drupal",
+        "title": "Module Package",
+        "body": "Package groups modules under a shared category in Drupal admin to improve browsing. Tip: use consistent package names for modules in the same product area.",
+        "tags": ["drupal", "modules", "organization"]
+    },
+    {
+        "slug": "drupal-staging-push-files",
+        "section_id": "drupal",
+        "title": "Push Files",
+        "body": "Push files sends staged code and configuration changes to production, including themes, modules, and config exports. Tip: run staging validation checks before pushing files to live.",
+        "tags": ["drupal", "staging", "deployment"]
+    },
+    {
+        "slug": "drupal-staging-push-database",
+        "section_id": "drupal",
+        "title": "Push Database",
+        "body": "Push database overwrites production database state with staging data. This is destructive and may replace live content changes. Tip: take a production backup and get team approval before enabling this option.",
+        "tags": ["drupal", "staging", "database", "deployment"]
+    },
+    {
+        "slug": "issues-app-scope",
         "section_id": "issues",
-        "title": "Issue Severity",
-        "body": "Severity indicates the impact and urgency of a bug or task. Four levels are available: Critical (system down, data loss, or security vulnerability), High (major feature broken, significant user impact), Medium (feature partially broken, workaround exists), and Low (cosmetic issue, minor inconvenience). Severity drives filtering and priority views — Critical and High issues surface first in the default sort order. Set severity thoughtfully to help prioritize fix order. Tip: reserve Critical for issues that block all users or risk data integrity, and use Medium for bugs with known workarounds.",
-        "tags": ["issues", "severity", "priority", "triage"]
+        "title": "AI Workshop Issue Scope",
+        "body": "AI Workshop scope marks an issue as platform-level instead of project-specific. Use it for core app defects or shared infrastructure problems. Tip: choose project scope whenever the bug is isolated to one workspace.",
+        "tags": ["issues", "scope", "triage"]
     },
     {
-        "slug": "issues-status-workflow",
-        "section_id": "issues",
-        "title": "Issue Status Workflow",
-        "body": "Issues progress through a status workflow: Open (newly reported, needs investigation), In Progress (fix is being developed, often linked to a branch), Fix Pending Review (PR submitted, awaiting review), Resolved (fix verified and merged), and Closed (no action needed or duplicate). Status changes are tracked in the issue timeline. Use the Start Fix button to move an issue to In Progress and auto-create a git branch in the project sandbox. Tip: move issues to Resolved only after verifying the fix in the staging environment, not just when the PR is merged.",
-        "tags": ["issues", "status", "workflow", "tracking"]
+        "slug": "imagegen-preset-name",
+        "section_id": "image-gen",
+        "title": "Preset Name",
+        "body": "Preset name identifies a saved image generation preset in load menus. Use a clear name that reflects style or intent. Tip: include key terms so presets are easy to scan quickly.",
+        "tags": ["image", "presets", "organization"]
     },
     {
-        "slug": "issues-start-fix",
-        "section_id": "issues",
-        "title": "Start Fix",
-        "body": "Start Fix creates a new git branch in the project sandbox container named after the issue, sets the issue status to In Progress, and injects a fix request into the chat panel with the issue details. This streamlines the workflow from bug report to development by automating branch creation and providing context to the AI assistant. The branch name follows the pattern fix/issue-title-slug. After fixing, link the PR URL back to the issue for tracking. Tip: use Start Fix to get the AI assistant involved immediately — it receives the issue title, severity, description, and reproduction steps as context.",
-        "tags": ["issues", "fix", "branch", "workflow", "automation"]
+        "slug": "imagegen-preset-category",
+        "section_id": "image-gen",
+        "title": "Preset Category",
+        "body": "Preset category groups saved presets into buckets like portrait or landscape. Categories keep larger libraries organized. Tip: avoid near-duplicate categories to keep filtering simple.",
+        "tags": ["image", "presets", "organization"]
+    },
+    {
+        "slug": "project-name",
+        "section_id": "projects",
+        "title": "Project Name",
+        "body": "Project name is the main display label used in lists, tabs, and workspace headers. Keep it concise and recognizable. Tip: include client or feature context when managing many projects.",
+        "tags": ["projects", "naming", "workspace"]
+    },
+    {
+        "slug": "project-path",
+        "section_id": "projects",
+        "title": "Project Path",
+        "body": "Project path is the filesystem location for the workspace on disk. The app reads and writes files under this path during development tasks. Tip: avoid spaces and unusual characters for best tool compatibility.",
+        "tags": ["projects", "filesystem", "workspace"]
+    },
+    {
+        "slug": "project-git-url",
+        "section_id": "projects",
+        "title": "Git Repository URL",
+        "body": "Repository URL points to the remote source cloned during Git import. Use a valid HTTPS URL with a repository path. Tip: verify repository access rights before importing.",
+        "tags": ["projects", "git", "import"]
+    },
+    {
+        "slug": "project-git-branch",
+        "section_id": "projects",
+        "title": "Git Branch",
+        "body": "Branch optionally selects a non-default branch during import. Leave blank to use the repository default branch. Tip: specify release or feature branches when reproducing environment-specific behavior.",
+        "tags": ["projects", "git", "branches"]
+    },
+    {
+        "slug": "project-git-install-deps",
+        "section_id": "projects",
+        "title": "Auto-Install Dependencies",
+        "body": "Auto-install dependencies runs setup after import completes. This saves manual setup time but can increase import duration. Tip: disable when you need custom install steps or lockfile validation first.",
+        "tags": ["projects", "import", "dependencies"]
+    },
+    {
+        "slug": "project-archive-file",
+        "section_id": "projects",
+        "title": "Archive File",
+        "body": "Archive file is the uploaded package used to create a project from local source. Supported formats include zip and tar variants. Tip: verify archive root structure so files extract into the expected layout.",
+        "tags": ["projects", "import", "archive"]
+    },
+    {
+        "slug": "settings-username",
+        "section_id": "profile",
+        "title": "Username",
+        "body": "Username is the unique account identifier used for login and internal references. It is usually immutable after account creation to preserve audit consistency. Tip: use display name for presentation changes.",
+        "tags": ["profile", "account", "identity"]
     }
 ]
 
@@ -1115,3 +1143,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

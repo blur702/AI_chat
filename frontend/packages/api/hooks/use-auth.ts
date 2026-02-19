@@ -90,6 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     const restoreSession = async () => {
+      if (typeof window !== "undefined" && window.location.pathname.startsWith("/login")) {
+        if (!cancelled) setState({ ...emptyState, isLoading: false });
+        return;
+      }
+
       try {
         const user = await getClient().getCurrentUser();
         if (!cancelled) setState(stateFromUser(user));
@@ -100,6 +105,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void restoreSession();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleTokenExpired = () => {
+      getClient().setToken(null);
+      setState({ ...emptyState, isLoading: false });
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+    };
+    window.addEventListener("auth-token-expired", handleTokenExpired);
+    return () => {
+      window.removeEventListener("auth-token-expired", handleTokenExpired);
     };
   }, []);
 

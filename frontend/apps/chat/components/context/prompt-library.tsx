@@ -16,6 +16,7 @@ import {
 import { useSystemPrompts } from "@workstation/api";
 import { Plus, Pencil, Trash2, Star, Loader2 } from "lucide-react";
 import type { SystemPromptCreateRequest, SystemPromptUpdateRequest } from "@workstation/api";
+import { FieldHelp } from "@/components/help/field-help";
 
 export function PromptLibrary() {
   const { prompts, loading, error, createPrompt, updatePrompt, deletePrompt, setDefault } =
@@ -221,8 +222,12 @@ export function PromptLibrary() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label htmlFor="prompt-name" className="text-sm font-medium">
+              <label htmlFor="prompt-name" className="text-sm font-medium flex items-center gap-1.5">
                 Name
+                <FieldHelp
+                  slug="prompt-library-name"
+                  tip="Short label used to identify this reusable system prompt."
+                />
               </label>
               <Input
                 id="prompt-name"
@@ -233,8 +238,12 @@ export function PromptLibrary() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="prompt-description" className="text-sm font-medium">
+              <label htmlFor="prompt-description" className="text-sm font-medium flex items-center gap-1.5">
                 Description <span className="text-muted-foreground font-normal">(optional)</span>
+                <FieldHelp
+                  slug="prompt-library-description"
+                  tip="Optional summary to explain when this prompt should be used."
+                />
               </label>
               <Input
                 id="prompt-description"
@@ -245,8 +254,12 @@ export function PromptLibrary() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="prompt-content" className="text-sm font-medium">
+              <label htmlFor="prompt-content" className="text-sm font-medium flex items-center gap-1.5">
                 Content
+                <FieldHelp
+                  slug="prompt-library-content"
+                  tip="Instruction text that shapes assistant behavior when selected."
+                />
               </label>
               <textarea
                 id="prompt-content"

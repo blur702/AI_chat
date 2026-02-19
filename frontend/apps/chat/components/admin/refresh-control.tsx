@@ -2,6 +2,7 @@
 
 import { Button, cn } from "@workstation/ui";
 import { RefreshCw } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface RefreshControlProps {
   onRefresh: () => void;
@@ -44,13 +45,19 @@ export function RefreshControl({
       </Button>
 
       <label className="flex items-center gap-2 text-xs">
+        <span className="inline-flex items-center gap-1">
+          Auto-refresh
+          <FieldHelp
+            slug="admin-auto-refresh"
+            tip="Automatically refreshes this panel on a fixed interval."
+          />
+        </span>
         <input
           type="checkbox"
           checked={autoRefreshEnabled}
           onChange={(e) => onAutoRefreshChange(e.target.checked)}
           className="rounded border-input"
         />
-        Auto-refresh
       </label>
 
       {autoRefreshEnabled && (

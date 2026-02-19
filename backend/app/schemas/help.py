@@ -52,6 +52,10 @@ class HelpTopicResponse(BaseModel):
     body: str
     tags: List[str] = Field(default_factory=list)
     has_embedding: bool = False
+    helpful_count: int = 0
+    unhelpful_count: int = 0
+    total_feedback_count: int = 0
+    helpful_ratio: Optional[float] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -81,3 +85,35 @@ class HelpSearchResponse(BaseModel):
     results: List[HelpSearchResult] = Field(default_factory=list)
     query: str
     count: int
+
+
+class HelpFeedbackSubmitRequest(BaseModel):
+    """Request body for help topic feedback submissions."""
+
+    helpful: bool
+    context_slug: Optional[str] = Field(default=None, max_length=255)
+    query: Optional[str] = Field(default=None, max_length=2000)
+    source: Optional[str] = Field(default="help-modal", max_length=50)
+
+
+class HelpFeedbackSummary(BaseModel):
+    """Aggregated helpful/unhelpful counts for a topic."""
+
+    topic_id: str
+    helpful_count: int = 0
+    unhelpful_count: int = 0
+    total_feedback_count: int = 0
+    helpful_ratio: Optional[float] = None
+
+
+class HelpFeedbackSubmitResponse(HelpFeedbackSummary):
+    """Feedback submission response including the submitted vote."""
+
+    helpful: bool
+
+
+class HelpFeedbackSummaryListResponse(BaseModel):
+    """List wrapper for aggregated help feedback metrics."""
+
+    summaries: List[HelpFeedbackSummary] = Field(default_factory=list)
+    count: int = 0

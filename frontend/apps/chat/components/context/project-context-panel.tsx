@@ -5,6 +5,7 @@ import { Button, Input } from "@workstation/ui";
 import { useProject } from "@workstation/api";
 import { PromptSelector } from "./prompt-selector";
 import { Loader2, Plus, X, Check, AlertCircle } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface ProjectContextPanelProps {
   projectId: string;
@@ -91,8 +92,12 @@ export function ProjectContextPanel({ projectId }: ProjectContextPanelProps) {
       />
 
       <div className="space-y-2">
-        <label htmlFor="custom-context" className="text-sm font-medium">
+        <label htmlFor="custom-context" className="text-sm font-medium flex items-center gap-1.5">
           Custom Context
+          <FieldHelp
+            slug="workspace-context"
+            tip="Shared guidance included across chats in this project."
+          />
         </label>
         <textarea
           id="custom-context"
@@ -108,7 +113,13 @@ export function ProjectContextPanel({ projectId }: ProjectContextPanelProps) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Important Files</label>
+        <label className="text-sm font-medium inline-flex items-center gap-1.5">
+          Important Files
+          <FieldHelp
+            slug="workspace-files"
+            tip="Pin files that should always be considered by AI context tools."
+          />
+        </label>
         <p className="text-xs text-muted-foreground">
           Files that should always be considered in context.
         </p>

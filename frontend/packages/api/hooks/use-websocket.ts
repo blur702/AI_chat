@@ -24,6 +24,19 @@ interface UseWebSocketReturn {
   resetReconnect: () => void;
 }
 
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(payloadJson) as { exp?: number };
+    if (!payload.exp) return false;
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Manages a persistent WebSocket connection to the backend event bus with auto-reconnect.
  * Supports typed event subscriptions and a wildcard `"*"` handler for all messages.
@@ -38,8 +51,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     token,
     baseUrl,
     autoConnect = true,
-    reconnectInterval = 3000,
-    maxReconnectAttempts = 10,
+    reconnectInterval = 5000,
+    maxReconnectAttempts = 6,
   } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -65,6 +78,18 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   const connect = useCallback(() => {
     if (!token || wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setStatus("disconnected");
+      return;
+    }
+    if (isJwtExpired(token)) {
+      reconnectCountRef.current = maxReconnectAttempts;
+      setStatus("exhausted");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth-token-expired"));
+      }
+      return;
+    }
 
     setStatus("connecting");
     const ws = new WebSocket(getWsUrl());
@@ -94,8 +119,22 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       wsRef.current = null;
+      if (event.code === 1008) {
+        setStatus("exhausted");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("auth-token-expired"));
+        }
+        return;
+      }
+      if (!token || isJwtExpired(token)) {
+        setStatus("exhausted");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("auth-token-expired"));
+        }
+        return;
+      }
 
       // Auto-reconnect with exponential backoff
       if (

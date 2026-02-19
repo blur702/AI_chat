@@ -5,6 +5,7 @@ import { Button } from "@workstation/ui";
 import { getClient } from "@workstation/api";
 import { PromptSelector } from "./prompt-selector";
 import { Loader2, Check, AlertCircle } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface ChatInstructionsPanelProps {
   chatId: string;
@@ -68,8 +69,12 @@ export function ChatInstructionsPanel({
       />
 
       <div className="space-y-2">
-        <label htmlFor="chat-instructions" className="text-sm font-medium">
+        <label htmlFor="chat-instructions" className="text-sm font-medium flex items-center gap-1.5">
           Instructions
+          <FieldHelp
+            slug="chat-instructions"
+            tip="Applies guidance only to this chat without changing project defaults."
+          />
         </label>
         <textarea
           id="chat-instructions"

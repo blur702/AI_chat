@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Badge, ScrollArea } from "@workstation/ui";
-import { Bug, ExternalLink, Check, Trash2, Wrench, X } from "lucide-react";
+import { Bug, ExternalLink, Check, Trash2, Wrench, X, AlertOctagon } from "lucide-react";
 import { useIssues } from "@workstation/api/hooks/use-issues";
 import type { IssueResponse } from "@workstation/api/types";
 
@@ -37,6 +37,12 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
       status: statusFilter === "all" ? undefined : statusFilter,
       severity: severityFilter === "all" ? undefined : severityFilter,
     });
+
+  const sortedIssues = [...issues].sort((a, b) => {
+    const aApp = a.is_app_issue ? 1 : 0;
+    const bApp = b.is_app_issue ? 1 : 0;
+    return bApp - aApp;
+  });
 
   // Auto-scan on mount
   useEffect(() => {
@@ -91,7 +97,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
       <div className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Bug className="h-4 w-4" />
-          Issues
+          Bugs
         </h2>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close issues panel">
           <X className="h-4 w-4" />
@@ -130,10 +136,10 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
         {loading && <p className="py-4 text-center text-xs text-muted-foreground">Loading...</p>}
         {error && <p className="py-4 text-center text-xs text-destructive">{error}</p>}
         {!loading && issues.length === 0 && (
-          <p className="py-8 text-center text-xs text-muted-foreground">No issues found</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">No bugs found</p>
         )}
         <div className="flex flex-col gap-2">
-          {issues.map((issue) => (
+          {sortedIssues.map((issue) => (
             <div key={issue.id} className="rounded-lg border bg-card p-3">
               <div className="flex items-start gap-2">
                 <Badge
@@ -142,7 +148,15 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                   {issue.severity}
                 </Badge>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium">{issue.title}</p>
+                  <p className="flex items-center gap-1 text-xs font-medium">
+                    {issue.is_app_issue && (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-destructive px-1 py-0.5 text-[9px] font-bold leading-none text-destructive-foreground">
+                        <AlertOctagon className="h-2.5 w-2.5" />
+                        APP
+                      </span>
+                    )}
+                    {issue.title}
+                  </p>
                   {issue.description && (
                     <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
                       {issue.description}
@@ -200,7 +214,7 @@ export function IssuesPanel({ projectId, onClose }: IssuesPanelProps) {
                   size="icon"
                   className="ml-auto h-6 w-6 text-destructive"
                   onClick={() => handleDelete(issue.id)}
-                  aria-label="Delete issue"
+                  aria-label="Delete bug"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

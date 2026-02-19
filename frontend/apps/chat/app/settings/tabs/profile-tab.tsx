@@ -112,7 +112,13 @@ export function ProfileTab({ user, updateProfile, profileSaving }: ProfileTabPro
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Username</label>
+          <label className="text-sm font-medium text-muted-foreground inline-flex items-center gap-1.5">
+            Username
+            <FieldHelp
+              slug="settings-username"
+              tip="Unique account handle used for login and identity references."
+            />
+          </label>
           <Input value={user?.username ?? ""} disabled />
           <p className="text-xs text-muted-foreground">Username cannot be changed.</p>
         </div>

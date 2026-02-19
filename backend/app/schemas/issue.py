@@ -6,12 +6,13 @@ from pydantic import BaseModel, Field
 
 
 class IssueCreateRequest(BaseModel):
-    project_id: str
+    project_id: Optional[str] = None
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     severity: str = Field(default="medium", pattern=r"^(low|medium|high|critical)$")
     reproduction_steps: Optional[str] = None
     note_id: Optional[str] = None
+    is_app_issue: bool = False
 
 
 class IssueUpdateRequest(BaseModel):
@@ -28,17 +29,19 @@ class IssueUpdateRequest(BaseModel):
     fix_branch: Optional[str] = Field(default=None, max_length=255)
     fix_pr_url: Optional[str] = Field(default=None, max_length=500)
     coderabbit_review_url: Optional[str] = Field(default=None, max_length=500)
+    is_app_issue: Optional[bool] = None
 
 
 class IssueResponse(BaseModel):
     id: str
-    project_id: str
+    project_id: Optional[str] = None
     project_name: Optional[str] = None
     note_id: Optional[str] = None
     title: str
     description: Optional[str] = None
     severity: str = "medium"
     status: str = "open"
+    is_app_issue: bool = False
     reproduction_steps: Optional[str] = None
     fix_branch: Optional[str] = None
     fix_pr_url: Optional[str] = None

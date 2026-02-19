@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface Props {
   palette: PaletteResponse | null;
@@ -112,8 +113,12 @@ export function DrupalColorPalette({ palette, loading, onGenerate, onValidate, o
           <div className="space-y-3">
             {/* AI Description */}
             <div>
-              <label htmlFor="palette-desc" className="text-xs text-muted-foreground block mb-1">
+              <label htmlFor="palette-desc" className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                 Describe your palette (AI-powered)
+                <FieldHelp
+                  slug="palette-description"
+                  tip="Describe tone, style, or brand mood to guide AI palette generation."
+                />
               </label>
               <Input
                 id="palette-desc"
@@ -127,8 +132,12 @@ export function DrupalColorPalette({ palette, loading, onGenerate, onValidate, o
             {/* Seed color + harmony row */}
             <div className="flex gap-3">
               <div className="flex-1">
-                <label htmlFor="seed-color" className="text-xs text-muted-foreground block mb-1">
+                <label htmlFor="seed-color" className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                   Seed Color
+                  <FieldHelp
+                    slug="palette-seed-color"
+                    tip="Starting color that anchors generated palette variations."
+                  />
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -150,8 +159,12 @@ export function DrupalColorPalette({ palette, loading, onGenerate, onValidate, o
               </div>
 
               <div className="flex-1">
-                <label htmlFor="harmony-select" className="text-xs text-muted-foreground block mb-1">
+                <label htmlFor="harmony-select" className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                   Harmony
+                  <FieldHelp
+                    slug="palette-harmony"
+                    tip="Color relationship rule used to generate balanced combinations."
+                  />
                 </label>
                 <select
                   id="harmony-select"
@@ -168,8 +181,12 @@ export function DrupalColorPalette({ palette, loading, onGenerate, onValidate, o
 
             {/* Count */}
             <div>
-              <label htmlFor="color-count" className="text-xs text-muted-foreground block mb-1">
+              <label htmlFor="color-count" className="text-xs text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                 Number of colors: {count}
+                <FieldHelp
+                  slug="palette-colors"
+                  tip="Set how many swatches to include in the generated palette."
+                />
               </label>
               <input
                 type="range"

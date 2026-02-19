@@ -107,6 +107,13 @@ export function DockerExportDialog({
             />
           </div>
           <label className="flex items-center gap-2 text-sm">
+            <span className="inline-flex items-center gap-1.5">
+              Generate docker-compose.yml
+              <FieldHelp
+                slug="docker-export-include-compose"
+                tip="Include a compose file based on the exported container configuration."
+              />
+            </span>
             <input
               type="checkbox"
               checked={includeCompose}
@@ -114,24 +121,21 @@ export function DockerExportDialog({
               disabled={exporting || !!result}
               className="rounded border-input"
             />
-            Generate docker-compose.yml
-            <FieldHelp
-              slug="docker-export-include-compose"
-              tip="Include a compose file based on the exported container configuration."
-            />
           </label>
           <label className="flex items-center gap-2 text-sm">
+            <span className="inline-flex items-center gap-1.5">
+              Create downloadable tar archive
+              <FieldHelp
+                slug="docker-export-include-tar"
+                tip="Create a downloadable image tarball for transfer/import."
+              />
+            </span>
             <input
               type="checkbox"
               checked={includeTar}
               onChange={(e) => setIncludeTar(e.target.checked)}
               disabled={exporting || !!result}
               className="rounded border-input"
-            />
-            Create downloadable tar archive
-            <FieldHelp
-              slug="docker-export-include-tar"
-              tip="Create a downloadable image tarball for transfer/import."
             />
           </label>
 

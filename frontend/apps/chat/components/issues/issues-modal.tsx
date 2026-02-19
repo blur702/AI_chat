@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import {
+  cn,
   Button,
   Badge,
   ScrollArea,
@@ -26,6 +27,8 @@ import {
   HelpCircle,
   Loader2,
   AlertTriangle,
+  AlertOctagon,
+  Code2,
   Save,
   XCircle,
   Download,
@@ -78,6 +81,7 @@ export function IssuesModal() {
 function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [appIssueFilter, setAppIssueFilter] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -87,9 +91,16 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
 
   const { issues, count, loading, error, createIssue, updateIssue, deleteIssue, startFix } =
     useIssues({
-      project_id: projectFilter === "all" ? undefined : projectFilter,
+      project_id: appIssueFilter ? undefined : (projectFilter === "all" ? undefined : projectFilter),
+      is_app_issue: appIssueFilter ? true : undefined,
       status: statusFilter === "all" ? undefined : statusFilter,
     });
+
+  const sortedIssues = [...issues].sort((a, b) => {
+    const aApp = a.is_app_issue ? 1 : 0;
+    const bApp = b.is_app_issue ? 1 : 0;
+    return bApp - aApp;
+  });
 
   const { projects } = useProjects();
   const titleId = useId();
@@ -273,7 +284,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Export bugs — copies to clipboard and downloads .md</p>
+                <p>Export bugs — copies to clipboard and downloads .md. AI Workshop issues appear first.</p>
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -386,15 +397,39 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
               <p>Filter bugs by workflow status</p>
             </TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppIssueFilter((prev) => {
+                    if (!prev) setProjectFilter("all");
+                    return !prev;
+                  });
+                }}
+                className={`flex h-7 items-center gap-1 rounded-md border px-2 text-xs transition-colors ${
+                  appIssueFilter
+                    ? "border-destructive bg-destructive text-destructive-foreground"
+                    : "bg-background hover:bg-accent"
+                }`}
+              >
+                <AlertOctagon className="h-3 w-3" />
+                AI Workshop
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Show only platform-level AI Workshop issues (not tied to a project)</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Content */}
         <ScrollArea className="min-h-0 flex-1 px-4 py-2" style={{ maxHeight: "60vh" }}>
-          {loading && issues.length === 0 && (
+          {loading && sortedIssues.length === 0 && (
             <p className="py-4 text-center text-xs text-muted-foreground">Loading...</p>
           )}
           {error && <p className="py-4 text-center text-xs text-destructive">{error}</p>}
-          {!loading && issues.length === 0 && (
+          {!loading && sortedIssues.length === 0 && (
             <div className="py-8 text-center">
               <Bug className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
               <p className="text-xs text-muted-foreground">No bugs found</p>
@@ -404,7 +439,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
             </div>
           )}
           <div className="flex flex-col gap-2">
-            {issues.map((issue) =>
+            {sortedIssues.map((issue) =>
               editingId === issue.id ? (
                 <IssueEditCard
                   key={issue.id}
@@ -484,6 +519,8 @@ function IssueCreateForm({
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<"low" | "medium" | "high" | "critical">("medium");
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+  const [scope, setScope] = useState<"app" | "project">("project");
+  const isAppIssue = scope === "app";
   const [steps, setSteps] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -494,15 +531,16 @@ function IssueCreateForm({
   }, []);
 
   const handleSubmit = async () => {
-    if (!title.trim() || !projectId) return;
+    if (!title.trim() || (!isAppIssue && !projectId)) return;
     setSubmitting(true);
     try {
       await onSubmit({
-        project_id: projectId,
+        project_id: isAppIssue ? undefined : projectId,
         title: title.trim(),
         description: description.trim() || null,
         severity,
         reproduction_steps: steps.trim() || null,
+        is_app_issue: isAppIssue || undefined,
       });
     } finally {
       setSubmitting(false);
@@ -521,6 +559,36 @@ function IssueCreateForm({
             aria-label="Cancel"
           >
             <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Scope selector */}
+        <div className="flex rounded-md border">
+          <button
+            type="button"
+            onClick={() => { setScope("app"); setProjectId(""); }}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-l-md py-1.5 text-xs font-medium transition-colors",
+              scope === "app"
+                ? "bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground hover:bg-accent",
+            )}
+          >
+            <AlertOctagon className="h-3 w-3" />
+            AI Workshop
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("project")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-r-md border-l py-1.5 text-xs font-medium transition-colors",
+              scope === "project"
+                ? "bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground hover:bg-accent",
+            )}
+          >
+            <Code2 className="h-3 w-3" />
+            Project
           </button>
         </div>
 
@@ -547,27 +615,29 @@ function IssueCreateForm({
         </Tooltip>
 
         <div className="flex items-center gap-1.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="h-7 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="" disabled>
-                  Project...
-                </option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
+          {scope === "project" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="h-7 rounded-md border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="" disabled>
+                    Project...
                   </option>
-                ))}
-              </select>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Which project is this bug in? (required)</p>
-            </TooltipContent>
-          </Tooltip>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Which project is this bug in? (required)</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -636,7 +706,7 @@ function IssueCreateForm({
           <Button
             size="sm"
             className="h-7 gap-1 text-xs"
-            disabled={!title.trim() || !projectId || submitting}
+            disabled={!title.trim() || (!isAppIssue && !projectId) || submitting}
             onClick={handleSubmit}
           >
             {submitting ? (
@@ -687,7 +757,22 @@ function IssueCard({
           </TooltipContent>
         </Tooltip>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium">{issue.title}</p>
+          <p className="flex items-center gap-1 text-xs font-medium">
+            {issue.is_app_issue && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-0.5 rounded bg-destructive px-1 py-0.5 text-[9px] font-bold leading-none text-destructive-foreground">
+                    <AlertOctagon className="h-2.5 w-2.5" />
+                    APP
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>AI Workshop issue — platform-level, not tied to a specific project</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {issue.title}
+          </p>
           {issue.project_name && (
             <p className="text-[10px] text-muted-foreground">{issue.project_name}</p>
           )}
@@ -820,6 +905,7 @@ function IssueEditCard({
     severity?: "low" | "medium" | "high" | "critical";
     status?: "open" | "in_progress" | "fix_pending_review" | "resolved" | "closed";
     reproduction_steps?: string | null;
+    is_app_issue?: boolean;
   }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -827,6 +913,7 @@ function IssueEditCard({
   const [description, setDescription] = useState(issue.description || "");
   const [severity, setSeverity] = useState(issue.severity);
   const [status, setStatus] = useState(issue.status);
+  const [isAppIssue, setIsAppIssue] = useState(issue.is_app_issue ?? false);
   const [steps, setSteps] = useState(issue.reproduction_steps || "");
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -846,6 +933,7 @@ function IssueEditCard({
         severity,
         status,
         reproduction_steps: steps.trim() || null,
+        is_app_issue: isAppIssue,
       });
     } finally {
       setSaving(false);
@@ -917,9 +1005,20 @@ function IssueEditCard({
             <p>{STATUS_DESCRIPTIONS[status]}</p>
           </TooltipContent>
         </Tooltip>
-        {issue.project_name && (
-          <span className="ml-auto text-[10px] text-muted-foreground">{issue.project_name}</span>
-        )}
+        <label className="ml-auto flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+          <AlertOctagon className="h-3 w-3" />
+          AI Workshop
+          <FieldHelp
+            slug="issues-app-scope"
+            tip="Use for platform-wide issues that are not tied to one project."
+          />
+          <input
+            type="checkbox"
+            checked={isAppIssue}
+            onChange={(e) => setIsAppIssue(e.target.checked)}
+            className="h-3 w-3 rounded border"
+          />
+        </label>
       </div>
 
       <Textarea

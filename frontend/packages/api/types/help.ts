@@ -6,6 +6,10 @@ export interface HelpTopic {
   body: string;
   tags: string[];
   has_embedding: boolean;
+  helpful_count: number;
+  unhelpful_count: number;
+  total_feedback_count: number;
+  helpful_ratio: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -45,4 +49,28 @@ export interface HelpTopicUpdateRequest {
   title?: string;
   body?: string;
   tags?: string[];
+}
+
+export interface HelpFeedbackSubmitRequest {
+  helpful: boolean;
+  context_slug?: string;
+  query?: string;
+  source?: string;
+}
+
+export interface HelpFeedbackSummary {
+  topic_id: string;
+  helpful_count: number;
+  unhelpful_count: number;
+  total_feedback_count: number;
+  helpful_ratio: number | null;
+}
+
+export interface HelpFeedbackSubmitResponse extends HelpFeedbackSummary {
+  helpful: boolean;
+}
+
+export interface HelpFeedbackSummaryListResponse {
+  summaries: HelpFeedbackSummary[];
+  count: number;
 }

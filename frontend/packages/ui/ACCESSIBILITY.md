@@ -52,3 +52,9 @@ Use ARIA live regions (`aria-live="assertive"` or `aria-live="polite"`) to broad
 3. Test with NVDA or VoiceOver.
 4. Enable OS reduced-motion and verify animations are suppressed.
 5. Validate labels/alt text and form error announcements.
+
+## Related Docs
+
+- Component catalog: [`frontend/packages/ui/COMPONENTS.md`](./COMPONENTS.md)
+- Responsive system: [`frontend/packages/ui/RESPONSIVE.md`](./RESPONSIVE.md)
+- Docs hub: [`docs/README.md`](../../../docs/README.md)

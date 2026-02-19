@@ -344,6 +344,11 @@ async def _seed_master_user() -> None:
         logger.info("Master user seeding complete")
 
 
+# Integration services in this set are optional and should not fail
+# global liveness/readiness checks when unavailable.
+OPTIONAL_KERNEL_SERVICES = {"ssh_client", "drupal_mcp", "brevo_client"}
+
+
 app = FastAPI(
     title="AI Workstation API",
     description=(
@@ -358,8 +363,8 @@ app = FastAPI(
         "## WebSocket\n"
         "Real-time event streaming is available at `GET /api/ws/events?token=<ws_token>`.\n\n"
         "## Health\n"
-        "- `GET /api/health` -- basic liveness probe.\n"
-        "- `GET /api/health/ready` -- readiness probe (checks DB, Redis, GPU services).\n"
+        "- `GET /health` -- basic liveness probe.\n"
+        "- `GET /api/health` -- readiness probe (checks DB, Redis, GPU services).\n"
     ),
     version="0.1.0",
     lifespan=lifespan,
@@ -541,12 +546,19 @@ async def check_kernel(request: Request) -> tuple[bool, str]:
         health = await kernel.health_check()
         if health["healthy"]:
             return True, "ok"
-        else:
-            unhealthy = [
-                name for name, status in health["services"].items()
-                if not status["healthy"]
-            ]
-            return False, f"unhealthy services: {', '.join(unhealthy)}"
+        unhealthy = [
+            name for name, status in health["services"].items()
+            if not status["healthy"]
+        ]
+        critical_unhealthy = [
+            name for name in unhealthy
+            if name not in OPTIONAL_KERNEL_SERVICES
+        ]
+        if critical_unhealthy:
+            return False, f"unhealthy services: {', '.join(critical_unhealthy)}"
+        if unhealthy:
+            return True, f"optional services unhealthy: {', '.join(unhealthy)}"
+        return True, "ok"
     except Exception as e:
         return False, f"health check error: {str(e)}"
 

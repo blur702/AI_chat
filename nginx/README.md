@@ -8,6 +8,7 @@ Reverse proxy configuration for AI Workstation.
 | --- | --- | --- |
 | `/` | `chat:3001` | Next.js chat app |
 | `/api` | `backend:8000` | FastAPI REST API |
+| `/api/context/conversations/{id}/messages/stream` | `backend:8000` | Dedicated SSE streaming route |
 | `/api/ws` | `backend:8000` | WebSocket endpoints |
 | `/health` | nginx | Container health check |
 
@@ -49,7 +50,8 @@ Generated files:
 
 ## Behavior Notes
 
-- Proxy buffering is disabled for streaming API responses.
+- Nginx uses Docker DNS re-resolution for dynamic upstream discovery (backend/container IP churn does not normally require nginx restart).
+- Dedicated SSE route disables buffering and gzip for stable streaming token delivery.
 - `/api/ws` WebSocket routes use long timeouts for persistent sessions.
 - For `ssdd.kevinalthaus.com`, HTTP requests are redirected to HTTPS except `/health`.
 
@@ -67,3 +69,9 @@ docker compose logs -f nginx
 # Validate local cert dates
 openssl x509 -in nginx/ssl/nginx-selfsigned.crt -noout -dates
 ```
+
+## Canonical References
+
+- Docs hub: [`docs/README.md`](../docs/README.md)
+- Platform quick start: [`README.md`](../README.md)
+- Security/deployment checklist: [`docs/security-and-deployment.md`](../docs/security-and-deployment.md)

@@ -25,6 +25,7 @@ import type {
   CloneRequest,
   PushRequest,
 } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface StagingControlsProps {
   stagingStatus: StagingStatus | null;
@@ -204,16 +205,28 @@ export function StagingControls({
           <div className="py-3 space-y-3">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked disabled className="rounded" />
-              <span>Push files (themes, modules, config)</span>
+              <span className="inline-flex items-center gap-1.5">
+                Push files (themes, modules, config)
+                <FieldHelp
+                  slug="drupal-staging-push-files"
+                  tip="Deploy code and config updates from staging to production."
+                />
+              </span>
             </label>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Push database (destructive - overwrites production DB)
+                <FieldHelp
+                  slug="drupal-staging-push-database"
+                  tip="Replaces production content with the staging database."
+                />
+              </span>
               <input
                 type="checkbox"
                 checked={pushIncludeDb}
                 onChange={(e) => setPushIncludeDb(e.target.checked)}
                 className="rounded"
               />
-              <span>Push database (destructive — overwrites production DB)</span>
             </label>
           </div>
           <DialogFooter>
@@ -229,3 +242,4 @@ export function StagingControls({
     </>
   );
 }
+

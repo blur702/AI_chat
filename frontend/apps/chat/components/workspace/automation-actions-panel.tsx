@@ -27,6 +27,7 @@ import {
 import { useAutomationActions } from "@workstation/api/hooks";
 import type { AutomationAction } from "@workstation/api/types";
 import { useToast } from "../toast-provider";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface AutomationActionsPanelProps {
   projectId: string;
@@ -57,6 +58,29 @@ const EDITABLE_FIELDS: Record<string, { key: string; label: string }[]> = {
     { key: "package", label: "Package" },
     { key: "manager", label: "Manager (pip/npm/yarn/pnpm)" },
   ],
+};
+
+const ACTION_FIELD_HELP: Record<string, { slug: string; tip: string }> = {
+  path: {
+    slug: "workspace-files",
+    tip: "Path of the file the action will create, modify, or delete.",
+  },
+  content: {
+    slug: "tool-parameter-text",
+    tip: "Text content that will be written or applied by this action.",
+  },
+  command: {
+    slug: "workspace-run",
+    tip: "Shell command the assistant proposes to execute.",
+  },
+  package: {
+    slug: "tool-parameter-text",
+    tip: "Package name that will be installed by this action.",
+  },
+  manager: {
+    slug: "tool-parameter-select",
+    tip: "Package manager used to install the dependency.",
+  },
 };
 
 function getActionDescription(action: AutomationAction): string {
@@ -392,8 +416,12 @@ export function AutomationActionsPanel({
                 <div className="space-y-2">
                   {approveFields.map(({ key, label }) => (
                     <div key={key}>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                         {label}
+                        <FieldHelp
+                          slug={ACTION_FIELD_HELP[key]?.slug ?? "tool-parameter-text"}
+                          tip={ACTION_FIELD_HELP[key]?.tip ?? `Value used for ${label}.`}
+                        />
                       </label>
                       {key === "content" ? (
                         <textarea
@@ -413,8 +441,12 @@ export function AutomationActionsPanel({
                 </div>
               ) : (
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 inline-flex items-center gap-1.5">
                     Action Data (JSON)
+                    <FieldHelp
+                      slug="tool-parameter-text"
+                      tip="Raw JSON payload used when action fields are not predefined."
+                    />
                   </label>
                   <textarea
                     value={JSON.stringify(editedData, null, 2)}

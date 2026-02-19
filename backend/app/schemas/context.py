@@ -473,6 +473,22 @@ class ProjectListResponse(BaseModel):
     offset: Optional[int] = None
 
 
+class ProjectDetailResponse(BaseModel):
+    """Full project detail including chats."""
+
+    project_id: str
+    user_id: str
+    name: str
+    path: str
+    type: Optional[str] = None
+    template_id: Optional[str] = None
+    system_prompt_id: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
+    custom_context: Optional[str] = None
+    important_files: Optional[List[str]] = None
+    chats: List["ChatSummary"] = Field(default_factory=list)
+
+
 # -------------------------------------------------------------------------
 # System Prompts
 # -------------------------------------------------------------------------

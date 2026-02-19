@@ -147,7 +147,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-generate_random_secret_key_here}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-true}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:9080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,https://localhost,http://localhost:3001}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_OUTPUT_DIR: /data/comfyui_outputs

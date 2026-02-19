@@ -11,6 +11,7 @@ import {
 } from "@workstation/ui";
 import { ArrowDownToLine, Loader2 } from "lucide-react";
 import type { OffloadDecision } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface OffloadDialogProps {
   open: boolean;
@@ -77,13 +78,19 @@ export function OffloadDialog({
           </p>
 
           <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <span className="inline-flex items-center gap-1.5">
+              Remember my choice for future offload decisions
+              <FieldHelp
+                slug="resource-remember-preference"
+                tip="Save this decision so future offload prompts use the same behavior."
+              />
+            </span>
             <input
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
               className="rounded border-muted-foreground"
             />
-            Remember my choice for future offload decisions
           </label>
         </div>
 

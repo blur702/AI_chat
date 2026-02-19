@@ -788,8 +788,12 @@ export default function ProjectsPage() {
             </Tabs>
 
             <div className="grid gap-2">
-              <label htmlFor="create-name" className="text-sm font-medium">
+              <label htmlFor="create-name" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Name
+                <FieldHelp
+                  slug="project-name"
+                  tip="Friendly name shown in the project list and workspace header."
+                />
               </label>
               <Input
                 id="create-name"
@@ -800,8 +804,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="create-path" className="text-sm font-medium">
+              <label htmlFor="create-path" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Path
+                <FieldHelp
+                  slug="project-path"
+                  tip="Workspace directory where project files will be created."
+                />
               </label>
               <Input
                 id="create-path"
@@ -839,8 +847,12 @@ export default function ProjectsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor="edit-name" className="text-sm font-medium">
+              <label htmlFor="edit-name" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Name
+                <FieldHelp
+                  slug="project-name"
+                  tip="Display name used in project navigation and selectors."
+                />
               </label>
               <Input
                 id="edit-name"
@@ -851,8 +863,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="edit-path" className="text-sm font-medium">
+              <label htmlFor="edit-path" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Path
+                <FieldHelp
+                  slug="project-path"
+                  tip="Filesystem location for this project workspace."
+                />
               </label>
               <Input
                 id="edit-path"
@@ -925,8 +941,12 @@ export default function ProjectsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor="git-url" className="text-sm font-medium">
+              <label htmlFor="git-url" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Repository URL
+                <FieldHelp
+                  slug="project-git-url"
+                  tip="HTTPS URL of the repository to clone into a new project."
+                />
               </label>
               <Input
                 id="git-url"
@@ -937,8 +957,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="git-branch" className="text-sm font-medium">
+              <label htmlFor="git-branch" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Branch (optional)
+                <FieldHelp
+                  slug="project-git-branch"
+                  tip="Optional branch name to clone instead of the default branch."
+                />
               </label>
               <Input
                 id="git-branch"
@@ -949,8 +973,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="git-name" className="text-sm font-medium">
+              <label htmlFor="git-name" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Project Name
+                <FieldHelp
+                  slug="project-name"
+                  tip="Name to assign to the new project after cloning."
+                />
               </label>
               <Input
                 id="git-name"
@@ -962,6 +990,13 @@ export default function ProjectsPage() {
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Auto-install dependencies
+                <FieldHelp
+                  slug="project-git-install-deps"
+                  tip="Run dependency install automatically after import completes."
+                />
+              </span>
               <input
                 type="checkbox"
                 checked={gitInstallDeps}
@@ -969,7 +1004,6 @@ export default function ProjectsPage() {
                 disabled={!!isImporting}
                 className="rounded border-input"
               />
-              Auto-install dependencies
             </label>
             {importStatus && (
               <div className="rounded-lg border p-3">
@@ -1032,8 +1066,12 @@ export default function ProjectsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor="archive-name" className="text-sm font-medium">
+              <label htmlFor="archive-name" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Project Name
+                <FieldHelp
+                  slug="project-name"
+                  tip="Name to assign to the project created from this archive."
+                />
               </label>
               <Input
                 id="archive-name"
@@ -1045,8 +1083,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="archive-file" className="text-sm font-medium">
+              <label htmlFor="archive-file" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Archive File
+                <FieldHelp
+                  slug="project-archive-file"
+                  tip="Supported zip/tar package containing project source files."
+                />
               </label>
               <input
                 ref={fileInputRef}
@@ -1059,6 +1101,13 @@ export default function ProjectsPage() {
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Auto-install dependencies
+                <FieldHelp
+                  slug="project-git-install-deps"
+                  tip="Install dependencies automatically after archive extraction."
+                />
+              </span>
               <input
                 type="checkbox"
                 checked={archiveInstallDeps}
@@ -1066,7 +1115,6 @@ export default function ProjectsPage() {
                 disabled={!!isImporting}
                 className="rounded border-input"
               />
-              Auto-install dependencies
             </label>
             {importStatus && (
               <div className="rounded-lg border p-3">
@@ -1195,6 +1243,10 @@ export default function ProjectsPage() {
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Include CSS/JS/images
+                <FieldHelp slug="project-import-website-include-assets" tip="Save same-domain images, scripts, and styles locally" />
+              </span>
               <input
                 type="checkbox"
                 checked={websiteIncludeAssets}
@@ -1202,10 +1254,12 @@ export default function ProjectsPage() {
                 disabled={!!isImporting}
                 className="rounded border-input"
               />
-              Include CSS/JS/images
-              <FieldHelp slug="project-import-website-include-assets" tip="Save same-domain images, scripts, and styles locally" />
             </label>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Restrict to same domain
+                <FieldHelp slug="project-import-website-same-domain" tip="Only download content from the exact starting domain" />
+              </span>
               <input
                 type="checkbox"
                 checked={websiteSameDomainOnly}
@@ -1213,10 +1267,12 @@ export default function ProjectsPage() {
                 disabled={!!isImporting}
                 className="rounded border-input"
               />
-              Restrict to same domain
-              <FieldHelp slug="project-import-website-same-domain" tip="Only download content from the exact starting domain" />
             </label>
             <label className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5">
+                Auto-install dependencies if a framework is detected
+                <FieldHelp slug="project-import-website-install-deps" tip="Run package install automatically when a framework is detected" />
+              </span>
               <input
                 type="checkbox"
                 checked={websiteInstallDeps}
@@ -1224,8 +1280,6 @@ export default function ProjectsPage() {
                 disabled={!!isImporting}
                 className="rounded border-input"
               />
-              Auto-install dependencies if a framework is detected
-              <FieldHelp slug="project-import-website-install-deps" tip="Run package install automatically when a framework is detected" />
             </label>
             {importStatus && (
               <div className="rounded-lg border p-3">
@@ -1281,8 +1335,12 @@ export default function ProjectsPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor="clone-name" className="text-sm font-medium">
+              <label htmlFor="clone-name" className="text-sm font-medium inline-flex items-center gap-1.5">
                 New Project Name
+                <FieldHelp
+                  slug="project-name"
+                  tip="Name for the cloned copy of the selected project."
+                />
               </label>
               <Input
                 id="clone-name"
@@ -1293,8 +1351,12 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="clone-path" className="text-sm font-medium">
+              <label htmlFor="clone-path" className="text-sm font-medium inline-flex items-center gap-1.5">
                 Path (optional)
+                <FieldHelp
+                  slug="project-path"
+                  tip="Optional target path for the cloned project directory."
+                />
               </label>
               <Input
                 id="clone-path"

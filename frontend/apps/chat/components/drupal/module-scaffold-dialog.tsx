@@ -12,6 +12,7 @@ import {
   Input,
 } from "@workstation/ui";
 import { Loader2 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface Props {
   open: boolean;
@@ -76,7 +77,13 @@ export function ModuleScaffoldDialog({ open, onClose, onScaffold }: Props) {
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label htmlFor="mod-name" className="text-sm font-medium">Module Name</label>
+            <label htmlFor="mod-name" className="text-sm font-medium inline-flex items-center gap-1.5">
+              Module Name
+              <FieldHelp
+                slug="drupal-module-name"
+                tip="Human-readable module title shown in Drupal admin."
+              />
+            </label>
             <Input
               id="mod-name"
               value={name}
@@ -87,7 +94,13 @@ export function ModuleScaffoldDialog({ open, onClose, onScaffold }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="mod-machine" className="text-sm font-medium">Machine Name</label>
+            <label htmlFor="mod-machine" className="text-sm font-medium inline-flex items-center gap-1.5">
+              Machine Name
+              <FieldHelp
+                slug="drupal-module-machine-name"
+                tip="Code-safe identifier used in file names and module keys."
+              />
+            </label>
             <Input
               id="mod-machine"
               value={machineName}
@@ -109,7 +122,13 @@ export function ModuleScaffoldDialog({ open, onClose, onScaffold }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="mod-desc" className="text-sm font-medium">Description</label>
+            <label htmlFor="mod-desc" className="text-sm font-medium inline-flex items-center gap-1.5">
+              Description
+              <FieldHelp
+                slug="drupal-module-description"
+                tip="Short explanation of what this module does."
+              />
+            </label>
             <Input
               id="mod-desc"
               value={description}
@@ -119,7 +138,13 @@ export function ModuleScaffoldDialog({ open, onClose, onScaffold }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="mod-pkg" className="text-sm font-medium">Package</label>
+            <label htmlFor="mod-pkg" className="text-sm font-medium inline-flex items-center gap-1.5">
+              Package
+              <FieldHelp
+                slug="drupal-module-package"
+                tip="Admin grouping label used to organize modules."
+              />
+            </label>
             <Input
               id="mod-pkg"
               value={pkg}

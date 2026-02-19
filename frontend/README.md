@@ -1,55 +1,46 @@
 # Frontend
 
-pnpm monorepo containing 1 app and 2 shared packages for the AI Workstation.
+pnpm monorepo for the chat application and shared frontend packages.
 
-## Packages
+## Workspace Packages
 
 | Package | Path | Description |
-|---------|------|-------------|
-| `@workstation/chat` | `apps/chat` | Next.js 14 app — chat UI, workspace/IDE, terminal, image gen, admin, settings (port 3001) |
-| `@workstation/ui` | `packages/ui` | Shared UI components (shadcn/ui + Radix + Tailwind). Consumed as source via `transpilePackages` |
-| `@workstation/api` | `packages/api` | TypeScript API client, types mirroring backend Pydantic schemas, React hooks |
+| --- | --- | --- |
+| `@workstation/chat` | `apps/chat` | Next.js 14 app (`3001`) with chat, workspace, MCP/Drupal, studio, admin, and settings |
+| `@workstation/ui` | `packages/ui` | Shared UI primitives and accessibility helpers |
+| `@workstation/api` | `packages/api` | Typed API client and React hooks for backend routes |
 
 ## Requirements
 
-- Node.js >= 20.19
-- pnpm >= 9 (`npm install -g pnpm`)
+- Node.js `>=20.19`
+- pnpm `>=9`
 
 ## Development Commands
 
 ```bash
-pnpm install          # Install all dependencies
-pnpm dev              # Start chat app dev server (port 3001)
-pnpm build            # Build all packages
-pnpm lint             # Lint all packages
-pnpm type-check       # TypeScript type check across all packages
-pnpm test             # Run all tests (vitest)
-pnpm test:watch       # Run tests in watch mode
-pnpm format           # Format with Prettier
-pnpm format:check     # Check Prettier formatting
+cd frontend
+pnpm install
+pnpm dev
+pnpm build
+pnpm lint
+pnpm type-check
+pnpm test
+pnpm test:watch
+pnpm format
+pnpm format:check
 ```
 
-## Architecture Notes
+## Notes
 
-- `@workstation/ui` and `@workstation/api` have **no build step**. They are transpiled directly by the consuming Next.js app via `transpilePackages` in `next.config.js`.
-- Tailwind content paths in consuming apps must be specific (e.g. `components/**/*.tsx`) rather than broad globs to avoid scanning `node_modules`.
-- The API client auto-redirects to `/login` on 401 responses (expired or missing token).
-- All workspace/IDE functionality is consolidated into the `chat` app at `/workspace/[projectId]` — there is no separate sandbox app.
+- `@workstation/ui` and `@workstation/api` are consumed as source (`transpilePackages`) and do not require separate build steps.
+- The API client redirects to `/login` on most `401` responses, but intentionally skips redirect for `/api/auth/me` and `/api/auth/login`.
+- Workspace/IDE functionality lives in `@workstation/chat` under `/workspace/[projectId]`.
 
-### `@workstation/ui` exports
+## Canonical References
 
-Components: `Button`, `Input`, `Textarea`, `Dialog`, `Sheet`, `ScrollArea`, `Tabs`, `Tooltip`, `Separator`, `Skeleton`, `Badge`, `DropdownMenu`, `ContextMenu`, `Progress`, `SkipNav`, `Switch`, `SettingsToggle`, `LoadingButton`, `InlineAlert`, `StatusMessage`
-
-Theme: `ThemeProvider`, `ThemeToggle`
-
-Utils: `cn`, `announceToScreenReader`
-
-Responsive hooks: `useMediaQuery`, `useBreakpoint`, `useSwipe`
-
-## Documentation
-
-- Component catalog: `packages/ui/COMPONENTS.md`
-- Accessibility: `packages/ui/ACCESSIBILITY.md`
-- Responsive system: `packages/ui/RESPONSIVE.md`
-- Architecture overview: `../docs/architecture.md`
-- Testing guide: `../docs/testing.md`
+- Docs hub: [`docs/README.md`](../docs/README.md)
+- Architecture: [`docs/architecture.md`](../docs/architecture.md)
+- Testing: [`docs/testing.md`](../docs/testing.md)
+- UI catalog: [`frontend/packages/ui/COMPONENTS.md`](packages/ui/COMPONENTS.md)
+- UI accessibility: [`frontend/packages/ui/ACCESSIBILITY.md`](packages/ui/ACCESSIBILITY.md)
+- UI responsive system: [`frontend/packages/ui/RESPONSIVE.md`](packages/ui/RESPONSIVE.md)
