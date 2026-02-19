@@ -38,9 +38,6 @@
       "Bash(python3:*)",
       "Bash(pnpm build:*)",
       "Bash(npx next build:*)",
-      "Bash(curl -s https://ssdd.kevinalthaus.com/api/context/projects -H \"Authorization: Bearer $TOKEN\":*)",
-      "Bash(PROJECT_ID=\"9faf680d-a213-49ba-be30-1ff32c5edf60\")",
-      "Bash(# Check if the article is promoted to front page curl -s \"\"https://kevinalthaus.com/jsonapi/node/article/3493ba8e-0ce2-457e-9550-e37b419d62cb\"\")",
       "Bash(pnpm --filter @workstation/chat type-check:*)",
       "Bash(npx playwright test:*)"
     ]
