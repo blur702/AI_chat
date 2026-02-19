@@ -45,14 +45,8 @@ function getPropertyHelp(def: PropDef, key: string): { slug: string; tip: string
   };
 }
 
-export function PropertiesEditor({
-  node,
-  propsSchema,
-  onUpdate,
-  onRemove,
-}: PropertiesEditorProps) {
-  const properties =
-    (propsSchema as { properties?: Record<string, PropDef> })?.properties || {};
+export function PropertiesEditor({ node, propsSchema, onUpdate, onRemove }: PropertiesEditorProps) {
+  const properties = (propsSchema as { properties?: Record<string, PropDef> })?.properties || {};
 
   const handleChange = (key: string, value: unknown) => {
     onUpdate({ [key]: value });
@@ -68,19 +62,19 @@ export function PropertiesEditor({
         <button
           type="button"
           onClick={onRemove}
-          className="rounded p-1 text-destructive hover:bg-destructive/10 transition-colors"
+          className="rounded p-1 text-destructive transition-colors hover:bg-destructive/10"
           aria-label="Remove component"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-3">
+      <div className="flex-1 space-y-3 overflow-y-auto p-2">
         {Object.entries(properties).map(([key, def]) => {
           const help = getPropertyHelp(def, key);
           return (
             <div key={key} className="space-y-1">
-              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider inline-flex items-center gap-1.5">
+              <label className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {key}
                 <FieldHelp slug={help.slug} tip={help.tip} />
               </label>
@@ -90,7 +84,7 @@ export function PropertiesEditor({
         })}
 
         {Object.keys(properties).length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">
+          <p className="py-4 text-center text-xs text-muted-foreground">
             No configurable properties.
           </p>
         )}
@@ -103,7 +97,7 @@ function renderPropInput(
   key: string,
   def: PropDef,
   value: unknown,
-  onChange: (key: string, value: unknown) => void
+  onChange: (key: string, value: unknown) => void,
 ) {
   // Enum → select dropdown
   if (def.enum) {
@@ -111,7 +105,7 @@ function renderPropInput(
       <select
         value={String(value ?? def.default ?? "")}
         onChange={(e) => onChange(key, e.target.value)}
-        className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs min-h-[32px]"
+        className="min-h-[32px] w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
       >
         {def.enum.map((opt) => (
           <option key={opt} value={opt}>
@@ -127,10 +121,6 @@ function renderPropInput(
     const checked = Boolean(value ?? def.default ?? false);
     return (
       <label className="flex items-center gap-2">
-        <FieldHelp
-          slug="tool-parameter-boolean"
-          tip={`Toggle the ${key} property on or off.`}
-        />
         <input
           type="checkbox"
           checked={checked}
@@ -167,12 +157,12 @@ function renderPropInput(
           type="color"
           value={String(value ?? def.default ?? "#000000")}
           onChange={(e) => onChange(key, e.target.value)}
-          className="h-7 w-7 rounded cursor-pointer"
+          className="h-7 w-7 cursor-pointer rounded"
         />
         <Input
           value={String(value ?? def.default ?? "")}
           onChange={(e) => onChange(key, e.target.value)}
-          className="h-7 text-xs flex-1"
+          className="h-7 flex-1 text-xs"
         />
       </div>
     );

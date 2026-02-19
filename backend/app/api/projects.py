@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Optional
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,9 +19,9 @@ from app.api.context_deps import (
 )
 from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
+from app.models.chat import Chat
 from app.models.project import Project
 from app.models.system_prompt import SystemPrompt
-from app.models.chat import Chat
 from app.schemas.context import (
     ChatSummary,
     ProjectCreateRequest,
@@ -38,7 +38,7 @@ from app.services.templates import TemplateRegistry
 logger = logging.getLogger(__name__)
 
 # Module-level cached registry to avoid re-reading JSON files on every request
-_registry_cache: Optional[TemplateRegistry] = None
+_registry_cache: TemplateRegistry | None = None
 
 
 def _get_registry() -> TemplateRegistry:
@@ -46,6 +46,7 @@ def _get_registry() -> TemplateRegistry:
     if _registry_cache is None:
         _registry_cache = TemplateRegistry()
     return _registry_cache
+
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -56,7 +57,7 @@ context_projects_router = APIRouter(prefix="/context", tags=["context"])
 def _normalize_project_path(path: str) -> str:
     """Normalize and validate user-provided project paths."""
     norm = os.path.normpath(path).replace("\\", "/")
-    if os.path.isabs(norm):
+    if Path(norm).is_absolute():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid project path: must be relative to project root",
@@ -69,7 +70,7 @@ def _normalize_project_path(path: str) -> str:
             detail="Invalid project path: path traversal is not allowed",
         )
 
-    resolved_path = os.path.realpath(os.path.abspath(os.path.join(PROJECTS_ROOT, norm)))
+    resolved_path = str(Path(PROJECTS_ROOT, norm).resolve())
     try:
         common = os.path.commonpath([PROJECTS_ROOT, resolved_path])
     except ValueError as exc:
@@ -96,7 +97,7 @@ async def _create_project_handler(
     body: ProjectCreateRequest,
     payload: dict,
     db: AsyncSession,
-    sandbox_manager: Optional[SandboxManager] = None,
+    sandbox_manager: SandboxManager | None = None,
 ) -> ProjectCreateResponse:
     user_uuid = get_user_id(payload)
 
@@ -156,31 +157,34 @@ async def _create_project_handler(
                 )
                 logger.info(
                     "Provisioned sandbox with technologies %s for project %s",
-                    body.selected_technologies, str(project.id)[:12],
+                    body.selected_technologies,
+                    str(project.id)[:12],
                 )
             except ValueError as ve:
                 logger.warning(
                     "Technology validation failed for project %s: %s",
-                    str(project.id)[:12], ve,
+                    str(project.id)[:12],
+                    ve,
                 )
             except Exception:
                 logger.exception(
                     "Failed to provision sandbox for project %s with technologies %s",
-                    str(project.id)[:12], body.selected_technologies,
+                    str(project.id)[:12],
+                    body.selected_technologies,
                 )
         elif body.template_id:
             try:
-                await sandbox_manager.get_or_create_container(
-                    project.id, template_id=body.template_id
-                )
+                await sandbox_manager.get_or_create_container(project.id, template_id=body.template_id)
                 logger.info(
                     "Provisioned sandbox with template '%s' for project %s",
-                    body.template_id, str(project.id)[:12],
+                    body.template_id,
+                    str(project.id)[:12],
                 )
             except Exception:
                 logger.exception(
                     "Failed to provision sandbox for project %s with template '%s'",
-                    str(project.id)[:12], body.template_id,
+                    str(project.id)[:12],
+                    body.template_id,
                 )
 
     # Extract selected_technologies from settings for response
@@ -208,19 +212,16 @@ async def _list_projects_handler(
     user_uuid = get_user_id(payload)
 
     base_query = select(Project).where(
-        Project.user_id == user_uuid, Project.is_deleted == False  # noqa: E712
+        Project.user_id == user_uuid,
+        Project.is_deleted == False,  # noqa: E712
     )
 
     # Total count
-    count_result = await db.execute(
-        select(func.count()).select_from(base_query.subquery())
-    )
+    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar() or 0
 
     # Paginated results
-    result = await db.execute(
-        base_query.order_by(Project.created_at.desc()).offset(offset).limit(limit)
-    )
+    result = await db.execute(base_query.order_by(Project.created_at.desc()).offset(offset).limit(limit))
     projects = result.scalars().all()
 
     summaries = [
@@ -237,9 +238,7 @@ async def _list_projects_handler(
         for p in projects
     ]
 
-    return ProjectListResponse(
-        projects=summaries, count=len(summaries), total=total, limit=limit, offset=offset
-    )
+    return ProjectListResponse(projects=summaries, count=len(summaries), total=total, limit=limit, offset=offset)
 
 
 async def _get_project_handler(
@@ -280,9 +279,9 @@ async def _get_project_handler(
             ChatSummary(
                 id=str(c.id),
                 title=c.title,
-                is_pinned=c.is_pinned if hasattr(c, "is_pinned") else False,
-                is_archived=c.is_archived if hasattr(c, "is_archived") else False,
-                chat_mode=c.chat_mode if hasattr(c, "chat_mode") else None,
+                is_pinned=c.is_pinned,
+                is_archived=c.is_archived,
+                chat_mode=c.chat_mode,
                 created_at=c.created_at.isoformat() if c.created_at else None,
                 updated_at=c.updated_at.isoformat() if c.updated_at else None,
             )
@@ -399,7 +398,7 @@ async def _delete_project_handler(
     cm: ContextManager,
     payload: dict,
     db: AsyncSession,
-    sandbox_manager: Optional[SandboxManager] = None,
+    sandbox_manager: SandboxManager | None = None,
 ) -> None:
     user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
@@ -493,7 +492,12 @@ async def delete_project(
 # -------------------------------------------------------------------------
 
 
-@context_projects_router.post("/projects", response_model=ProjectCreateResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+@context_projects_router.post(
+    "/projects",
+    response_model=ProjectCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 async def create_project_alias(
     body: ProjectCreateRequest,
     payload: dict = Depends(get_current_user_payload),
@@ -537,7 +541,11 @@ async def update_project_alias(
     return await _update_project_handler(project_id, body, cm, payload, db)
 
 
-@context_projects_router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
+@context_projects_router.delete(
+    "/projects/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
 async def delete_project_alias(
     project_id: UUID,
     cm: ContextManager = Depends(get_context_manager),

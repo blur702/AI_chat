@@ -12,8 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.context_deps import get_current_user_payload, get_db_session, validate_project_access
 from app.auth import get_user_id
 from app.models.issue import Issue
-from app.models.note import Note
-from app.models.note_category import NoteCategory
 from app.schemas.issue import (
     IssueCreateRequest,
     IssueListResponse,
@@ -30,11 +28,13 @@ project_issues_router = APIRouter(prefix="/projects", tags=["issues"])
 
 # ---- Helpers ----
 
+
 async def _enqueue_coderabbit_poll(request: Request, issue_id: str, defer_by: int = 60) -> None:
     """Enqueue the CodeRabbit poll ARQ task."""
     pool = None
     try:
         from app.worker import get_redis_settings
+
         pool = await create_pool(get_redis_settings())
         await pool.enqueue_job(
             "poll_coderabbit_review",
@@ -72,6 +72,7 @@ def _issue_to_response(i: Issue) -> IssueResponse:
 
 # ---- CRUD ----
 
+
 @router.get("", response_model=IssueListResponse)
 async def list_issues(
     project_id: UUID | None = Query(default=None),
@@ -99,14 +100,13 @@ async def list_issues(
 
     count_result = await db.execute(select(func.count()).select_from(base_q.subquery()))
     total = count_result.scalar() or 0
-    result = await db.execute(
-        base_q.order_by(Issue.created_at.desc()).limit(limit).offset(offset)
-    )
+    result = await db.execute(base_q.order_by(Issue.created_at.desc()).limit(limit).offset(offset))
     rows = result.scalars().all()
     return IssueListResponse(issues=[_issue_to_response(i) for i in rows], count=total)
 
 
 # ---- Export ----
+
 
 @router.get("/export")
 async def export_bugs(
@@ -192,9 +192,7 @@ async def create_issue(
     db.add(row)
     await db.commit()
     # Re-fetch with relationships eagerly loaded (selectin on project)
-    result = await db.execute(
-        select(Issue).where(Issue.id == row.id)
-    )
+    result = await db.execute(select(Issue).where(Issue.id == row.id))
     row = result.scalar_one()
     return _issue_to_response(row)
 
@@ -242,8 +240,14 @@ async def update_issue(
     data = body.model_dump(exclude_unset=True)
     had_pr_url_before = bool(row.fix_pr_url)
     for field in (
-        "title", "description", "severity", "status",
-        "reproduction_steps", "fix_branch", "fix_pr_url", "coderabbit_review_url",
+        "title",
+        "description",
+        "severity",
+        "status",
+        "reproduction_steps",
+        "fix_branch",
+        "fix_pr_url",
+        "coderabbit_review_url",
         "is_app_issue",
     ):
         if field in data:
@@ -252,7 +256,7 @@ async def update_issue(
     await db.commit()
     await db.refresh(row)
 
-    # If fix_pr_url was just set, enqueue CodeRabbit poll with short delay
+    # If fix_pr_url was just set, enqueue CodeRabbit poll with 10s delay
     if not had_pr_url_before and row.fix_pr_url:
         await _enqueue_coderabbit_poll(request, str(row.id), defer_by=10)
 
@@ -282,6 +286,7 @@ async def delete_issue(
 
 # ---- Workflow ----
 
+
 @router.post("/{issue_id}/start-fix", response_model=StartFixResponse)
 async def start_fix(
     issue_id: UUID,
@@ -310,9 +315,7 @@ async def start_fix(
             sandbox_mgr = kernel.get_service("sandbox_manager")
             if sandbox_mgr:
                 try:
-                    container_id = await sandbox_mgr.get_or_create_container(
-                        issue.project_id
-                    )
+                    container_id = await sandbox_mgr.get_or_create_container(issue.project_id)
                     if container_id:
                         await sandbox_mgr.exec_in_container(
                             container_id,
@@ -364,6 +367,7 @@ async def review_status(
 
 
 # ---- Project Issues Scan ----
+
 
 @project_issues_router.get("/{project_id}/issues/scan", response_model=IssueListResponse)
 async def scan_project_issues(

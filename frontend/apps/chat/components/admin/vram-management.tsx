@@ -84,10 +84,11 @@ function DraggableLocalModel({
   onLoad: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
-    id: model.name,
-    data: { type: "local", model },
-  });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+    useDraggable({
+      id: model.name,
+      data: { type: "local", model },
+    });
 
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
@@ -163,10 +164,11 @@ function DraggableRunningModel({
   onOffload: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
-    id: model.name,
-    data: { type: "running", model },
-  });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
+    useDraggable({
+      id: model.name,
+      data: { type: "running", model },
+    });
 
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
@@ -320,7 +322,10 @@ function RamZone({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "ram" });
 
-  const ramPct = systemStats && systemStats.ram_total_mb > 0 ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100 : 0;
+  const ramPct =
+    systemStats && systemStats.ram_total_mb > 0
+      ? (systemStats.ram_used_mb / systemStats.ram_total_mb) * 100
+      : 0;
 
   return (
     <div
@@ -529,7 +534,10 @@ export function VramManagement() {
         <div>
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
             VRAM Management
-            <FieldHelp slug="admin-vram-overview" tip="Monitor GPU VRAM, load/unload models, and offload resources to RAM." />
+            <FieldHelp
+              slug="admin-vram-overview"
+              tip="Monitor GPU VRAM, load/unload models, and offload resources to RAM."
+            />
           </h2>
           <p className="text-xs text-muted-foreground">
             Drag models between GPUs and RAM, or use the action buttons.
@@ -552,7 +560,12 @@ export function VramManagement() {
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Left column: GPUs + RAM */}
           <div className="space-y-4 lg:col-span-2">

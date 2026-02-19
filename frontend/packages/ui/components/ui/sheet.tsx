@@ -40,7 +40,7 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      aria-describedby={undefined}
+      aria-describedby={props["aria-describedby"] ?? undefined}
       className={cn(
         "fixed inset-y-0 right-0 z-50 flex w-[420px] flex-col border-l bg-background shadow-elevation-3 duration-short ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
         className,

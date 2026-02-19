@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.chats import router as chats_router  # noqa: F401
 from app.api.context_deps import (
     get_context_manager,
     get_current_user_payload,
@@ -19,6 +20,11 @@ from app.api.context_deps import (
     get_ollama_client,
     validate_chat_access,
 )
+
+# Re-export sub-module routers so main.py can import from here unchanged
+from app.api.messages import router as messages_router  # noqa: F401
+from app.api.projects import context_projects_router  # noqa: F401
+from app.api.projects import router as projects_router  # noqa: F401
 from app.auth import get_user_id
 from app.kernel.context_manager import ContextManager
 from app.kernel.prompt_builder import PromptBuilder
@@ -26,21 +32,15 @@ from app.kernel.token_counter import TokenCounter
 from app.schemas.context import (
     ModelInfo,
     ModelListResponse,
-    TokenUsageRequest,
-    TokenUsageResponse,
     TokenizeRequest,
     TokenizeResponse,
     TokenSpan,
+    TokenUsageRequest,
+    TokenUsageResponse,
     UserPreferencesResponse,
     UserPreferencesUpdateRequest,
 )
 from app.services.ollama_client import OllamaClient
-
-# Re-export sub-module routers so main.py can import from here unchanged
-from app.api.messages import router as messages_router  # noqa: F401
-from app.api.chats import router as chats_router  # noqa: F401
-from app.api.projects import router as projects_router  # noqa: F401
-from app.api.projects import context_projects_router  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +71,9 @@ async def get_user_preferences(
 
     try:
         prefs = await cm.get_user_preferences(user_id)
-    except Exception:
-        logger.warning("Failed to load preferences for user %s, returning defaults", user_id)
-        prefs = {}
+    except Exception as exc:
+        logger.warning("Failed to load preferences for user %s: %s", user_id, exc)
+        return UserPreferencesResponse()
     return UserPreferencesResponse(**prefs)
 
 
@@ -95,9 +95,7 @@ async def update_user_preferences(
 
     from app.models.user_preference import UserPreference
 
-    result = await db.execute(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
+    result = await db.execute(select(UserPreference).where(UserPreference.user_id == user_id))
     pref = result.scalar_one_or_none()
 
     if pref is None:
@@ -180,9 +178,7 @@ async def track_token_usage(
     user_id = get_user_id(payload)
     await validate_chat_access(chat_id, user_id, db)
 
-    needs_compaction = await cm.track_token_usage(
-        chat_id, body.token_count, body.max_tokens
-    )
+    needs_compaction = await cm.track_token_usage(chat_id, body.token_count, body.max_tokens)
 
     compaction_triggered = False
     if needs_compaction:
@@ -217,7 +213,10 @@ async def get_token_usage(
     state = await cm.get_conversation_state(chat_id)
     if state is None:
         return TokenUsageResponse(
-            current_tokens=0, max_tokens=0, usage_ratio=0.0, compaction_triggered=False,
+            current_tokens=0,
+            max_tokens=0,
+            usage_ratio=0.0,
+            compaction_triggered=False,
         )
 
     prefs = await cm.get_user_preferences(user_id)

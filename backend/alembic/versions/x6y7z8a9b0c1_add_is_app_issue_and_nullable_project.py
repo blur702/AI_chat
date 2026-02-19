@@ -5,17 +5,17 @@ Revises: w5x6y7z8a9b0
 Create Date: 2026-02-19 10:00:00.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "x6y7z8a9b0c1"
-down_revision: Union[str, Sequence[str], None] = "w5x6y7z8a9b0"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "w5x6y7z8a9b0"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -58,6 +58,9 @@ def downgrade() -> None:
 
     # Remove is_app_issue column
     op.drop_column("issues", "is_app_issue")
+
+    # Delete any issues with NULL project_id before enforcing NOT NULL
+    op.execute("DELETE FROM issues WHERE project_id IS NULL")
 
     # Make project_id non-nullable (requires all rows to have a project_id)
     op.alter_column("issues", "project_id", existing_type=sa.dialects.postgresql.UUID(), nullable=False)

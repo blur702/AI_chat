@@ -75,10 +75,10 @@ const KBBuilderPanel = dynamic(
   () => import("./kb-builder/kb-builder-panel").then((m) => m.KBBuilderPanel),
   { ssr: false, loading: PanelSkeleton },
 );
-const IssuesPanel = dynamic(
-  () => import("./issues/issues-panel").then((m) => m.IssuesPanel),
-  { ssr: false, loading: PanelSkeleton },
-);
+const IssuesPanel = dynamic(() => import("./issues/issues-panel").then((m) => m.IssuesPanel), {
+  ssr: false,
+  loading: PanelSkeleton,
+});
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -222,7 +222,10 @@ export function IDELayout({ projectId }: IDELayoutProps) {
     [togglePanel],
   );
   const handlePlanningClick = useCallback(() => togglePanel("planning", "planning"), [togglePanel]);
-  const handleKBBuilderClick = useCallback(() => togglePanel("kb-builder", "kb-builder"), [togglePanel]);
+  const handleKBBuilderClick = useCallback(
+    () => togglePanel("kb-builder", "kb-builder"),
+    [togglePanel],
+  );
   const handleIssuesClick = useCallback(() => togglePanel("issues", "issues"), [togglePanel]);
 
   const handleToolsClick = useCallback(() => {
@@ -531,7 +534,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         )}
 
         {/* Main Editor + Terminal */}
-        <Panel id="editor-main" defaultSize={showChat ? "60%" : "85%"} minSize="30%">
+        <Panel id="editor-main" order={1} defaultSize={showChat ? "60%" : "85%"} minSize="30%">
           <Group orientation="vertical" id="editor-vertical">
             {/* Editor Area */}
             <Panel id="editor-area" defaultSize="65%" minSize="30%">

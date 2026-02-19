@@ -64,6 +64,8 @@ let logs: CapturedLog[] = [];
 let installed = false;
 let originalError: typeof console.error | null = null;
 let originalWarn: typeof console.warn | null = null;
+let errorHandler: ((event: ErrorEvent) => void) | null = null;
+let rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null;
 
 const MAX_LOGS = 200;
 
@@ -93,23 +95,38 @@ export function installConsoleCapture(): void {
   };
 
   // Also capture unhandled errors
-  window.addEventListener("error", (event) => {
+  errorHandler = (event) => {
     const message = `Unhandled Error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
     if (!isNoise(message)) {
       logs.push({ level: "error", message, timestamp: Date.now() });
       if (logs.length > MAX_LOGS) logs = logs.slice(-MAX_LOGS);
     }
-  });
+  };
+  window.addEventListener("error", errorHandler);
 
   // Capture unhandled promise rejections
-  window.addEventListener("unhandledrejection", (event) => {
+  rejectionHandler = (event) => {
     const reason = event.reason;
     const message = `Unhandled Promise Rejection: ${reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason)}`;
     if (!isNoise(message)) {
       logs.push({ level: "error", message, timestamp: Date.now() });
       if (logs.length > MAX_LOGS) logs = logs.slice(-MAX_LOGS);
     }
-  });
+  };
+  window.addEventListener("unhandledrejection", rejectionHandler);
+}
+
+export function uninstallConsoleCapture(): void {
+  if (!installed) return;
+  if (originalError) console.error = originalError;
+  if (originalWarn) console.warn = originalWarn;
+  if (errorHandler) window.removeEventListener("error", errorHandler);
+  if (rejectionHandler) window.removeEventListener("unhandledrejection", rejectionHandler);
+  originalError = null;
+  originalWarn = null;
+  errorHandler = null;
+  rejectionHandler = null;
+  installed = false;
 }
 
 export function getCapturedLogs(): CapturedLog[] {

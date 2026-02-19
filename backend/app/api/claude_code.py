@@ -49,7 +49,10 @@ async def list_messages(
         ref = await db.execute(select(ClaudeCodeMessage.created_at).where(ClaudeCodeMessage.id == since_id))
         ref_ts = ref.scalar_one_or_none()
         if ref_ts:
-            q = q.where(ClaudeCodeMessage.created_at > ref_ts)
+            q = q.where(
+                (ClaudeCodeMessage.created_at > ref_ts)
+                | ((ClaudeCodeMessage.created_at == ref_ts) & (ClaudeCodeMessage.id > since_id))
+            )
 
     q = q.order_by(ClaudeCodeMessage.created_at.asc()).limit(limit)
 

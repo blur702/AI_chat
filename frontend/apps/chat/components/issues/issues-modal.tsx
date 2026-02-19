@@ -92,7 +92,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
 
   const { issues, count, loading, error, createIssue, updateIssue, deleteIssue, startFix } =
     useIssues({
-      project_id: appIssueFilter ? undefined : (projectFilter === "all" ? undefined : projectFilter),
+      project_id: appIssueFilter ? undefined : projectFilter === "all" ? undefined : projectFilter,
       is_app_issue: appIssueFilter ? true : undefined,
       status: statusFilter === "all" ? undefined : statusFilter,
     });
@@ -264,7 +264,10 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
           <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <Bug className="h-4 w-4" />
             Bugs
-            <FieldHelp slug="issues-overview" tip="Track project bugs with severity levels, fix branches, and PR links. Promote notes to bugs and use start-fix to auto-create git branches." />
+            <FieldHelp
+              slug="issues-overview"
+              tip="Track project bugs with severity levels, fix branches, and PR links. Promote notes to bugs and use start-fix to auto-create git branches."
+            />
             {count > 0 && (
               <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                 {count}
@@ -290,7 +293,10 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Export bugs — copies to clipboard and downloads .md. AI Workshop issues appear first.</p>
+                <p>
+                  Export bugs — copies to clipboard and downloads .md. AI Workshop issues appear
+                  first.
+                </p>
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -360,7 +366,11 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
 
         {/* Create form */}
         {showCreateForm && (
-          <IssueCreateForm projects={projects} onSubmit={handleCreate} onCancel={() => setShowCreateForm(false)} />
+          <IssueCreateForm
+            projects={projects}
+            onSubmit={handleCreate}
+            onCancel={() => setShowCreateForm(false)}
+          />
         )}
 
         {/* Filters */}
@@ -454,8 +464,8 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                     try {
                       await updateIssue(issue.id, data);
                       setEditingId(null);
-                    } catch {
-                      // Error captured by useIssues hook
+                    } catch (err) {
+                      console.error("Failed to update issue:", err);
                     }
                   }}
                   onCancel={() => setEditingId(null)}
@@ -555,7 +565,7 @@ function IssueCreateForm({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="border-b px-4 py-3 space-y-2">
+      <div className="space-y-2 border-b px-4 py-3">
         <div className="flex items-center justify-between">
           <p className="text-xs font-medium">Report a bug</p>
           <button
@@ -572,7 +582,10 @@ function IssueCreateForm({
         <div className="flex rounded-md border">
           <button
             type="button"
-            onClick={() => { setScope("app"); setProjectId(""); }}
+            onClick={() => {
+              setScope("app");
+              setProjectId("");
+            }}
             className={cn(
               "flex flex-1 items-center justify-center gap-1.5 rounded-l-md py-1.5 text-xs font-medium transition-colors",
               scope === "app"
@@ -669,11 +682,7 @@ function IssueCreateForm({
             className="ml-auto flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
           >
             {showAdvanced ? "Less" : "More"}
-            {showAdvanced ? (
-              <ChevronUp className="h-3 w-3" />
-            ) : (
-              <ChevronDown className="h-3 w-3" />
-            )}
+            {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </div>
 
@@ -833,7 +842,9 @@ function IssueCard({
                     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
                       window.open(issue.fix_pr_url!, "_blank", "noopener,noreferrer");
                     }
-                  } catch { /* invalid URL */ }
+                  } catch {
+                    /* invalid URL */
+                  }
                 }}
               >
                 <ExternalLink className="h-3 w-3" />
@@ -947,7 +958,7 @@ function IssueEditCard({
   };
 
   return (
-    <div className="rounded-lg border-2 border-primary/30 bg-card p-3 space-y-2">
+    <div className="space-y-2 rounded-lg border-2 border-primary/30 bg-card p-3">
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-medium text-muted-foreground">Editing bug</p>
         <button

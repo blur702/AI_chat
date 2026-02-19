@@ -23,6 +23,9 @@ export async function loginAsAdmin(page: Page, redirectTo = "/chat"): Promise<st
   }
 
   const body = await res.json();
+  if (!body.access_token) {
+    throw new Error(`loginAsAdmin: missing access_token in response (status=${res.status()})`);
+  }
 
   // Navigate to target page
   await page.goto(redirectTo);

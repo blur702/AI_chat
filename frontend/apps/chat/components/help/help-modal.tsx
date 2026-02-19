@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import {
-  ScrollArea,
-  Input,
-  Badge,
-} from "@workstation/ui";
+import { ScrollArea, Input, Badge } from "@workstation/ui";
 import { Search, BookOpen, Loader2, X } from "lucide-react";
 import { useHelp } from "./help-provider";
 import { useHelpTopics } from "@workstation/api/hooks/use-help-topics";
@@ -88,7 +84,7 @@ export function HelpModal() {
     const handleFocusTrap = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
       const focusable = panel.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -164,7 +160,7 @@ export function HelpModal() {
         }
       }, 300);
     },
-    [search]
+    [search],
   );
 
   const handleFeedback = useCallback(
@@ -182,6 +178,8 @@ export function HelpModal() {
           ...prev,
           [topicId]: helpful ? "helpful" : "unhelpful",
         }));
+      } catch (err) {
+        console.error("Failed to submit feedback:", err);
       } finally {
         setFeedbackSavingFor(null);
       }
@@ -214,7 +212,7 @@ export function HelpModal() {
       acc[key].push(topic);
       return acc;
     },
-    {}
+    {},
   );
 
   const panelStyle: React.CSSProperties = position
@@ -226,7 +224,10 @@ export function HelpModal() {
       {/* Overlay */}
       <div
         className="fixed inset-0 z-50 bg-black/50"
-        onClick={(e) => { e.stopPropagation(); closeHelp(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeHelp();
+        }}
         aria-hidden="true"
       />
 
@@ -236,16 +237,16 @@ export function HelpModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed z-[51] w-full max-w-2xl flex flex-col rounded-lg border bg-background shadow-lg"
+        className="fixed z-[51] flex w-full max-w-2xl flex-col rounded-lg border bg-background shadow-lg"
         style={{ ...panelStyle, maxHeight: "80vh" }}
       >
         {/* Drag handle header */}
         <div
-          className="flex items-center justify-between px-4 py-3 border-b select-none cursor-grab active:cursor-grabbing"
+          className="flex cursor-grab select-none items-center justify-between border-b px-4 py-3 active:cursor-grabbing"
           onPointerDown={handlePointerDown}
         >
           <div>
-            <h2 id={titleId} className="text-lg font-semibold flex items-center gap-2">
+            <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold">
               <BookOpen className="h-5 w-5" />
               Help
             </h2>
@@ -263,9 +264,9 @@ export function HelpModal() {
           </button>
         </div>
 
-        <div className="px-4 pt-3 pb-2">
+        <div className="px-4 pb-2 pt-3">
           <div className="relative" role="search" aria-label="Search help topics">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
@@ -277,10 +278,14 @@ export function HelpModal() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-4 pb-4 pr-2" style={{ maxHeight: "55vh" }} ref={scrollRef}>
+        <ScrollArea
+          className="min-h-0 flex-1 px-4 pb-4 pr-2"
+          style={{ maxHeight: "55vh" }}
+          ref={scrollRef}
+        >
           {searching ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Searching...</span>
             </div>
           ) : loading && !topics.length ? (
@@ -288,16 +293,16 @@ export function HelpModal() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <p className="text-sm text-destructive py-4 text-center">{error}</p>
+            <p className="py-4 text-center text-sm text-destructive">{error}</p>
           ) : displayTopics.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
+            <p className="py-8 text-center text-sm text-muted-foreground">
               {searchQuery ? "No matching help topics found." : "No help topics available yet."}
             </p>
           ) : (
             <div className="space-y-6 py-2">
               {Object.entries(grouped).map(([sectionId, sectionTopics]) => (
                 <div key={sectionId}>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {sectionId.replace(/-/g, " ")}
                   </h3>
                   <div className="space-y-4">
@@ -311,15 +316,15 @@ export function HelpModal() {
                             : "border-border"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="mb-2 flex items-start justify-between gap-2">
                           <h4 className="text-sm font-medium">{topic.title}</h4>
                           {"similarity" in topic && (
-                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                            <Badge variant="secondary" className="shrink-0 text-[10px]">
                               {Math.round((topic as HelpSearchResult).similarity * 100)}% match
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                           {getQuickAnswer(topic.body)}
                         </p>
                         {getQuickAnswer(topic.body) !== topic.body.trim() && (
@@ -327,7 +332,7 @@ export function HelpModal() {
                             <summary className="cursor-pointer text-xs text-primary hover:underline">
                               Read full details
                             </summary>
-                            <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
                               {topic.body}
                             </p>
                           </details>
@@ -364,11 +369,13 @@ export function HelpModal() {
                             disabled={feedbackSavingFor === topic.id}
                             aria-label={`Mark ${topic.title} as needing more detail`}
                           >
-                            {feedbackState[topic.id] === "unhelpful" ? "Thanks - we'll improve" : "Needs more detail"}
+                            {feedbackState[topic.id] === "unhelpful"
+                              ? "Thanks - we'll improve"
+                              : "Needs more detail"}
                           </button>
                         </div>
                         {topic.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
+                          <div className="mt-2 flex flex-wrap gap-1">
                             {topic.tags.map((tag) => (
                               <Badge key={tag} variant="outline" className="text-[10px]">
                                 {tag}
