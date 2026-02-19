@@ -1,9 +1,10 @@
-"""Issues CRUD and workflow endpoints."""
+"""Bugs (Issues) CRUD and workflow endpoints."""
 
 import logging
 import shlex
 from uuid import UUID
 
+from arq import create_pool
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +30,26 @@ project_issues_router = APIRouter(prefix="/projects", tags=["issues"])
 
 # ---- Helpers ----
 
+async def _enqueue_coderabbit_poll(request: Request, issue_id: str, defer_by: int = 60) -> None:
+    """Enqueue the CodeRabbit poll ARQ task."""
+    pool = None
+    try:
+        from app.worker import get_redis_settings
+        pool = await create_pool(get_redis_settings())
+        await pool.enqueue_job(
+            "poll_coderabbit_review",
+            issue_id,
+            _defer_by=defer_by,
+            _job_id=f"coderabbit-{issue_id}-0",
+        )
+        logger.info("Enqueued coderabbit poll for issue %s (defer %ds)", issue_id, defer_by)
+    except Exception as e:
+        logger.warning("Failed to enqueue coderabbit poll: %s", e)
+    finally:
+        if pool:
+            await pool.aclose()
+
+
 def _issue_to_response(i: Issue) -> IssueResponse:
     return IssueResponse(
         id=str(i.id),
@@ -52,7 +73,7 @@ def _issue_to_response(i: Issue) -> IssueResponse:
 
 @router.get("", response_model=IssueListResponse)
 async def list_issues(
-    project_id: str | None = Query(default=None),
+    project_id: UUID | None = Query(default=None),
     issue_status: str | None = Query(default=None, alias="status"),
     severity: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
@@ -131,6 +152,7 @@ async def get_issue(
 async def update_issue(
     issue_id: UUID,
     body: IssueUpdateRequest,
+    request: Request,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> IssueResponse:
@@ -147,6 +169,7 @@ async def update_issue(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
 
     data = body.model_dump(exclude_unset=True)
+    had_pr_url_before = bool(row.fix_pr_url)
     for field in (
         "title", "description", "severity", "status",
         "reproduction_steps", "fix_branch", "fix_pr_url", "coderabbit_review_url",
@@ -156,6 +179,11 @@ async def update_issue(
 
     await db.commit()
     await db.refresh(row)
+
+    # If fix_pr_url was just set, enqueue CodeRabbit poll with short delay
+    if not had_pr_url_before and row.fix_pr_url:
+        await _enqueue_coderabbit_poll(request, str(row.id), defer_by=10)
+
     return _issue_to_response(row)
 
 
@@ -178,6 +206,52 @@ async def delete_issue(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
     row.soft_delete()
     await db.commit()
+
+
+# ---- Export ----
+
+@router.get("/export")
+async def export_bugs(
+    project_id: UUID | None = Query(default=None),
+    payload: dict = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Export open/in-progress bugs as markdown for pasting into Claude Code."""
+    user_id = get_user_id(payload)
+    base_q = select(Issue).where(
+        Issue.user_id == user_id,
+        Issue.is_deleted == False,  # noqa: E712
+        Issue.status.in_(["open", "in_progress"]),
+    )
+    if project_id is not None:
+        base_q = base_q.where(Issue.project_id == project_id)
+
+    result = await db.execute(base_q.order_by(Issue.created_at.asc()))
+    bugs = result.scalars().all()
+
+    if not bugs:
+        return {"markdown": "# Bugs to Fix\n\nNo open bugs.\n", "count": 0}
+
+    lines = [
+        "# Bugs to Fix\n",
+        f"{len(bugs)} bug(s) tracked. Fix each one.",
+        "Codebase root: `/app`\n",
+    ]
+    for i, bug in enumerate(bugs, 1):
+        title = bug.title or "Untitled"
+        severity = bug.severity or "medium"
+        created = bug.created_at.strftime("%Y-%m-%d") if bug.created_at else "unknown"
+        lines.append(f"## {i}. [{severity.upper()}] {title}")
+        lines.append(f"**Created:** {created}  **Status:** {bug.status}")
+        if bug.fix_branch:
+            lines.append(f"**Branch:** `{bug.fix_branch}`")
+        if bug.description:
+            lines.append(bug.description)
+        if bug.reproduction_steps:
+            lines.append(f"\n**Reproduction steps:**\n{bug.reproduction_steps}")
+        lines.append("")
+
+    return {"markdown": "\n".join(lines), "count": len(bugs)}
 
 
 # ---- Workflow ----
@@ -224,6 +298,9 @@ async def start_fix(
     issue.fix_branch = branch_name
     await db.commit()
     await db.refresh(issue)
+
+    # Enqueue CodeRabbit poll (60s delay to allow PR creation)
+    await _enqueue_coderabbit_poll(request, str(issue.id), defer_by=60)
 
     return StartFixResponse(
         issue_id=str(issue.id),
