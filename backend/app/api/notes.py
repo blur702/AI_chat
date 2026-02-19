@@ -1,7 +1,6 @@
 """Notes and NoteCategory CRUD endpoints."""
 
 import logging
-import os
 import re
 from uuid import UUID
 
@@ -35,6 +34,7 @@ admin_notes_router = APIRouter(prefix="/admin/notes", tags=["admin"])
 
 
 # ---- Helpers ----
+
 
 def _slugify(name: str) -> str:
     slug = name.lower().strip()
@@ -95,14 +95,16 @@ async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
     added = False
     for cat in _SYSTEM_CATEGORIES:
         if cat["slug"] not in existing_slugs:
-            db.add(NoteCategory(
-                user_id=user_id,
-                name=cat["name"],
-                slug=cat["slug"],
-                color=cat["color"],
-                is_system=True,
-                sort_order=cat["sort_order"],
-            ))
+            db.add(
+                NoteCategory(
+                    user_id=user_id,
+                    name=cat["name"],
+                    slug=cat["slug"],
+                    color=cat["color"],
+                    is_system=True,
+                    sort_order=cat["sort_order"],
+                )
+            )
             added = True
 
     # Soft-delete legacy "app-bugs" category if it has zero active notes
@@ -118,11 +120,13 @@ async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
         if legacy_cat:
             note_count = await db.execute(
                 select(func.count()).select_from(
-                    select(Note.id).where(
+                    select(Note.id)
+                    .where(
                         Note.category_id == legacy_cat.id,
                         Note.status == "active",
                         Note.is_deleted == False,  # noqa: E712
-                    ).subquery()
+                    )
+                    .subquery()
                 )
             )
             if (note_count.scalar() or 0) == 0:
@@ -137,6 +141,7 @@ async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
 
 
 # ---- Note Category Endpoints ----
+
 
 @categories_router.get("", response_model=NoteCategoryListResponse)
 async def list_categories(
@@ -173,9 +178,9 @@ async def create_category(
     db.add(row)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Category with this name already exists")
+        raise HTTPException(status_code=409, detail="Category with this name already exists") from exc
     await db.refresh(row)
     return _category_to_response(row)
 
@@ -210,9 +215,9 @@ async def update_category(
         row.sort_order = data["sort_order"]
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="A category with this name already exists")
+        raise HTTPException(status_code=409, detail="A category with this name already exists") from exc
     await db.refresh(row)
     return _category_to_response(row)
 
@@ -242,6 +247,7 @@ async def delete_category(
 
 # ---- Note Endpoints ----
 
+
 @router.get("", response_model=NoteListResponse)
 async def list_notes(
     project_id: UUID | None = Query(default=None),
@@ -269,9 +275,7 @@ async def list_notes(
 
     count_result = await db.execute(select(func.count()).select_from(base_q.subquery()))
     total = count_result.scalar() or 0
-    result = await db.execute(
-        base_q.order_by(Note.pinned.desc(), Note.updated_at.desc()).limit(limit).offset(offset)
-    )
+    result = await db.execute(base_q.order_by(Note.pinned.desc(), Note.updated_at.desc()).limit(limit).offset(offset))
     rows = result.scalars().all()
     return NoteListResponse(notes=[_note_to_response(n) for n in rows], count=total)
 
@@ -331,12 +335,14 @@ async def export_app_bugs(
         return {"markdown": "# App Bugs to Fix\n\nNo App Bugs category found.\n", "count": 0}
 
     notes_result = await db.execute(
-        select(Note).where(
+        select(Note)
+        .where(
             Note.user_id == user_id,
             Note.category_id == category.id,
             Note.status == "active",
             Note.is_deleted == False,  # noqa: E712
-        ).order_by(Note.created_at.asc())
+        )
+        .order_by(Note.created_at.asc())
     )
     bugs = notes_result.scalars().all()
 
@@ -497,6 +503,7 @@ async def archive_note(
 
 # ---- Promote to Issue ----
 
+
 @router.post("/{note_id}/promote-to-issue", response_model=IssueResponse)
 async def promote_to_issue(
     note_id: UUID,
@@ -577,6 +584,7 @@ async def promote_to_issue(
 
 # ---- Admin Endpoint ----
 
+
 @admin_notes_router.get("", response_model=NoteListResponse)
 async def admin_list_notes(
     limit: int = Query(default=100, ge=1, le=500),
@@ -596,9 +604,7 @@ async def admin_list_notes(
 
     count_result = await db.execute(select(func.count()).select_from(base_q.subquery()))
     total = count_result.scalar() or 0
-    result = await db.execute(
-        base_q.order_by(Note.updated_at.desc()).limit(limit).offset(offset)
-    )
+    result = await db.execute(base_q.order_by(Note.updated_at.desc()).limit(limit).offset(offset))
     rows = result.scalars().all()
     return NoteListResponse(notes=[_note_to_response(n) for n in rows], count=total)
 
@@ -626,6 +632,7 @@ async def admin_delete_note(
 
 # ---- AI Title Generation ----
 
+
 async def _generate_ai_title(request: Request, body_text: str) -> str | None:
     """Use OllamaClient to generate a short title from note body."""
     try:
@@ -639,7 +646,10 @@ async def _generate_ai_title(request: Request, body_text: str) -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": "Generate a concise title (max 60 chars) for this note. Reply with ONLY the title, no quotes or punctuation wrapping.",
+                    "content": (
+                        "Generate a concise title (max 60 chars) for this note."
+                        " Reply with ONLY the title, no quotes or punctuation wrapping."
+                    ),
                 },
                 {"role": "user", "content": body_text[:500]},
             ],

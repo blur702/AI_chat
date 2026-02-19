@@ -4,8 +4,9 @@ Thin facade that delegates to focused helper modules in app.services.sandbox/.
 """
 
 import asyncio
+import contextlib
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from uuid import UUID
 
 import docker
@@ -15,11 +16,7 @@ from app.kernel.base import BaseKernelService
 from app.services.sandbox.constants import (
     COMMAND_TIMEOUT,
     CREATION_FAILURE_COOLDOWN,
-    EXPORTED_IMAGE_TRACKING_MAX,
-    SANDBOX_CPU_QUOTA,
-    SANDBOX_IDLE_TIMEOUT,
     SANDBOX_IMAGE,
-    SANDBOX_MEMORY_LIMIT,
     SANDBOX_NETWORK,
 )
 from app.services.sandbox.container_lifecycle import ContainerLifecycle
@@ -32,11 +29,11 @@ from app.services.templates import TemplateRegistry
 
 # Re-export constants for backward compatibility
 __all__ = [
-    "SandboxManager",
     "COMMAND_TIMEOUT",
     "CREATION_FAILURE_COOLDOWN",
     "SANDBOX_IMAGE",
     "SANDBOX_NETWORK",
+    "SandboxManager",
 ]
 
 logger = logging.getLogger("workstation.sandbox")
@@ -51,24 +48,24 @@ class SandboxManager(BaseKernelService):
 
     def __init__(self) -> None:
         self._running = False
-        self._client: Optional[docker.DockerClient] = None
+        self._client: docker.DockerClient | None = None
         # Shared state dicts — passed by reference to helper classes
-        self._containers: Dict[str, str] = {}
-        self._last_activity: Dict[str, float] = {}
-        self._cleanup_task: Optional[asyncio.Task] = None
-        self._sidecars: Dict[str, List[str]] = {}
+        self._containers: dict[str, str] = {}
+        self._last_activity: dict[str, float] = {}
+        self._cleanup_task: asyncio.Task | None = None
+        self._sidecars: dict[str, list[str]] = {}
         self._template_registry = TemplateRegistry()
-        self._creation_locks: Dict[str, asyncio.Lock] = {}
-        self._applied_templates: Dict[str, str] = {}
-        self._exported_images: Dict[str, str] = {}
-        self._creation_failures: Dict[str, Tuple[float, str]] = {}
+        self._creation_locks: dict[str, asyncio.Lock] = {}
+        self._applied_templates: dict[str, str] = {}
+        self._exported_images: dict[str, str] = {}
+        self._creation_failures: dict[str, tuple[float, str]] = {}
         # Helpers are instantiated in startup() once Docker client is available
-        self._run: Optional[ExecRunner] = None
-        self._file_ops: Optional[FileOps] = None
-        self._tech_merger: Optional[TechMerger] = None
-        self._template_applier: Optional[TemplateApplier] = None
-        self._lifecycle: Optional[ContainerLifecycle] = None
-        self._portability: Optional[Portability] = None
+        self._run: ExecRunner | None = None
+        self._file_ops: FileOps | None = None
+        self._tech_merger: TechMerger | None = None
+        self._template_applier: TemplateApplier | None = None
+        self._lifecycle: ContainerLifecycle | None = None
+        self._portability: Portability | None = None
 
     @property
     def name(self) -> str:
@@ -88,19 +85,31 @@ class SandboxManager(BaseKernelService):
         self._file_ops = FileOps(self._run, self._client, self._last_activity)
         self._tech_merger = TechMerger(self._template_registry)
         self._template_applier = TemplateApplier(
-            self._run, self._file_ops, self._client,
-            self._template_registry, self._sidecars,
+            self._run,
+            self._file_ops,
+            self._client,
+            self._template_registry,
+            self._sidecars,
         )
         self._lifecycle = ContainerLifecycle(
-            self._client, self._containers, self._last_activity,
-            self._creation_locks, self._applied_templates,
-            self._creation_failures, self._sidecars,
-            self._template_registry, self._tech_merger, self._template_applier,
+            self._client,
+            self._containers,
+            self._last_activity,
+            self._creation_locks,
+            self._applied_templates,
+            self._creation_failures,
+            self._sidecars,
+            self._template_registry,
+            self._tech_merger,
+            self._template_applier,
         )
         self._portability = Portability(
-            self._client, self._containers, self._template_registry,
+            self._client,
+            self._containers,
+            self._template_registry,
             self._exported_images,
-            self.get_or_create_container, self.stop_container,
+            self.get_or_create_container,
+            self.stop_container,
         )
 
         await self._lifecycle.recover_containers()
@@ -111,10 +120,8 @@ class SandboxManager(BaseKernelService):
     async def shutdown(self) -> None:
         if self._cleanup_task:
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
             self._cleanup_task = None
         if self._client:
             await asyncio.to_thread(self._client.close)
@@ -129,14 +136,14 @@ class SandboxManager(BaseKernelService):
         self._running = False
         logger.info("SandboxManager stopped")
 
-    async def health_check(self) -> Tuple[bool, str]:
+    async def health_check(self) -> tuple[bool, str]:
         if not self._running or not self._client:
             return False, "service not running"
         try:
             await asyncio.to_thread(self._client.ping)
-            return True, "ok ({} active containers)".format(len(self._containers))
+            return True, f"ok ({len(self._containers)} active containers)"
         except DockerException as e:
-            return False, "docker error: {}".format(e)
+            return False, f"docker error: {e}"
 
     @property
     def template_registry(self) -> TemplateRegistry:
@@ -147,12 +154,15 @@ class SandboxManager(BaseKernelService):
     async def get_or_create_container(
         self,
         project_id: UUID,
-        template_id: Optional[str] = None,
-        custom_image: Optional[str] = None,
-        selected_technologies: Optional[List[str]] = None,
+        template_id: str | None = None,
+        custom_image: str | None = None,
+        selected_technologies: list[str] | None = None,
     ) -> str:
         return await self._lifecycle.get_or_create_container(
-            project_id, template_id, custom_image, selected_technologies,
+            project_id,
+            template_id,
+            custom_image,
+            selected_technologies,
         )
 
     async def stop_container(self, project_id: UUID) -> bool:
@@ -181,10 +191,12 @@ class SandboxManager(BaseKernelService):
                 container_id = exec_inspect.get("ContainerID")
                 if container_id:
                     container = await asyncio.to_thread(
-                        self._client.containers.get, container_id,
+                        self._client.containers.get,
+                        container_id,
                     )
                     await asyncio.to_thread(
-                        container.exec_run, ["kill", "-9", str(pid)],
+                        container.exec_run,
+                        ["kill", "-9", str(pid)],
                     )
         except Exception as e:
             logger.debug("Failed to kill exec process %s: %s", exec_id, e)
@@ -256,7 +268,11 @@ class SandboxManager(BaseKernelService):
         template_id: str | None = None,
     ) -> dict:
         return await self._portability.export_as_docker_image(
-            project_id, image_name, include_compose, include_tar, template_id,
+            project_id,
+            image_name,
+            include_compose,
+            include_tar,
+            template_id,
         )
 
     async def export_docker_tar_streaming(self, image_id: str):
@@ -268,21 +284,19 @@ class SandboxManager(BaseKernelService):
 
     # -- Drupal staging helpers ------------------------------------------------
 
-    async def get_container_info(self, project_id: str) -> Optional[dict]:
+    async def get_container_info(self, project_id: str) -> dict | None:
         """Return basic container info (id, running, port) or None."""
         container_id = self._containers.get(project_id)
         if not container_id:
             return None
         try:
-            container = await asyncio.to_thread(
-                self._client.containers.get, container_id
-            )
+            container = await asyncio.to_thread(self._client.containers.get, container_id)
             attrs = container.attrs or {}
             state = attrs.get("State", {})
             ports = attrs.get("NetworkSettings", {}).get("Ports", {})
             # Find first mapped host port
             exposed_port = None
-            for _cport, bindings in ports.items():
+            for bindings in ports.values():
                 if bindings:
                     exposed_port = bindings[0].get("HostPort")
                     if exposed_port:
@@ -301,47 +315,42 @@ class SandboxManager(BaseKernelService):
         """Run a command inside a sandbox container. Returns stdout."""
         return await self._run.exec_simple(container_id, command)
 
-    async def write_file_in_container(
-        self, container_id: str, file_path: str, content: str
-    ) -> None:
+    async def write_file_in_container(self, container_id: str, file_path: str, content: str) -> None:
         """Write a file inside a sandbox container."""
         await self._file_ops.write_file(container_id, file_path, content)
 
-    async def upload_and_extract(
-        self, container_id: str, local_tar_path: str, dest_dir: str
-    ) -> None:
+    async def upload_and_extract(self, container_id: str, local_tar_path: str, dest_dir: str) -> None:
         """Upload a tar.gz from the host and extract it inside the container."""
         import io
         import tarfile as tarfile_mod
 
-        container = await asyncio.to_thread(
-            self._client.containers.get, container_id
-        )
+        container = await asyncio.to_thread(self._client.containers.get, container_id)
 
         def _repack_tar(path: str) -> io.BytesIO:
             with open(path, "rb") as f:
                 data = f.read()
             buf = io.BytesIO()
-            with tarfile_mod.open(fileobj=io.BytesIO(data), mode="r:gz") as src:
-                with tarfile_mod.open(fileobj=buf, mode="w") as dst:
-                    for member in src.getmembers():
-                        dst.addfile(member, src.extractfile(member) if member.isreg() else None)
+            with (
+                tarfile_mod.open(fileobj=io.BytesIO(data), mode="r:gz") as src,
+                tarfile_mod.open(fileobj=buf, mode="w") as dst,
+            ):
+                for member in src.getmembers():
+                    # Prevent tar slip: reject absolute paths and traversal
+                    if member.name.startswith("/") or ".." in member.name.split("/"):
+                        continue
+                    if member.issym() or member.islnk():
+                        continue
+                    dst.addfile(member, src.extractfile(member) if member.isreg() else None)
             buf.seek(0)
             return buf
 
         buf = await asyncio.to_thread(_repack_tar, local_tar_path)
         await asyncio.to_thread(container.put_archive, dest_dir, buf)
 
-    async def download_archive(
-        self, container_id: str, container_path: str, local_dest: str
-    ) -> None:
+    async def download_archive(self, container_id: str, container_path: str, local_dest: str) -> None:
         """Tar a path inside the container and save to a local file."""
-        container = await asyncio.to_thread(
-            self._client.containers.get, container_id
-        )
-        bits, _stat = await asyncio.to_thread(
-            container.get_archive, container_path
-        )
+        container = await asyncio.to_thread(self._client.containers.get, container_id)
+        bits, _stat = await asyncio.to_thread(container.get_archive, container_path)
 
         def _write_chunks(chunks: Any, dest: str) -> None:
             with open(dest, "wb") as f:
@@ -355,13 +364,11 @@ class SandboxManager(BaseKernelService):
         project_id: str,
         sidecar_name: str,
         command: str,
-        stdin_file: Optional[str] = None,
+        stdin_file: str | None = None,
     ) -> str:
         """Run a command in a project's sidecar container, optionally piping stdin."""
         container_name = f"sandbox-{project_id[:12]}-{sidecar_name}"
-        container = await asyncio.to_thread(
-            self._client.containers.get, container_name
-        )
+        container = await asyncio.to_thread(self._client.containers.get, container_name)
         if stdin_file:
             # Upload stdin file as tar, then pipe it
             import io
@@ -379,7 +386,7 @@ class SandboxManager(BaseKernelService):
                 return buf
 
             buf = await asyncio.to_thread(_build_stdin_tar, stdin_file)
-            await asyncio.to_thread(container.put_archive, "/tmp", buf)
+            await asyncio.to_thread(container.put_archive, "/tmp", buf)  # noqa: S108
             command = f"cat /tmp/stdin_data | {command}"
 
         exec_instance = await asyncio.to_thread(
@@ -407,9 +414,7 @@ class SandboxManager(BaseKernelService):
     ) -> None:
         """Exec a command in a sidecar and write output to a local file."""
         container_name = f"sandbox-{project_id[:12]}-{sidecar_name}"
-        container = await asyncio.to_thread(
-            self._client.containers.get, container_name
-        )
+        container = await asyncio.to_thread(self._client.containers.get, container_name)
         exec_instance = await asyncio.to_thread(
             self._client.api.exec_create,
             container.id,

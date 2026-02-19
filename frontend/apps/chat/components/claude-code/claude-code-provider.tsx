@@ -27,7 +27,9 @@ export function ClaudeCodeProvider({ children }: { children: ReactNode }) {
   // Keyboard shortcut: Ctrl+Shift+C
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === "C") {
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+      if (isCtrlOrCmd && e.shiftKey && e.key === "C") {
         e.preventDefault();
         togglePanel();
       }

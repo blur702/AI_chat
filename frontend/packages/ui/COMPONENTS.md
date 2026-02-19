@@ -39,7 +39,7 @@ Use package imports from `@workstation/ui` or direct component paths under `@wor
 - `InlineAlert`
 - `StatusMessage`
 
-### Navigation And Theme
+### Navigation and Theme
 
 - `SkipNav`
 - `ThemeProvider`

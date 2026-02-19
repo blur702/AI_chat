@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,39 +29,31 @@ class Issue(UUIDMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    project_id: Mapped[Optional[UUID]] = mapped_column(
+    project_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=True,
     )
     is_app_issue: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    note_id: Mapped[Optional[UUID]] = mapped_column(
+    note_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("notes.id", ondelete="SET NULL"),
         nullable=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    severity: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="medium"
-    )
-    status: Mapped[str] = mapped_column(
-        String(30), nullable=False, default="open"
-    )
-    reproduction_steps: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    fix_branch: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    fix_pr_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    coderabbit_review_url: Mapped[Optional[str]] = mapped_column(
-        String(500), nullable=True
-    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="open")
+    reproduction_steps: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fix_branch: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    fix_pr_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    coderabbit_review_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user: Mapped["User"] = relationship("User", back_populates="issues")
-    project: Mapped[Optional["Project"]] = relationship("Project", lazy="selectin")
-    note: Mapped[Optional["Note"]] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="issues")
+    project: Mapped[Project | None] = relationship("Project", lazy="selectin")
+    note: Mapped[Note | None] = relationship(
         "Note",
         foreign_keys=[note_id],
         lazy="selectin",
@@ -80,10 +72,10 @@ class Issue(UUIDMixin, TimestampMixin, Base):
             "idx_issues_app_issues",
             "user_id",
             "is_deleted",
-            postgresql_where="is_app_issue = true",
+            postgresql_where=text("is_app_issue = true"),
         ),
     )
 
     def soft_delete(self) -> None:
         self.is_deleted = True
-        self.deleted_at = datetime.now(timezone.utc)
+        self.deleted_at = datetime.now(UTC)
