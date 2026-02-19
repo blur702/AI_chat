@@ -59,7 +59,8 @@ def downgrade() -> None:
     # Remove is_app_issue column
     op.drop_column("issues", "is_app_issue")
 
-    # Delete any issues with NULL project_id before enforcing NOT NULL
+    # WARNING: Permanently deletes all app-level issues (project_id IS NULL).
+    # Back up data before running this downgrade if you need to preserve them.
     op.execute("DELETE FROM issues WHERE project_id IS NULL")
 
     # Make project_id non-nullable (requires all rows to have a project_id)

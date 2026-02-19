@@ -32,6 +32,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S"]
 "../tests/backend/**" = ["S"]
+# drupal.py uses many try/except/pass for SSH cleanup, os.unlink for temp files, /tmp paths
+"app/api/drupal.py" = ["SIM105", "S110", "PTH108", "PTH119", "S108"]
 
 [tool.mypy]
 python_version = "3.12"

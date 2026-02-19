@@ -9,8 +9,7 @@ import re
 import shlex
 import socket
 import tempfile
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -59,13 +58,15 @@ from app.schemas.drupal import (
     ModuleThemeListResponse,
     PushRequest,
     PushResponse,
-    StagingStatusResponse as StagingStatusSchema,
     SyncResponse,
     SyncStatusResponse,
     ThemeDisableRequest,
     ThemeEnableRequest,
     ThemeScaffoldRequest,
     ThemeScaffoldResponse,
+)
+from app.schemas.drupal import (
+    StagingStatusResponse as StagingStatusSchema,
 )
 from app.services.drupal_mcp import DrupalMCPService
 from app.services.sandbox_manager import SandboxManager
@@ -76,47 +77,84 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/drupal")
 
 # Dangerous Drush commands that should not be executed remotely
-ALLOWED_DRUSH_COMMANDS = frozenset({
-    "status", "st",
-    "core:status", "core-status",
-    "config:get", "config-get", "cget",
-    "config:export", "config-export", "cex",
-    "config:import", "config-import", "cim",
-    "cache:rebuild", "cache-rebuild", "cr",
-    "pm:list", "pm-list", "pml",
-    "pm:info", "pm-info", "pmi",
-    "pm:enable", "pm-enable", "en",
-    "pm:uninstall", "pm-uninstall", "pmu",
-    "updatedb", "updb",
-    "watchdog:show", "watchdog-show", "wd-show", "ws",
-    "cron",
-    "queue:list", "queue-list",
-    "queue:run", "queue-run",
-    "deploy:hook", "deploy-hook",
-    "locale:check", "locale-check",
-    "locale:update", "locale-update",
-    "theme:enable", "theme-enable",
-    "theme:uninstall", "theme-uninstall",
-    "state:get", "state-get", "sget",
-    "state:set", "state-set", "sset",
-    "role:list", "role-list",
-    "user:information", "user-information", "uinf",
-    "views:list", "views-list",
-})
-
-# Shell metacharacters that must never appear in drush commands
-_SHELL_METACHARS = re.compile(r'[;|&`$(){}<>\\]')
-
-# Composer package name: vendor/package
-_COMPOSER_PACKAGE_RE = re.compile(
-    r'^[a-z0-9]([_.\-]?[a-z0-9]+)*/[a-z0-9](([_.]|\-{1,2})?[a-z0-9]+)*$'
+ALLOWED_DRUSH_COMMANDS = frozenset(
+    {
+        "status",
+        "st",
+        "core:status",
+        "core-status",
+        "config:get",
+        "config-get",
+        "cget",
+        "config:export",
+        "config-export",
+        "cex",
+        "config:import",
+        "config-import",
+        "cim",
+        "cache:rebuild",
+        "cache-rebuild",
+        "cr",
+        "pm:list",
+        "pm-list",
+        "pml",
+        "pm:info",
+        "pm-info",
+        "pmi",
+        "pm:enable",
+        "pm-enable",
+        "en",
+        "pm:uninstall",
+        "pm-uninstall",
+        "pmu",
+        "updatedb",
+        "updb",
+        "watchdog:show",
+        "watchdog-show",
+        "wd-show",
+        "ws",
+        "cron",
+        "queue:list",
+        "queue-list",
+        "queue:run",
+        "queue-run",
+        "deploy:hook",
+        "deploy-hook",
+        "locale:check",
+        "locale-check",
+        "locale:update",
+        "locale-update",
+        "theme:enable",
+        "theme-enable",
+        "theme:uninstall",
+        "theme-uninstall",
+        "state:get",
+        "state-get",
+        "sget",
+        "state:set",
+        "state-set",
+        "sset",
+        "role:list",
+        "role-list",
+        "user:information",
+        "user-information",
+        "uinf",
+        "views:list",
+        "views-list",
+    }
 )
 
+# Shell metacharacters that must never appear in drush commands
+_SHELL_METACHARS = re.compile(r"[;|&`$(){}<>\\]")
+
+# Composer package name: vendor/package
+_COMPOSER_PACKAGE_RE = re.compile(r"^[a-z0-9]([_.\-]?[a-z0-9]+)*/[a-z0-9](([_.]|\-{1,2})?[a-z0-9]+)*$")
+
 # Composer version constraint (digits, dots, ^, ~, >=, <=, >, <, *, |, space, @, -)
-_COMPOSER_VERSION_RE = re.compile(r'^[a-zA-Z0-9.\^~><= *|@\-#]+$')
+_COMPOSER_VERSION_RE = re.compile(r"^[a-zA-Z0-9.\^~><= *|@\-#]+$")
 
 # Drupal machine name (modules, themes, content types)
-_MACHINE_NAME_RE = re.compile(r'^[a-z][a-z0-9_]{0,127}$')
+_MACHINE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 
 
 def _validate_composer_package(name: str) -> None:
@@ -167,19 +205,19 @@ def _validate_url_safe(url: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="URL must include a hostname",
         )
-    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):  # noqa: S104
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Localhost URLs are not allowed",
         )
     try:
         resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-    except socket.gaierror:
+    except socket.gaierror as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot resolve hostname: {hostname}",
-        )
-    for family, _type, _proto, _canonname, sockaddr in resolved:
+        ) from exc
+    for _family, _type, _proto, _canonname, sockaddr in resolved:
         ip = ipaddress.ip_address(sockaddr[0])
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             raise HTTPException(
@@ -188,13 +226,9 @@ def _validate_url_safe(url: str) -> None:
             )
 
 
-async def _get_drupal_site(
-    project_id: UUID, db: AsyncSession
-) -> DrupalSite:
+async def _get_drupal_site(project_id: UUID, db: AsyncSession) -> DrupalSite:
     """Fetch the connected DrupalSite for a project, or raise 404."""
-    result = await db.execute(
-        select(DrupalSite).where(DrupalSite.project_id == project_id)
-    )
+    result = await db.execute(select(DrupalSite).where(DrupalSite.project_id == project_id))
     site = result.scalar_one_or_none()
     if site is None:
         raise HTTPException(
@@ -234,9 +268,7 @@ async def connect_site(
     encrypted = drupal.encrypt_credentials(body.username, body.password)
 
     # Check if already connected
-    result = await db.execute(
-        select(DrupalSite).where(DrupalSite.project_id == project_id)
-    )
+    result = await db.execute(select(DrupalSite).where(DrupalSite.project_id == project_id))
     existing = result.scalar_one_or_none()
     if existing:
         existing.site_url = body.site_url
@@ -331,7 +363,7 @@ async def get_config(
 
 @router.get(
     "/{project_id}/content-types",
-    response_model=List[DrupalContentType],
+    response_model=list[DrupalContentType],
 )
 async def list_content_types(
     project_id: UUID,
@@ -409,7 +441,7 @@ async def create_content(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create node",
-        )
+        ) from e
 
 
 @router.patch(
@@ -449,7 +481,7 @@ async def update_content(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to update node",
-        )
+        ) from e
 
 
 # --- Drush / Sync (legacy, will 404 on standard Drupal sites) ---
@@ -505,17 +537,13 @@ async def pull_site(
     site = await _get_drupal_site(project_id, db)
     username, password = _get_credentials(drupal, site)
 
-    db_result = await drupal.pull_database(
-        site.site_url, username, password, str(project_id), sandbox_mgr
-    )
-    files_result = await drupal.pull_files(
-        site.site_url, username, password, str(project_id), sandbox_mgr
-    )
+    db_result = await drupal.pull_database(site.site_url, username, password, str(project_id), sandbox_mgr)
+    files_result = await drupal.pull_files(site.site_url, username, password, str(project_id), sandbox_mgr)
 
     success = db_result.get("success", False) and files_result.get("success", False)
 
     if success:
-        site.last_sync_at = datetime.now(timezone.utc)
+        site.last_sync_at = datetime.now(UTC)
         await db.commit()
 
     return SyncResponse(
@@ -540,12 +568,10 @@ async def push_config(
     site = await _get_drupal_site(project_id, db)
     username, password = _get_credentials(drupal, site)
 
-    result = await drupal.push_config(
-        site.site_url, username, password, str(project_id), sandbox_mgr
-    )
+    result = await drupal.push_config(site.site_url, username, password, str(project_id), sandbox_mgr)
 
     if result.get("success"):
-        site.last_sync_at = datetime.now(timezone.utc)
+        site.last_sync_at = datetime.now(UTC)
         await db.commit()
 
     return SyncResponse(
@@ -564,9 +590,7 @@ async def sync_status(
     user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
-    result = await db.execute(
-        select(DrupalSite).where(DrupalSite.project_id == project_id)
-    )
+    result = await db.execute(select(DrupalSite).where(DrupalSite.project_id == project_id))
     site = result.scalar_one_or_none()
 
     if site is None:
@@ -662,9 +686,7 @@ async def clone_production(
 
     try:
         # Ensure sandbox container exists
-        container_id = await sandbox_mgr.get_or_create_container(
-            str(project_id), template_id="drupal"
-        )
+        container_id = await sandbox_mgr.get_or_create_container(str(project_id), template_id="drupal")
 
         if not container_id:
             return CloneResponse(
@@ -694,9 +716,7 @@ async def clone_production(
 
                 # Import into sandbox MariaDB sidecar
                 import_cmd = "MYSQL_PWD=drupal gunzip | mysql -u drupal drupal"
-                await sandbox_mgr.exec_in_sidecar(
-                    str(project_id), "drupal-db", import_cmd, stdin_file=db_dump_path
-                )
+                await sandbox_mgr.exec_in_sidecar(str(project_id), "drupal-db", import_cmd, stdin_file=db_dump_path)
                 details["database"] = "cloned successfully"
             except Exception as e:
                 details["database"] = f"error: {e}"
@@ -726,12 +746,8 @@ async def clone_production(
                 await ssh.download_stream(tar_cmd, files_path)
 
                 # Extract into sandbox workspace
-                await sandbox_mgr.exec_in_container(
-                    container_id, "mkdir -p /workspace"
-                )
-                await sandbox_mgr.upload_and_extract(
-                    container_id, files_path, "/workspace"
-                )
+                await sandbox_mgr.exec_in_container(container_id, "mkdir -p /workspace")
+                await sandbox_mgr.upload_and_extract(container_id, files_path, "/workspace")
                 details["files"] = "cloned successfully"
             except Exception as e:
                 details["files"] = f"error: {e}"
@@ -772,13 +788,11 @@ async def clone_production(
             logger.warning("Post-clone setup issue for project %s: %s", project_id, e)
 
         # Check if any step had errors
-        has_errors = any(
-            str(v).startswith("error:") for v in details.values()
-        )
+        has_errors = any(str(v).startswith("error:") for v in details.values())
 
         # Only update last sync timestamp if there were no errors
         if not has_errors:
-            site.last_sync_at = datetime.now(timezone.utc)
+            site.last_sync_at = datetime.now(UTC)
         await db.commit()
 
         # Get preview URL
@@ -845,9 +859,7 @@ async def push_to_production(
 
             try:
                 # Tar sandbox files
-                await sandbox_mgr.download_archive(
-                    container_id, "/workspace", files_path
-                )
+                await sandbox_mgr.download_archive(container_id, "/workspace", files_path)
                 # Upload and extract on VPS
                 extract_cmd = f"tar xzf - -C {_VPS_DRUPAL_ROOT}"
                 await ssh.upload_stream(extract_cmd, files_path)
@@ -875,7 +887,8 @@ async def push_to_production(
             try:
                 # Dump from sandbox MariaDB sidecar
                 await sandbox_mgr.exec_sidecar_stream(
-                    str(project_id), "drupal-db",
+                    str(project_id),
+                    "drupal-db",
                     "mysqldump -u drupal -pdrupal --single-transaction drupal | gzip",
                     db_dump_path,
                 )
@@ -913,7 +926,7 @@ async def push_to_production(
             details["cache"] = f"warning: {e}"
 
         # Update last sync
-        site.last_sync_at = datetime.now(timezone.utc)
+        site.last_sync_at = datetime.now(UTC)
         await db.commit()
 
         all_ok = all("error" not in str(v) for v in details.values())
@@ -946,9 +959,7 @@ async def start_staging(
     await _get_drupal_site(project_id, db)
 
     try:
-        container_id = await sandbox_mgr.get_or_create_container(
-            str(project_id), template_id="drupal"
-        )
+        container_id = await sandbox_mgr.get_or_create_container(str(project_id), template_id="drupal")
         return {
             "success": True,
             "message": "Staging sandbox started",
@@ -958,7 +969,7 @@ async def start_staging(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start staging: {e}",
-        )
+        ) from e
 
 
 @router.post("/{project_id}/staging/stop")
@@ -979,7 +990,7 @@ async def stop_staging(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to stop staging: {e}",
-        )
+        ) from e
 
 
 # ============================================================
@@ -990,7 +1001,7 @@ async def stop_staging(
 @router.get("/{project_id}/modules", response_model=ModuleThemeListResponse)
 async def list_modules(
     project_id: UUID,
-    status_filter: Optional[str] = Query(None, description="Filter: enabled, disabled"),
+    status_filter: str | None = Query(None, description="Filter: enabled, disabled"),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
     ssh: SSHClient = Depends(get_ssh_client),
@@ -1005,19 +1016,21 @@ async def list_modules(
         cmd += f" --status={shlex.quote(status_filter)}"
 
     result = await ssh.execute(cmd, timeout=60)
-    items: List[ModuleThemeListItem] = []
+    items: list[ModuleThemeListItem] = []
     if result["exit_code"] == 0 and result["stdout"].strip():
         try:
             data = json_mod.loads(result["stdout"])
             for key, info in data.items():
-                items.append(ModuleThemeListItem(
-                    machine_name=key,
-                    display_name=info.get("display_name", key),
-                    status=info.get("status", "unknown"),
-                    version=info.get("version"),
-                    package=info.get("package"),
-                    type="module",
-                ))
+                items.append(
+                    ModuleThemeListItem(
+                        machine_name=key,
+                        display_name=info.get("display_name", key),
+                        status=info.get("status", "unknown"),
+                        version=info.get("version"),
+                        package=info.get("package"),
+                        type="module",
+                    )
+                )
         except (json_mod.JSONDecodeError, AttributeError) as e:
             logger.warning("Failed to parse module list: %s", e)
 
@@ -1027,7 +1040,7 @@ async def list_modules(
 @router.get("/{project_id}/themes", response_model=ModuleThemeListResponse)
 async def list_themes(
     project_id: UUID,
-    status_filter: Optional[str] = Query(None, description="Filter: enabled, disabled"),
+    status_filter: str | None = Query(None, description="Filter: enabled, disabled"),
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
     ssh: SSHClient = Depends(get_ssh_client),
@@ -1042,19 +1055,21 @@ async def list_themes(
         cmd += f" --status={shlex.quote(status_filter)}"
 
     result = await ssh.execute(cmd, timeout=60)
-    items: List[ModuleThemeListItem] = []
+    items: list[ModuleThemeListItem] = []
     if result["exit_code"] == 0 and result["stdout"].strip():
         try:
             data = json_mod.loads(result["stdout"])
             for key, info in data.items():
-                items.append(ModuleThemeListItem(
-                    machine_name=key,
-                    display_name=info.get("display_name", key),
-                    status=info.get("status", "unknown"),
-                    version=info.get("version"),
-                    package=info.get("package"),
-                    type="theme",
-                ))
+                items.append(
+                    ModuleThemeListItem(
+                        machine_name=key,
+                        display_name=info.get("display_name", key),
+                        status=info.get("status", "unknown"),
+                        version=info.get("version"),
+                        package=info.get("package"),
+                        type="theme",
+                    )
+                )
         except (json_mod.JSONDecodeError, AttributeError) as e:
             logger.warning("Failed to parse theme list: %s", e)
 
@@ -1357,9 +1372,9 @@ async def create_content_type(
         f"langcode: en\n"
         f"status: true\n"
         f"dependencies: {{}}\n"
-        f"name: '{body.label.replace(chr(39), chr(39)+chr(39))}'\n"
+        f"name: '{body.label.replace(chr(39), chr(39) + chr(39))}'\n"
         f"type: {body.machine_name}\n"
-        f"description: '{body.description.replace(chr(39), chr(39)+chr(39))}'\n"
+        f"description: '{body.description.replace(chr(39), chr(39) + chr(39))}'\n"
         f"help: ''\n"
         f"new_revision: true\n"
         f"preview_mode: 1\n"
@@ -1427,7 +1442,8 @@ async def create_content_type(
                 body_b64 = base64.b64encode(body_field_yaml.encode()).decode()
                 # Remove the already-imported node type YAML to avoid re-import conflict
                 await ssh.execute(f"rm -f {shlex.quote(f'{tmp_dir}/{config_filename}')}", timeout=10)
-                write_body_cmd = f"echo {shlex.quote(body_b64)} | base64 -d > {shlex.quote(f'{tmp_dir}/{body_config_file}')}"
+                dest = shlex.quote(f"{tmp_dir}/{body_config_file}")
+                write_body_cmd = f"echo {shlex.quote(body_b64)} | base64 -d > {dest}"
                 await ssh.execute(write_body_cmd, timeout=10)
                 body_import = await ssh.execute(import_cmd, timeout=60)
                 if body_import["exit_code"] != 0:
@@ -1494,23 +1510,16 @@ async def scaffold_theme(
 
     # Generate and write files
     info_yml = (
-        f"name: '{body.name.replace(chr(39), chr(39)+chr(39))}'\n"
+        f"name: '{body.name.replace(chr(39), chr(39) + chr(39))}'\n"
         f"type: theme\n"
-        f"description: '{body.description.replace(chr(39), chr(39)+chr(39))}'\n"
+        f"description: '{body.description.replace(chr(39), chr(39) + chr(39))}'\n"
         f"base theme: {body.base_theme}\n"
         f"core_version_requirement: ^10 || ^11\n"
         f"libraries:\n"
         f"  - {body.machine_name}/global-styling\n"
     )
 
-    libraries_yml = (
-        f"global-styling:\n"
-        f"  css:\n"
-        f"    theme:\n"
-        f"      css/style.css: {{}}\n"
-        f"  js:\n"
-        f"    js/script.js: {{}}\n"
-    )
+    libraries_yml = "global-styling:\n  css:\n    theme:\n      css/style.css: {}\n  js:\n    js/script.js: {}\n"
 
     files_to_create = {
         f"{theme_dir}/{body.machine_name}.info.yml": info_yml,
@@ -1527,7 +1536,13 @@ async def scaffold_theme(
         files_created.append(os.path.basename(remote_path))
 
     # Set ownership to www-data
-    await ssh.execute(f"chown -R www-data:www-data {safe_dir}", timeout=10)
+    chown_result = await ssh.execute(f"chown -R www-data:www-data {safe_dir}", timeout=10)
+    if chown_result.get("exit_code", 0) != 0:
+        logger.warning(
+            "Failed to set ownership for theme %s: %s",
+            body.machine_name,
+            chown_result.get("stderr", ""),
+        )
 
     return ThemeScaffoldResponse(
         success=True,
@@ -1588,8 +1603,13 @@ async def create_block(
     username, password = _get_credentials(drupal, site)
     try:
         block = await drupal.create_block(
-            site.site_url, username, password, bundle,
-            body.info, body.body, body.body_format,
+            site.site_url,
+            username,
+            password,
+            bundle,
+            body.info,
+            body.body,
+            body.body_format,
         )
         return BlockContentResponse(**block)
     except Exception as e:
@@ -1597,7 +1617,7 @@ async def create_block(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to create block content",
-        )
+        ) from e
 
 
 @router.patch(
@@ -1621,8 +1641,15 @@ async def update_block(
     username, password = _get_credentials(drupal, site)
     try:
         block = await drupal.update_block(
-            site.site_url, username, password, bundle, block_uuid,
-            body.info, body.body, body.body_format, body.status,
+            site.site_url,
+            username,
+            password,
+            bundle,
+            block_uuid,
+            body.info,
+            body.body,
+            body.body_format,
+            body.status,
         )
         return BlockContentResponse(**block)
     except Exception as e:
@@ -1630,4 +1657,4 @@ async def update_block(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to update block content",
-        )
+        ) from e

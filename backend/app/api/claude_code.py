@@ -107,7 +107,7 @@ async def get_pending_user_messages(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> ClaudeCodeMessageList:
-    """Get unread user messages (for Claude Code to poll)."""
+    """Get recent user messages (for Claude Code to poll)."""
     user_id = get_user_id(payload)
 
     q = (

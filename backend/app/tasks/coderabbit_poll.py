@@ -1,6 +1,5 @@
 """ARQ task to poll for CodeRabbit reviews on fix-branch PRs."""
 
-import asyncio
 import logging
 import os
 import subprocess
@@ -22,8 +21,8 @@ _BACKOFF_SCHEDULE = [60, 300, 900, 1800, 1800, 1800]  # seconds
 
 def _run_gh(*args: str, timeout: int = 30) -> str:
     """Run a gh CLI command and return stdout."""
-    result = subprocess.run(
-        ["gh", *args],
+    result = subprocess.run(  # noqa: S603
+        ["gh", *args],  # noqa: S607
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -33,13 +32,12 @@ def _run_gh(*args: str, timeout: int = 30) -> str:
     return result.stdout.strip()
 
 
-async def poll_coderabbit_review(ctx: dict, issue_id: str) -> dict:
+async def poll_coderabbit_review(ctx: dict, issue_id: str, retry: int = 0) -> dict:
     """Poll GitHub for a PR on the fix branch and look for CodeRabbit review comments.
 
     Enqueued after start_fix or when fix_pr_url is set. Re-enqueues with
     exponential backoff if CodeRabbit hasn't commented yet.
     """
-    retry = ctx.get("retry", 0)
 
     if not GITHUB_REPO:
         return {"status": "skipped", "reason": "GITHUB_REPO not configured"}
@@ -69,13 +67,19 @@ async def poll_coderabbit_review(ctx: dict, issue_id: str) -> dict:
             if not pr_url:
                 try:
                     pr_json = _run_gh(
-                        "pr", "list",
-                        "--repo", GITHUB_REPO,
-                        "--head", fix_branch,
-                        "--json", "url",
-                        "--limit", "1",
+                        "pr",
+                        "list",
+                        "--repo",
+                        GITHUB_REPO,
+                        "--head",
+                        fix_branch,
+                        "--json",
+                        "url",
+                        "--limit",
+                        "1",
                     )
                     import json
+
                     prs = json.loads(pr_json)
                     if prs:
                         pr_url = prs[0]["url"]
@@ -91,14 +95,19 @@ async def poll_coderabbit_review(ctx: dict, issue_id: str) -> dict:
                     delay = _BACKOFF_SCHEDULE[min(retry, len(_BACKOFF_SCHEDULE) - 1)]
                     pool = ctx.get("redis")
                     if pool:
-                        from arq import create_pool
-                        job = await pool.enqueue_job(
+                        await pool.enqueue_job(
                             "poll_coderabbit_review",
                             issue_id,
+                            retry + 1,
                             _defer_by=delay,
                             _job_id=f"coderabbit-{issue_id}-{retry + 1}",
                         )
-                        logger.info("Re-enqueued coderabbit poll for %s (retry %d, delay %ds)", issue_id, retry + 1, delay)
+                        logger.info(
+                            "Re-enqueued coderabbit poll for %s (retry %d, delay %ds)",
+                            issue_id,
+                            retry + 1,
+                            delay,
+                        )
                     return {"status": "waiting_for_pr", "retry": retry}
                 return {"status": "gave_up", "reason": "no PR found after max retries"}
 
@@ -108,11 +117,16 @@ async def poll_coderabbit_review(ctx: dict, issue_id: str) -> dict:
                     # Extract PR number from URL
                     pr_number = pr_url.rstrip("/").split("/")[-1]
                     comments_json = _run_gh(
-                        "pr", "view", pr_number,
-                        "--repo", GITHUB_REPO,
-                        "--json", "comments",
+                        "pr",
+                        "view",
+                        pr_number,
+                        "--repo",
+                        GITHUB_REPO,
+                        "--json",
+                        "comments",
                     )
                     import json
+
                     data = json.loads(comments_json)
                     comments = data.get("comments", [])
                     for comment in comments:
@@ -134,10 +148,16 @@ async def poll_coderabbit_review(ctx: dict, issue_id: str) -> dict:
                         await pool.enqueue_job(
                             "poll_coderabbit_review",
                             issue_id,
+                            retry + 1,
                             _defer_by=delay,
                             _job_id=f"coderabbit-{issue_id}-{retry + 1}",
                         )
-                        logger.info("Re-enqueued coderabbit poll for %s (retry %d, delay %ds)", issue_id, retry + 1, delay)
+                        logger.info(
+                            "Re-enqueued coderabbit poll for %s (retry %d, delay %ds)",
+                            issue_id,
+                            retry + 1,
+                            delay,
+                        )
                     return {"status": "waiting_for_review", "retry": retry}
                 return {"status": "gave_up", "reason": "no CodeRabbit review after max retries"}
 

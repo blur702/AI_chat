@@ -130,6 +130,7 @@ export function usePolling<T>(options: UsePollingOptions<T>): UsePollingReturn<T
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, interval]);
 
+  /** Manual refresh — intentionally does not evaluate shouldStop so callers control when polling ends. */
   const refresh = useCallback(async () => {
     if (cancelledRef.current) return;
     try {

@@ -22,7 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ErrorBoundary>
               <Providers>
                 <OfflineBanner />
-                <Suspense><GlobalHeader /></Suspense>
+                <Suspense fallback={<div className="h-14 w-full" />}>
+                  <GlobalHeader />
+                </Suspense>
                 <main id="main-content" role="main">
                   {children}
                 </main>

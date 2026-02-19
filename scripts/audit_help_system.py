@@ -107,8 +107,8 @@ def collect_labels_missing_help(window_lines: int = 4) -> list[MissingLabelHelp]
                 continue
 
             # Ignore hidden/utility labels where help icon is usually not useful
-            compact = line.lower()
-            if 'className="sr-only"' in line or "aria-label" in compact:
+            lower_line = line.lower()
+            if 'classname="sr-only"' in lower_line or "aria-label" in lower_line:
                 continue
 
             nearby = "\n".join(lines[i : min(len(lines), i + window_lines + 1)])
