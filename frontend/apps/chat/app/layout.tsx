@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ThemeProvider, TooltipProvider, SkipNav } from "@workstation/ui";
 import { Providers } from "./providers";
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ErrorBoundary>
               <Providers>
                 <OfflineBanner />
-                <GlobalHeader />
+                <Suspense><GlobalHeader /></Suspense>
                 <main id="main-content" role="main">
                   {children}
                 </main>
