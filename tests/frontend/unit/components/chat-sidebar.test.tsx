@@ -95,22 +95,10 @@ describe("ChatSidebar", () => {
     expect(screen.getByText("archived")).toBeInTheDocument();
   });
 
-  it("renders navigation links", () => {
+  it("renders help button in sidebar", () => {
     render(<ChatSidebar projectId="proj1" />);
-    expect(screen.getByText("projects")).toBeInTheDocument();
-    expect(screen.getByText("settings")).toBeInTheDocument();
     expect(screen.getByText("help")).toBeInTheDocument();
-    expect(screen.getByText("logOut")).toBeInTheDocument();
-  });
-
-  it("shows IDE link when projectId is present", () => {
-    render(<ChatSidebar projectId="proj1" />);
-    expect(screen.getByText("openIDE")).toBeInTheDocument();
-  });
-
-  it("hides IDE link when projectId is null", () => {
-    render(<ChatSidebar projectId={null} />);
-    expect(screen.queryByText("openIDE")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Help")).toBeInTheDocument();
   });
 
   it("navigates to new chat on button click", () => {
@@ -137,12 +125,11 @@ describe("ChatSidebar", () => {
     expect(screen.getByRole("list", { name: "Chat list" })).toBeInTheDocument();
   });
 
-  it("calls logout and navigates on logout click", () => {
+  it("calls openHelp when help button is clicked", () => {
     render(<ChatSidebar projectId="proj1" />);
-    const logoutBtn = screen.getByText("logOut");
-    fireEvent.click(logoutBtn);
-    expect(mockLogout).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/login");
+    const helpBtn = screen.getByLabelText("Help");
+    fireEvent.click(helpBtn);
+    expect(mockOpenHelp).toHaveBeenCalled();
   });
 
   it("shows empty state when no chats", () => {
