@@ -207,8 +207,8 @@ export function GlobalHeader() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() => {
-                  logout();
+                onClick={async () => {
+                  await logout();
                   window.location.href = "/login";
                 }}
                 aria-label="Log out"

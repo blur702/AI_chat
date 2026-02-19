@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.context_deps import get_current_user_payload, get_db_session
+from app.api.context_deps import get_current_user_payload, get_db_session, validate_project_access
 from app.auth import get_user_id
 from app.models.issue import Issue
 from app.models.note import Note
@@ -284,6 +284,8 @@ async def create_note(
     db: AsyncSession = Depends(get_db_session),
 ) -> NoteResponse:
     user_id = get_user_id(payload)
+    if body.project_id:
+        await validate_project_access(body.project_id, user_id, db)
 
     title = body.title
     if body.generate_title and not title and body.body.strip():

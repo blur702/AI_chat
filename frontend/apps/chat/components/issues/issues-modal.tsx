@@ -87,6 +87,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [exportDone, setExportDone] = useState(false);
+  const [exportError, setExportError] = useState(false);
   const exportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { issues, count, loading, error, createIssue, updateIssue, deleteIssue, startFix } =
@@ -225,7 +226,10 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
       if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
       exportTimeoutRef.current = setTimeout(() => setExportDone(false), 2000);
     } catch (err) {
-      if (process.env.NODE_ENV === "development") console.warn("Export bugs failed:", err);
+      console.warn("Export bugs failed:", err);
+      setExportError(true);
+      if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
+      exportTimeoutRef.current = setTimeout(() => setExportError(false), 3000);
     }
   }, [projectFilter]);
 
@@ -276,7 +280,9 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                   className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label="Export bugs as markdown"
                 >
-                  {exportDone ? (
+                  {exportError ? (
+                    <Download className="h-4 w-4 text-destructive" />
+                  ) : exportDone ? (
                     <Check className="h-4 w-4 text-green-500" />
                   ) : (
                     <Download className="h-4 w-4" />

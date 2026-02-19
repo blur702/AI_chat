@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.context_deps import get_current_user_payload, get_db_session
+from app.api.context_deps import get_current_user_payload, get_db_session, validate_project_access
 from app.auth import get_user_id
 from app.models.issue import Issue
 from app.models.note import Note
@@ -177,6 +177,8 @@ async def create_issue(
     db: AsyncSession = Depends(get_db_session),
 ) -> IssueResponse:
     user_id = get_user_id(payload)
+    if body.project_id:
+        await validate_project_access(body.project_id, user_id, db)
     row = Issue(
         user_id=user_id,
         project_id=body.project_id,

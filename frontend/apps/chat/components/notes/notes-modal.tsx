@@ -60,10 +60,16 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
     };
   }, []);
 
-  // Focus trap
+  // Focus trap + initial focus
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+
+    // Move focus into the dialog on mount
+    const focusable = panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length > 0) focusable[0].focus();
 
     const handleFocusTrap = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
@@ -91,6 +97,10 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
 
   // Drag handler
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't start drag from interactive elements (buttons, links)
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, [role='button']")) return;
     const panel = panelRef.current;
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
