@@ -76,12 +76,14 @@ def _category_to_response(c: NoteCategory) -> NoteCategoryResponse:
 
 _SYSTEM_CATEGORIES = [
     {"name": "Errors", "slug": "errors", "color": "#ef4444", "sort_order": 0},
-    {"name": "App Bugs", "slug": "app-bugs", "color": "#f97316", "sort_order": 1},
 ]
 
 
 async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
-    """Ensure all system categories exist for the user, creating any that are missing."""
+    """Ensure all system categories exist for the user, creating any that are missing.
+
+    Also soft-deletes the legacy "app-bugs" category if it has zero active notes.
+    """
     result = await db.execute(
         select(NoteCategory.slug).where(
             NoteCategory.user_id == user_id,
@@ -102,6 +104,31 @@ async def _ensure_default_categories(user_id: UUID, db: AsyncSession) -> None:
                 sort_order=cat["sort_order"],
             ))
             added = True
+
+    # Soft-delete legacy "app-bugs" category if it has zero active notes
+    if "app-bugs" in existing_slugs:
+        legacy_result = await db.execute(
+            select(NoteCategory).where(
+                NoteCategory.user_id == user_id,
+                NoteCategory.slug == "app-bugs",
+                NoteCategory.is_deleted == False,  # noqa: E712
+            )
+        )
+        legacy_cat = legacy_result.scalar_one_or_none()
+        if legacy_cat:
+            note_count = await db.execute(
+                select(func.count()).select_from(
+                    select(Note.id).where(
+                        Note.category_id == legacy_cat.id,
+                        Note.status == "active",
+                        Note.is_deleted == False,  # noqa: E712
+                    ).subquery()
+                )
+            )
+            if (note_count.scalar() or 0) == 0:
+                legacy_cat.soft_delete()
+                added = True  # trigger commit
+
     if added:
         try:
             await db.commit()
@@ -273,12 +300,12 @@ async def create_note(
     return _note_to_response(row)
 
 
-@router.get("/export/app-bugs")
+@router.get("/export/app-bugs", deprecated=True)
 async def export_app_bugs(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Export all active App Bugs notes as markdown for pasting into Claude Code."""
+    """Deprecated: use GET /api/issues/export instead. Kept for backwards compatibility."""
     user_id = get_user_id(payload)
     await _ensure_default_categories(user_id, db)
 
@@ -466,7 +493,7 @@ async def promote_to_issue(
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> IssueResponse:
-    """Create an Issue from a note, linking them bidirectionally."""
+    """Create a Bug from a note, linking them bidirectionally."""
     user_id = get_user_id(payload)
     result = await db.execute(
         select(Note).where(
@@ -508,7 +535,7 @@ async def promote_to_issue(
         user_id=user_id,
         project_id=note.project_id,
         note_id=note.id,
-        title=note.title or note.body[:100].strip() or "Untitled Issue",
+        title=note.title or note.body[:100].strip() or "Untitled Bug",
         description=note.body,
     )
     db.add(issue)

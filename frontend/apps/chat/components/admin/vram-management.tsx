@@ -20,6 +20,7 @@ import type {
   Resource,
   SystemStats,
 } from "@workstation/api/types";
+import { FieldHelp } from "@/components/help/field-help";
 import {
   Badge,
   Button,
@@ -526,7 +527,10 @@ export function VramManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">VRAM Management</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+            VRAM Management
+            <FieldHelp slug="admin-vram-overview" tip="Monitor GPU VRAM, load/unload models, and offload resources to RAM." />
+          </h2>
           <p className="text-xs text-muted-foreground">
             Drag models between GPUs and RAM, or use the action buttons.
           </p>

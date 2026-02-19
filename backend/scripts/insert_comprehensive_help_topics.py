@@ -402,15 +402,15 @@ HELP_TOPICS = [
         "slug": "notes-overview",
         "section_id": "notes",
         "title": "Notes",
-        "body": "Notes let you capture quick thoughts, bug reports, and task reminders with optional category tagging and AI-generated titles. Pin important notes to keep them visible, assign them to projects for scoping, and promote bugs to trackable Issues with a single click. The Export App Bugs feature gathers all notes in the App Bugs category into a Claude Code-friendly markdown file. Notes support Kanban board view for visual organization. Tip: use the Ctrl+Shift+N shortcut to open the Notes panel from anywhere in the app.",
+        "body": "Notes let you capture quick thoughts, progress updates, and task reminders with optional category tagging and AI-generated titles. Pin important notes to keep them visible, assign them to projects for scoping, and promote items to trackable Bugs with a single click. Notes support Kanban board view for visual organization. Tip: use the Ctrl+Shift+N shortcut to open the Notes panel from anywhere in the app.",
         "tags": ["notes", "productivity", "kanban"]
     },
     {
         "slug": "issues-overview",
         "section_id": "issues",
-        "title": "Issues",
-        "body": "Issues provide project-scoped bug and task tracking with severity levels (low, medium, high, critical), status workflow (open, in_progress, resolved, closed), and direct integration with your sandbox environment. Use Start Fix to auto-create a git branch in the project sandbox, then link a PR URL for review tracking. Issues can be promoted from Notes or created directly. The severity and status fields drive filtering and priority views. Tip: promote a Note to an Issue when a quick observation becomes a concrete bug that needs a fix branch and PR.",
-        "tags": ["issues", "bugs", "tracking", "workflow"]
+        "title": "Bugs",
+        "body": "Bugs provide project-scoped bug tracking with severity levels (low, medium, high, critical), status workflow (open, in_progress, fix_pending_review, resolved, closed), and direct integration with your sandbox environment. Use Start Fix to auto-create a git branch in the project sandbox, then link a PR URL for review tracking. The Export button copies all open bugs as markdown for pasting into Claude Code. When a fix branch gets a PR, CodeRabbit review links are auto-detected and attached. Bugs can be promoted from Notes or created directly. Tip: promote a Note to a Bug when a quick observation becomes a concrete issue that needs a fix branch and PR.",
+        "tags": ["bugs", "tracking", "workflow", "export"]
     },
     {
         "slug": "project-import-website-name",
@@ -992,6 +992,108 @@ HELP_TOPICS = [
         "title": "Pull Model",
         "body": "Pulling downloads a model's weight file from the Ollama registry to your local disk, making it available for loading into GPU VRAM. The download only uses disk space — no VRAM is consumed until you explicitly load the model. Download progress is shown at the top of the dialog with percentage and speed indicators. File sizes range from ~1 GB for small 3B quantized models to 40+ GB for large 70B models, so download time depends on your connection speed. For example, pulling mistral:7b-q4_K_M downloads about 4.1 GB and takes roughly 2 minutes on a 300 Mbps connection. Once complete, the model moves to the Installed tab. Tip: ensure you have at least 2x the model size in free disk space before pulling (Ollama uses temporary space during download), and prefer Q4_K_M quantization as a starting point for balanced quality and size.",
         "tags": ["models", "ollama", "download", "pull"]
+    },
+    # ---- Studio ----
+    {
+        "slug": "studio-overview",
+        "section_id": "studio",
+        "title": "Video Studio",
+        "body": "Video Studio is a timeline-based editor for creating e-learning videos, product demos, and presentations. Projects contain tracks for screen recordings, text overlays, subtitles, and imported media. The editor provides a preview canvas, properties panel, and timeline with drag-and-drop clip arrangement. Use the Media Bin to upload or record assets, the Subtitle Editor for caption tracks, and Export to render finished videos as HTML or download media. Projects auto-save with Ctrl+S. Tip: start by creating a project from the dashboard, then record your screen or upload media before building the timeline.",
+        "tags": ["studio", "video", "timeline", "media"]
+    },
+    {
+        "slug": "studio-screen-recorder",
+        "section_id": "studio",
+        "title": "Screen Recorder",
+        "body": "The screen recorder captures your browser tab, application window, or entire screen as a video clip that is automatically added to the project's Media Bin. Recording uses the browser's MediaRecorder API with WebM format. You can select the capture source, toggle microphone audio, and control recording via start/stop buttons. Recorded clips appear in the Media Bin and can be dragged onto timeline tracks. Tip: close unnecessary tabs and notifications before recording to keep the capture clean, and use tab capture for the highest quality.",
+        "tags": ["studio", "recording", "screen-capture"]
+    },
+    {
+        "slug": "studio-media-bin",
+        "section_id": "studio",
+        "title": "Media Bin",
+        "body": "The Media Bin stores all assets (videos, images, audio) associated with a studio project. Upload files by dragging them into the bin or clicking the upload button. Assets are stored on the server and can be placed on timeline tracks by dragging them onto the timeline. Each asset shows a thumbnail preview, duration, and file size. Delete unused assets to keep projects organized. Tip: organize your media before building the timeline — rename clips for clarity and remove unused takes.",
+        "tags": ["studio", "media", "assets", "upload"]
+    },
+    {
+        "slug": "studio-subtitle-editor",
+        "section_id": "studio",
+        "title": "Subtitle Editor",
+        "body": "The Subtitle Editor creates and manages caption tracks synchronized to the video timeline. Add subtitle cues with start time, end time, and text content. Subtitles can be styled with font size, color, and position (top, center, bottom). Import existing SRT or VTT files, or create subtitles manually cue by cue. The preview canvas shows subtitle rendering in real time as you scrub through the timeline. Tip: keep individual subtitle cues under 2 lines and 42 characters per line for readability across screen sizes.",
+        "tags": ["studio", "subtitles", "captions", "accessibility"]
+    },
+    {
+        "slug": "studio-timeline",
+        "section_id": "studio",
+        "title": "Timeline Editor",
+        "body": "The timeline arranges clips across multiple tracks in chronological order. Each track holds one type of content (video, text, subtitle, audio). Drag clips to reposition them, resize handles to adjust duration, and use the playhead to scrub through the project. Timeline settings control canvas resolution (width/height), frame rate, and background color. Tracks can be locked to prevent accidental edits, muted to hide content during preview, or reordered by dragging. Tip: use separate tracks for text overlays and subtitles to keep the timeline organized and avoid overlapping content.",
+        "tags": ["studio", "timeline", "tracks", "editing"]
+    },
+    {
+        "slug": "studio-export",
+        "section_id": "studio",
+        "title": "Export",
+        "body": "Export renders the finished studio project into a downloadable format. HTML export creates a self-contained web page with embedded media and subtitle rendering that can be opened in any browser. The export process runs as a background job — you can monitor progress and download the result when complete. Export captures all timeline tracks, text overlays, subtitles, and media at the project's configured resolution. Tip: preview the full project before exporting to catch timing issues, and use HTML export for sharing without requiring video codecs.",
+        "tags": ["studio", "export", "render", "html"]
+    },
+    # ---- VRAM Management (Admin) ----
+    {
+        "slug": "admin-vram-overview",
+        "section_id": "admin",
+        "title": "VRAM Management",
+        "body": "VRAM Management provides a visual dashboard for monitoring GPU memory usage and controlling which AI models are loaded. Each GPU card shows current VRAM utilization with a progress bar, running models, and available local models. Use drag-and-drop to move models between GPUs and RAM, or click action buttons to load, unload, or offload individual models. The RAM zone displays resources that have been offloaded from GPU memory but remain in system RAM for quick reload. System stats show overall CPU, RAM, and disk usage. Tip: offload idle models to RAM before starting image generation to free VRAM without losing the ability to quickly reload them.",
+        "tags": ["admin", "vram", "gpu", "models", "monitoring"]
+    },
+    # ---- Notes (per-field) ----
+    {
+        "slug": "notes-categories",
+        "section_id": "notes",
+        "title": "Note Categories",
+        "body": "Categories organize notes by topic — for example, Errors, Ideas, or TODO. System categories (Errors, App Bugs) are created automatically for every user and cannot be deleted. Create custom categories with names, slugs, and optional color tags to match your workflow. Each note can belong to one category, and you can filter the note list by category. Categories are user-scoped, so each user has their own set. Tip: use the Errors category for runtime issues you want to promote to trackable Issues later.",
+        "tags": ["notes", "categories", "organization"]
+    },
+    {
+        "slug": "notes-kanban",
+        "section_id": "notes",
+        "title": "Kanban Board",
+        "body": "The Kanban board organizes notes into columns by project. Each column represents a project (or General for unassigned notes). Drag notes between columns to reassign them to a different project. Hold Shift while dropping to copy a note instead of moving it. The board provides a visual overview of note distribution across projects, making it easy to spot which projects have accumulated the most observations or tasks. Tip: use the Kanban view when you need a quick overview across all projects, and switch to the list view for detailed filtering by category or status.",
+        "tags": ["notes", "kanban", "organization", "drag-drop"]
+    },
+    {
+        "slug": "notes-ai-title",
+        "section_id": "notes",
+        "title": "AI-Generated Title",
+        "body": "When enabled, the AI Title toggle sends your note body to the AI model to generate a concise, descriptive title. This saves time when capturing quick thoughts where writing a good title upfront would slow you down. The generated title typically summarizes the key point of the note in 5-10 words. You can edit the title afterward if the generated version needs refinement. Tip: write at least 2-3 sentences in the note body before using AI Title — very short notes produce generic titles.",
+        "tags": ["notes", "ai", "title", "productivity"]
+    },
+    {
+        "slug": "notes-promote-to-issue",
+        "section_id": "notes",
+        "title": "Promote Note to Issue",
+        "body": "Promoting a note converts it into a trackable Issue with severity levels, status workflow, and fix branch integration. The note must be assigned to a project before promotion. The new Issue inherits the note title and body as its description, and the note is automatically moved to the Errors category. Once promoted, the note shows a link to its Issue, and the Issue back-references the original note. This is a one-way operation — you cannot un-promote an Issue back to a note. Tip: use promotion when a casual observation becomes a concrete bug that needs a fix branch, PR tracking, and status workflow.",
+        "tags": ["notes", "issues", "promotion", "workflow"]
+    },
+    # ---- Issues (per-field) ----
+    {
+        "slug": "issues-severity",
+        "section_id": "issues",
+        "title": "Issue Severity",
+        "body": "Severity indicates the impact and urgency of a bug or task. Four levels are available: Critical (system down, data loss, or security vulnerability), High (major feature broken, significant user impact), Medium (feature partially broken, workaround exists), and Low (cosmetic issue, minor inconvenience). Severity drives filtering and priority views — Critical and High issues surface first in the default sort order. Set severity thoughtfully to help prioritize fix order. Tip: reserve Critical for issues that block all users or risk data integrity, and use Medium for bugs with known workarounds.",
+        "tags": ["issues", "severity", "priority", "triage"]
+    },
+    {
+        "slug": "issues-status-workflow",
+        "section_id": "issues",
+        "title": "Issue Status Workflow",
+        "body": "Issues progress through a status workflow: Open (newly reported, needs investigation), In Progress (fix is being developed, often linked to a branch), Fix Pending Review (PR submitted, awaiting review), Resolved (fix verified and merged), and Closed (no action needed or duplicate). Status changes are tracked in the issue timeline. Use the Start Fix button to move an issue to In Progress and auto-create a git branch in the project sandbox. Tip: move issues to Resolved only after verifying the fix in the staging environment, not just when the PR is merged.",
+        "tags": ["issues", "status", "workflow", "tracking"]
+    },
+    {
+        "slug": "issues-start-fix",
+        "section_id": "issues",
+        "title": "Start Fix",
+        "body": "Start Fix creates a new git branch in the project sandbox container named after the issue, sets the issue status to In Progress, and injects a fix request into the chat panel with the issue details. This streamlines the workflow from bug report to development by automating branch creation and providing context to the AI assistant. The branch name follows the pattern fix/issue-title-slug. After fixing, link the PR URL back to the issue for tracking. Tip: use Start Fix to get the AI assistant involved immediately — it receives the issue title, severity, description, and reproduction steps as context.",
+        "tags": ["issues", "fix", "branch", "workflow", "automation"]
     }
 ]
 

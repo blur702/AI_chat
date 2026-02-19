@@ -7,6 +7,15 @@ import { workstationUiMock } from "../unit/test-utils";
 
 vi.mock("@workstation/ui", () => workstationUiMock);
 
+vi.mock("@/components/help/help-provider", () => ({
+  useHelp: () => ({
+    openHelp: vi.fn(),
+    closeHelp: vi.fn(),
+    isOpen: false,
+    activeSection: null,
+  }),
+}));
+
 vi.mock("lucide-react", () =>
   new Proxy(
     {},

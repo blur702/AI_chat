@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@workstation/ui";
 import { Plus, Film, Trash2, Calendar, Clock } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 
 interface StudioProject {
   id: string;
@@ -118,7 +119,10 @@ export default function StudioPage() {
       <div className="border-b px-4 py-3 md:px-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-sm font-semibold">Video Studio</h1>
+            <h1 className="flex items-center gap-1.5 text-sm font-semibold">
+              Video Studio
+              <FieldHelp slug="studio-overview" tip="Timeline-based video editor for screen recordings, text overlays, subtitles, and export." />
+            </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Create e-learning videos with screen recordings, callouts, and narration
             </p>

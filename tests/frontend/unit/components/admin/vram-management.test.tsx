@@ -40,12 +40,22 @@ vi.mock("lucide-react", async () => {
     ChevronDown: icon("ChevronDown"),
     AlertCircle: icon("AlertCircle"),
     Zap: icon("Zap"),
+    HelpCircle: icon("HelpCircle"),
   };
 });
 
 vi.mock("@workstation/api/hooks", () => ({
   useVramManagement: () => mockHookReturn,
   useAuth: () => ({ userId: "user-1" }),
+}));
+
+vi.mock("@/components/help/help-provider", () => ({
+  useHelp: () => ({
+    openHelp: vi.fn(),
+    closeHelp: vi.fn(),
+    isOpen: false,
+    activeSection: null,
+  }),
 }));
 
 /* ------------------------------------------------------------------ */
