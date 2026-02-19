@@ -5,6 +5,7 @@ Agent-facing notes for Claude Code.
 ## Source Of Truth
 
 Use these docs first:
+- `docs/README.md` (canonical documentation hub)
 - `README.md` (system setup and run commands)
 - `backend/README.md` (backend dev/test commands)
 - `frontend/README.md` (frontend app/package commands)
@@ -49,10 +50,11 @@ Use these route names when tracing UI behavior or adding help topics.
 The FastAPI app currently mounts routers in `backend/app/main.py` for:
 - auth/users/admin
 - chats/messages/context/system prompts/snippets/planning
-- projects/resources/events/tools/tool-approvals
+- projects/resources/events/tools/tool-approvals/templates/project-import
 - image/comfyui/models/prompt presets/palettes
-- drupal, drupal-local, studio
-- notes, issues, help, websocket, operations, sandbox, automation
+- kb/ui-components/yolo
+- drupal/drupal-local/studio/brevo
+- notes/issues/help/websocket/operations/sandbox/automation
 
 When APIs change, update typed client/hooks in `frontend/packages/api`.
 
@@ -92,3 +94,11 @@ If a field or UI control is added, update both slug usage and seed topic body.
 - Backend service `brevo_client` reads `BREVO_API_KEY` or decodes from `BREVO_MCP_TOKEN`.
 - API routes live at `/api/brevo/*` (account, contacts, email/send, sms/send, templates, campaigns).
 - SMS default recipient is configured via `SMS_DEFAULT_RECIPIENT`.
+
+## App Issues
+
+- Bugs with `is_app_issue = true` are **cross-project, app-level bugs** — highest priority, not tied to a single project.
+- `GET /api/issues/export` returns markdown with App Issues under `# App Issues` first, then per-project bugs under `# Project Bugs`.
+- `GET /api/issues?is_app_issue=true` returns only app-level issues.
+- Workflow: address every item under `# App Issues` before per-project bugs.
+- After fixing, update status via `PUT /api/issues/{issue_id}` with `{"status": "resolved"}`.
