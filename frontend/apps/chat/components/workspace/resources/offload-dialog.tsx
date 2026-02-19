@@ -62,7 +62,7 @@ export function OffloadDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-sm flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-sm">
             <ArrowDownToLine className="h-4 w-4" />
             Offload to CPU
           </DialogTitle>
@@ -77,37 +77,32 @@ export function OffloadDialog({
             GPU VRAM to system RAM? The model will remain available but inference will be slower.
           </p>
 
-          <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <span className="inline-flex items-center gap-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <label className="inline-flex cursor-pointer items-center gap-1.5">
               Remember my choice for future offload decisions
-              <FieldHelp
-                slug="resource-remember-preference"
-                tip="Save this decision so future offload prompts use the same behavior."
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="rounded border-muted-foreground"
               />
-            </span>
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="rounded border-muted-foreground"
+            </label>
+            <FieldHelp
+              slug="resource-remember-preference"
+              tip="Save this decision so future offload prompts use the same behavior."
             />
-          </label>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={loading}
-          >
+          <Button variant="outline" size="sm" onClick={handleCancel} disabled={loading}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleOffload} disabled={loading}>
             {loading ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <ArrowDownToLine className="h-3.5 w-3.5 mr-1" />
+              <ArrowDownToLine className="mr-1 h-3.5 w-3.5" />
             )}
             Offload
           </Button>

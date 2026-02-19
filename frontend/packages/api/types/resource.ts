@@ -6,10 +6,7 @@ export type ResourceStatus =
   | "cpu_offloaded"
   | "error";
 
-export type OffloadPreference =
-  | "always_offload"
-  | "always_cancel"
-  | "ask_each_time";
+export type OffloadPreference = "always_offload" | "always_cancel" | "ask_each_time";
 
 export type OffloadDecision = "offload" | "cancel";
 
@@ -57,7 +54,7 @@ export interface PreemptionCheckResponse {
 
 export interface OffloadDecisionRequest {
   resource_id: string;
-  user_id?: string;
+  user_id: string;
   decision: OffloadDecision;
   remember: boolean;
 }
