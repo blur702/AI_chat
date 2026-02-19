@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context_deps import get_current_user_payload, get_db_session
@@ -96,8 +96,6 @@ async def clear_messages(
 ) -> None:
     """Clear all messages for the current user."""
     user_id = get_user_id(payload)
-    from sqlalchemy import delete
-
     await db.execute(delete(ClaudeCodeMessage).where(ClaudeCodeMessage.user_id == user_id))
     await db.commit()
 
