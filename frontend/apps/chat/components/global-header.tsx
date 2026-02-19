@@ -27,10 +27,12 @@ import {
   LogOut,
   StickyNote,
   Bug,
+  Terminal,
 } from "lucide-react";
 import { useProjectId } from "@/app/hooks/use-project-id";
 import { useNotes } from "@/components/notes/notes-provider";
 import { useIssuesPanel } from "@/components/issues/issues-provider";
+import { useClaudeCode } from "@/components/claude-code/claude-code-provider";
 
 interface NavItem {
   href: string;
@@ -67,6 +69,7 @@ export function GlobalHeader() {
   const { isMobile } = useBreakpoint();
   const { toggleNotes } = useNotes();
   const { toggleIssues } = useIssuesPanel();
+  const { togglePanel: toggleClaudeCode } = useClaudeCode();
   const searchParams = useSearchParams();
 
   // Don't show header on login page or when not authenticated
@@ -198,6 +201,22 @@ export function GlobalHeader() {
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p>Bugs (Ctrl+Shift+I)</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={toggleClaudeCode}
+                aria-label="Claude Code (Ctrl+Shift+C)"
+              >
+                <Terminal className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Claude Code (Ctrl+Shift+C)</p>
             </TooltipContent>
           </Tooltip>
           <ThemeToggle />

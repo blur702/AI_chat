@@ -7,7 +7,7 @@ import { ADMIN_ID, ADMIN_PW } from "./credentials";
  * to avoid the redirect loop caused by AuthProvider's getCurrentUser() 401
  * handler on the login page.
  */
-export async function loginAsAdmin(page: Page, redirectTo = "/chat") {
+export async function loginAsAdmin(page: Page, redirectTo = "/chat"): Promise<string> {
   resetLockout(ADMIN_ID);
   flushRateLimits();
 
@@ -22,7 +22,11 @@ export async function loginAsAdmin(page: Page, redirectTo = "/chat") {
     throw new Error(`loginAsAdmin API login failed: ${res.status()}`);
   }
 
+  const body = await res.json();
+
   // Navigate to target page
   await page.goto(redirectTo);
   await page.waitForLoadState("domcontentloaded");
+
+  return body.access_token;
 }

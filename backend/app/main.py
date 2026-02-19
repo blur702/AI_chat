@@ -1,59 +1,67 @@
+import asyncio
+import contextlib
+import logging
 import os
 import uuid
-import asyncio
-import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-
 from sqlalchemy import text
 
-from app.database import engine, close_db, AsyncSessionLocal
-from app.kernel import WorkstationKernel, ResourceManager, EventBus, ToolRegistry, ContextManager, TokenCounter
-from app.services.ollama_client import OllamaClient
-from app.services.kb_ingestion import KBIngestionService
-from app.services.embedding_service import EmbeddingService
-from app.services.comfyui_client import ComfyUIClient
+from app.api.admin import router as admin_router
+from app.api.admin import user_router as admin_user_router
+from app.api.auth import router as auth_router
+from app.api.auth import users_router
+from app.api.automation import router as automation_router
+from app.api.brevo import router as brevo_router
+from app.api.claude_code import router as claude_code_router
+from app.api.context import chats_router, context_projects_router, messages_router, projects_router
+from app.api.context import router as context_router
+from app.api.drupal import router as drupal_router
+from app.api.drupal_local import router as drupal_local_router
+from app.api.events import router as events_router
+from app.api.help import router as help_router
+from app.api.image import router as image_router
+from app.api.issues import project_issues_router
+from app.api.issues import router as issues_router
+from app.api.kb import router as kb_router
+from app.api.models import router as models_router
+from app.api.notes import admin_notes_router
+from app.api.notes import categories_router as note_categories_router
+from app.api.notes import router as notes_router
+from app.api.operations import router as operations_router
+from app.api.palettes import router as palettes_router
+from app.api.planning import router as planning_router
+from app.api.project_import import router as project_import_router
+from app.api.prompt_presets import router as prompt_presets_router
+from app.api.resources import router as resources_router
+from app.api.sandbox import router as sandbox_router
+from app.api.snippets import router as snippets_router
+from app.api.studio import router as studio_router
+from app.api.system_prompts import router as system_prompts_router
+from app.api.templates import router as templates_router
+from app.api.tool_approvals import router as tool_approvals_router
+from app.api.tools import router as tools_router
+from app.api.ui_components import router as ui_components_router
+from app.api.websocket import get_websocket_manager
+from app.api.websocket import router as websocket_router
+from app.api.yolo import router as yolo_router
+from app.auth import get_jwt_secret_key
+from app.database import AsyncSessionLocal, close_db, engine
+from app.kernel import ContextManager, EventBus, ResourceManager, TokenCounter, ToolRegistry, WorkstationKernel
 from app.services.brevo_client import BrevoClient
+from app.services.comfyui_client import ComfyUIClient
 from app.services.drupal_mcp import DrupalMCPService
-from app.services.ssh_client import SSHClient
+from app.services.embedding_service import EmbeddingService
+from app.services.kb_ingestion import KBIngestionService
+from app.services.ollama_client import OllamaClient
 from app.services.sandbox_manager import SandboxManager
 from app.services.searxng_client import SearXNGClient
-from app.auth import get_jwt_secret_key
-from app.api.auth import router as auth_router, users_router
-from app.api.resources import router as resources_router
-from app.api.events import router as events_router
-from app.api.tools import router as tools_router
-from app.api.context import router as context_router, projects_router, messages_router, chats_router, context_projects_router
-from app.api.system_prompts import router as system_prompts_router
-from app.api.websocket import router as websocket_router, get_websocket_manager
-from app.api.operations import router as operations_router
-from app.api.admin import router as admin_router, user_router as admin_user_router
-from app.api.kb import router as kb_router
-from app.api.image import router as image_router
-from app.api.sandbox import router as sandbox_router
-from app.api.automation import router as automation_router
-from app.api.yolo import router as yolo_router
-from app.api.templates import router as templates_router
-from app.api.project_import import router as project_import_router
-from app.api.brevo import router as brevo_router
-from app.api.drupal import router as drupal_router
-from app.api.models import router as models_router
-from app.api.snippets import router as snippets_router
-from app.api.help import router as help_router
-from app.api.ui_components import router as ui_components_router
-from app.api.planning import router as planning_router
-from app.api.prompt_presets import router as prompt_presets_router
-from app.api.drupal_local import router as drupal_local_router
-from app.api.palettes import router as palettes_router
-from app.api.issues import router as issues_router, project_issues_router
-from app.api.notes import router as notes_router, categories_router as note_categories_router, admin_notes_router
-from app.api.tool_approvals import router as tool_approvals_router
-from app.api.studio import router as studio_router
+from app.services.ssh_client import SSHClient
 
 # Configure application logger
 logger = logging.getLogger("workstation.app")
@@ -108,14 +116,20 @@ async def lifespan(app: FastAPI):
     searxng_client = SearXNGClient()
     await searxng_client.startup()
     from app.tools.web_search import WebSearchTool
+
     tool_registry.register_tool(WebSearchTool(searxng_client))
     logger.info("WebSearchTool registered with ToolRegistry")
 
     # Register Desktop Control tools (gated by env var)
     if os.environ.get("DESKTOP_CONTROL_ENABLED", "false").lower() in ("true", "1", "yes"):
         from app.tools.desktop import (
-            ScreenshotTool, ClickTool, TypeTextTool, PressKeyTool, ScreenInfoTool,
+            ClickTool,
+            PressKeyTool,
+            ScreenInfoTool,
+            ScreenshotTool,
+            TypeTextTool,
         )
+
         for tool_cls in (ScreenshotTool, ClickTool, TypeTextTool, PressKeyTool, ScreenInfoTool):
             tool_registry.register_tool(tool_cls())
         logger.info("Desktop control tools registered (5 tools)")
@@ -123,7 +137,8 @@ async def lifespan(app: FastAPI):
         logger.info("Desktop control tools skipped (DESKTOP_CONTROL_ENABLED=false)")
 
     # Register Code editing tools
-    from app.tools.code import CodeReadTool, CodeWriteTool, CodePatchTool, RunCommandTool
+    from app.tools.code import CodePatchTool, CodeReadTool, CodeWriteTool, RunCommandTool
+
     for tool_cls in (CodeReadTool, CodeWriteTool, CodePatchTool, RunCommandTool):
         tool_registry.register_tool(tool_cls())
     logger.info("Code editing tools registered (4 tools)")
@@ -139,9 +154,7 @@ async def lifespan(app: FastAPI):
     logger.info("TokenCounter registered with kernel")
 
     # Register OllamaClient for LLM chat completion
-    ollama_client = OllamaClient(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-    )
+    ollama_client = OllamaClient(base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"))
     kernel.register_service(ollama_client)
     logger.info("OllamaClient registered with kernel")
 
@@ -151,16 +164,12 @@ async def lifespan(app: FastAPI):
     logger.info("KBIngestionService registered with kernel")
 
     # Register EmbeddingService for vector embedding generation
-    embedding_service = EmbeddingService(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-    )
+    embedding_service = EmbeddingService(base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"))
     kernel.register_service(embedding_service)
     logger.info("EmbeddingService registered with kernel")
 
     # Register ComfyUIClient for image generation
-    comfyui_client = ComfyUIClient(
-        base_url=os.getenv("COMFYUI_BASE_URL", "http://comfyui:8188")
-    )
+    comfyui_client = ComfyUIClient(base_url=os.getenv("COMFYUI_BASE_URL", "http://comfyui:8188"))
     kernel.register_service(comfyui_client)
     logger.info("ComfyUIClient registered with kernel")
 
@@ -193,14 +202,23 @@ async def lifespan(app: FastAPI):
 
         # Register Brevo tools with ToolRegistry
         from app.tools.brevo import (
-            BrevoSendEmailTool, BrevoSendSMSTool, BrevoListContactsTool,
-            BrevoCreateContactTool, BrevoListTemplatesTool,
-            BrevoListCampaignsTool, BrevoGetAccountTool,
+            BrevoCreateContactTool,
+            BrevoGetAccountTool,
+            BrevoListCampaignsTool,
+            BrevoListContactsTool,
+            BrevoListTemplatesTool,
+            BrevoSendEmailTool,
+            BrevoSendSMSTool,
         )
+
         for tool_cls in (
-            BrevoSendEmailTool, BrevoSendSMSTool, BrevoListContactsTool,
-            BrevoCreateContactTool, BrevoListTemplatesTool,
-            BrevoListCampaignsTool, BrevoGetAccountTool,
+            BrevoSendEmailTool,
+            BrevoSendSMSTool,
+            BrevoListContactsTool,
+            BrevoCreateContactTool,
+            BrevoListTemplatesTool,
+            BrevoListCampaignsTool,
+            BrevoGetAccountTool,
         ):
             tool_registry.register_tool(tool_cls(brevo_client))
         logger.info("Brevo tools registered (7 tools)")
@@ -210,7 +228,7 @@ async def lifespan(app: FastAPI):
     try:
         await kernel.startup()
         app.state.kernel = kernel
-        app.state.kernel_started_at = datetime.now(timezone.utc)
+        app.state.kernel_started_at = datetime.now(UTC)
         logger.info("Kernel attached to app state")
 
         # Connect EventBus to WebSocket manager for broadcasting
@@ -225,10 +243,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown: stop kernel and external clients, close database connections
-    try:
+    with contextlib.suppress(Exception):
         await searxng_client.shutdown()
-    except Exception:
-        pass
     try:
         logger.info("Shutting down kernel...")
         await kernel.shutdown()
@@ -262,9 +278,7 @@ async def _seed_admin_user() -> None:
         return
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
-        )
+        result = await session.execute(text("SELECT id FROM users WHERE role = 'admin' LIMIT 1"))
         if result.scalar_one_or_none() is not None:
             logger.info("Admin user already exists, skipping seed")
             return
@@ -289,7 +303,7 @@ async def _seed_master_user() -> None:
     Reads MASTER_USERNAMES and MASTER_PASSWORD from environment variables.
     In production, both are required; in development, seeding is silently skipped.
     """
-    from app.models.user import User, MASTER_USERNAMES
+    from app.models.user import MASTER_USERNAMES, User
     from app.models.utils import hash_password, validate_password_strength
 
     env = os.getenv("ENVIRONMENT", "development").lower()
@@ -369,7 +383,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
     openapi_tags=[
-        {"name": "auth", "description": "Authentication and token management (login, register, refresh, WebSocket tokens)."},
+        {"name": "auth", "description": "Authentication and token management."},
         {"name": "users", "description": "User profile and account operations."},
         {"name": "resources", "description": "CRUD for kernel-managed resources (files, artifacts, outputs)."},
         {"name": "events", "description": "Server-sent and historical event retrieval."},
@@ -378,9 +392,9 @@ app = FastAPI(
         {"name": "projects", "description": "Project lifecycle -- create, list, update, delete, and import projects."},
         {"name": "websocket", "description": "WebSocket endpoint for real-time bidirectional event streaming."},
         {"name": "operations", "description": "Long-running operation tracking and status polling."},
-        {"name": "admin", "description": "Administrative endpoints for kernel state, diagnostics, and user management."},
+        {"name": "admin", "description": "Admin endpoints for kernel state and diagnostics."},
         {"name": "kb", "description": "Knowledge-base ingestion, search, and document management (pgvector)."},
-        {"name": "image", "description": "Image generation via ComfyUI -- submit prompts, poll status, retrieve outputs."},
+        {"name": "image", "description": "Image generation via ComfyUI."},
         {"name": "sandbox", "description": "Docker sandbox container management for project execution environments."},
         {"name": "automation", "description": "Automated workflow and pipeline execution."},
         {"name": "yolo", "description": "Unattended autonomous execution mode."},
@@ -396,7 +410,7 @@ app = FastAPI(
         {"name": "notes", "description": "User notes with project scoping, categories, and AI title generation."},
         {"name": "palettes", "description": "Color palette generation and theme management."},
         {"name": "system-prompts", "description": "System prompt CRUD and per-conversation prompt assignment."},
-        {"name": "studio", "description": "Video Studio -- project CRUD, media upload, timeline editing, and FFmpeg export."},
+        {"name": "studio", "description": "Video Studio -- project CRUD, media upload, and export."},
     ],
 )
 
@@ -413,6 +427,7 @@ app.add_middleware(
 
 # CSRF protection for cookie-based auth
 from app.middleware.csrf_protection import CSRFProtectionMiddleware  # noqa: E402
+
 app.add_middleware(CSRFProtectionMiddleware, allowed_origins=cors_origins)
 
 # GZip compression for responses >= 500 bytes
@@ -420,14 +435,17 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Request timing (X-Process-Time header + slow request logging)
 from app.middleware.timing import TimingMiddleware  # noqa: E402
+
 app.add_middleware(TimingMiddleware)
 
 # Security headers (X-Frame-Options, HSTS, etc.)
 from app.middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
+
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Rate limiting middleware (global safety net)
 from app.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+
 app.add_middleware(RateLimitMiddleware)
 
 # Register API routers
@@ -470,6 +488,7 @@ app.include_router(note_categories_router, prefix="/api", tags=["notes"])
 app.include_router(admin_notes_router, prefix="/api", tags=["admin"])
 app.include_router(tool_approvals_router, prefix="/api", tags=["tools"])
 app.include_router(studio_router, prefix="/api", tags=["studio"])
+app.include_router(claude_code_router, prefix="/api", tags=["claude-code"])
 
 
 @app.exception_handler(Exception)
@@ -497,20 +516,18 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 async def check_postgres() -> tuple[bool, str]:
     """Check PostgreSQL connectivity with a lightweight query."""
     import asyncpg
+
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         return False, "DATABASE_URL not configured"
     try:
-        conn = await asyncio.wait_for(
-            asyncpg.connect(database_url),
-            timeout=2.0
-        )
+        conn = await asyncio.wait_for(asyncpg.connect(database_url), timeout=2.0)
         try:
             await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=1.0)
             return True, "ok"
         finally:
             await conn.close()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False, "connection timeout"
     except Exception as e:
         return False, str(e)
@@ -519,6 +536,7 @@ async def check_postgres() -> tuple[bool, str]:
 async def check_redis() -> tuple[bool, str]:
     """Check Redis connectivity with a PING command."""
     import redis.asyncio as redis
+
     redis_url = os.getenv("REDIS_URL")
     if not redis_url:
         return False, "REDIS_URL not configured"
@@ -529,7 +547,7 @@ async def check_redis() -> tuple[bool, str]:
             return True, "ok"
         finally:
             await client.aclose()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False, "connection timeout"
     except Exception as e:
         return False, str(e)
@@ -546,21 +564,15 @@ async def check_kernel(request: Request) -> tuple[bool, str]:
         health = await kernel.health_check()
         if health["healthy"]:
             return True, "ok"
-        unhealthy = [
-            name for name, status in health["services"].items()
-            if not status["healthy"]
-        ]
-        critical_unhealthy = [
-            name for name in unhealthy
-            if name not in OPTIONAL_KERNEL_SERVICES
-        ]
+        unhealthy = [name for name, status in health["services"].items() if not status["healthy"]]
+        critical_unhealthy = [name for name in unhealthy if name not in OPTIONAL_KERNEL_SERVICES]
         if critical_unhealthy:
             return False, f"unhealthy services: {', '.join(critical_unhealthy)}"
         if unhealthy:
             return True, f"optional services unhealthy: {', '.join(unhealthy)}"
         return True, "ok"
     except Exception as e:
-        return False, f"health check error: {str(e)}"
+        return False, f"health check error: {e!s}"
 
 
 @app.get("/")
@@ -589,7 +601,7 @@ async def health(request: Request):
         content={
             "status": "healthy" if all_healthy else "unhealthy",
             "checks": checks,
-        }
+        },
     )
 
 
@@ -615,7 +627,7 @@ async def api_health(request: Request):
             "status": "healthy" if all_healthy else "unhealthy",
             "service": "backend",
             "checks": checks,
-        }
+        },
     )
 
 
@@ -633,12 +645,9 @@ async def kernel_health(request: Request):
             status_code=503,
             content={
                 "status": "unhealthy",
-                "kernel": {
-                    "initialized": False,
-                    "services": {}
-                },
-                "error": "kernel not attached to application"
-            }
+                "kernel": {"initialized": False, "services": {}},
+                "error": "kernel not attached to application",
+            },
         )
 
     try:
@@ -652,9 +661,9 @@ async def kernel_health(request: Request):
                 "kernel": {
                     "initialized": health["initialized"],
                     "timestamp": health["timestamp"],
-                    "services": health["services"]
-                }
-            }
+                    "services": health["services"],
+                },
+            },
         )
     except Exception as e:
         logger.error("Kernel health check failed: %s", e)
@@ -662,12 +671,9 @@ async def kernel_health(request: Request):
             status_code=503,
             content={
                 "status": "unhealthy",
-                "kernel": {
-                    "initialized": kernel.is_initialized,
-                    "services": {}
-                },
-                "error": str(e)
-            }
+                "kernel": {"initialized": kernel.is_initialized, "services": {}},
+                "error": str(e),
+            },
         )
 
 
@@ -680,7 +686,7 @@ async def kernel_status(request: Request):
     initialization state, and last health check timestamp. Always returns 200.
     """
     kernel: WorkstationKernel = getattr(request.app.state, "kernel", None)
-    current_time = datetime.now(timezone.utc).isoformat()
+    current_time = datetime.now(UTC).isoformat()
 
     if kernel is None:
         return JSONResponse(
@@ -691,8 +697,8 @@ async def kernel_status(request: Request):
                 "initialized": False,
                 "registered_services": [],
                 "service_details": {},
-                "last_health_check": None
-            }
+                "last_health_check": None,
+            },
         )
 
     # Get health status for each service
@@ -702,16 +708,12 @@ async def kernel_status(request: Request):
         if service:
             try:
                 healthy, message = await service.health_check()
-                service_details[name] = {
-                    "is_running": service.is_running,
-                    "healthy": healthy,
-                    "message": message
-                }
+                service_details[name] = {"is_running": service.is_running, "healthy": healthy, "message": message}
             except Exception as e:
                 service_details[name] = {
                     "is_running": service.is_running,
                     "healthy": False,
-                    "message": f"health check error: {str(e)}"
+                    "message": f"health check error: {e!s}",
                 }
 
     last_health = kernel.last_health_check
@@ -723,6 +725,6 @@ async def kernel_status(request: Request):
             "initialized": kernel.is_initialized,
             "registered_services": kernel.registered_services,
             "service_details": service_details,
-            "last_health_check": last_health.isoformat() if last_health else None
-        }
+            "last_health_check": last_health.isoformat() if last_health else None,
+        },
     )

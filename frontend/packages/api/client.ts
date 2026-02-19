@@ -179,6 +179,9 @@ import type {
   IssueResponse,
   IssueListResponse,
   StartFixResponse,
+  ClaudeCodeMessage,
+  ClaudeCodeMessageList,
+  ClaudeCodeMessageCreate,
 } from "./types";
 
 /**
@@ -2044,10 +2047,7 @@ export class WorkstationClient {
   }
 
   /** List block content entities of a given bundle. */
-  async listDrupalBlocks(
-    projectId: string,
-    bundle: string,
-  ): Promise<BlockContentListResponse> {
+  async listDrupalBlocks(projectId: string, bundle: string): Promise<BlockContentListResponse> {
     return this.request(
       `/api/drupal/${encodeURIComponent(projectId)}/blocks/${encodeURIComponent(bundle)}`,
     );
@@ -2347,16 +2347,16 @@ export class WorkstationClient {
   }
 
   /** Get feedback summary for one help topic. */
-  async getHelpFeedbackSummary(
-    topicId: string,
-  ): Promise<import("./types").HelpFeedbackSummary> {
+  async getHelpFeedbackSummary(topicId: string): Promise<import("./types").HelpFeedbackSummary> {
     return this.request(`/api/help/${encodeURIComponent(topicId)}/feedback`);
   }
 
   /** Get feedback summaries for multiple topics (optionally filtered by section). */
-  async listHelpFeedbackSummaries(
-    params?: { section_id?: string; limit?: number; offset?: number },
-  ): Promise<import("./types").HelpFeedbackSummaryListResponse> {
+  async listHelpFeedbackSummaries(params?: {
+    section_id?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<import("./types").HelpFeedbackSummaryListResponse> {
     const searchParams = new URLSearchParams();
     if (params?.section_id) searchParams.set("section_id", params.section_id);
     if (params?.limit !== undefined) searchParams.set("limit", String(params.limit));
@@ -2785,6 +2785,26 @@ export class WorkstationClient {
     if (params?.offset !== undefined) sp.set("offset", String(params.offset));
     const query = sp.toString();
     return this.request(`/api/admin/notes${query ? `?${query}` : ""}`);
+  }
+
+  // ── Claude Code Messages ──────────────────────────────────────────
+
+  async listClaudeCodeMessages(sinceId?: string): Promise<ClaudeCodeMessageList> {
+    const sp = new URLSearchParams();
+    if (sinceId) sp.set("since_id", sinceId);
+    const query = sp.toString();
+    return this.request(`/api/claude-code${query ? `?${query}` : ""}`);
+  }
+
+  async sendClaudeCodeMessage(data: ClaudeCodeMessageCreate): Promise<ClaudeCodeMessage> {
+    return this.request("/api/claude-code", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async clearClaudeCodeMessages(): Promise<void> {
+    await this.request("/api/claude-code", { method: "DELETE" });
   }
 }
 

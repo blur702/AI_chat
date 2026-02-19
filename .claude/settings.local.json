@@ -41,7 +41,9 @@
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWI4ZjIxOTktNzkwMy00MDlkLTg5OTktMWU0NTBlM2M5MGI4Iiwicm9sZSI6ImFkbWluIiwidXNlcm5hbWUiOiJrZXZpbiIsImV4cCI6MTc3MTQzOTg0NiwiaWF0IjoxNzcxNDM4MDQ2fQ.CTOBYaRfH7zX99_2jx0A2px3ygrtYsxk4W4KybnIf0g\" curl -s https://ssdd.kevinalthaus.com/api/context/projects -H \"Authorization: Bearer $TOKEN\")",
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWI4ZjIxOTktNzkwMy00MDlkLTg5OTktMWU0NTBlM2M5MGI4Iiwicm9sZSI6ImFkbWluIiwidXNlcm5hbWUiOiJrZXZpbiIsImV4cCI6MTc3MTQzOTg0NiwiaWF0IjoxNzcxNDM4MDQ2fQ.CTOBYaRfH7zX99_2jx0A2px3ygrtYsxk4W4KybnIf0g\")",
       "Bash(PROJECT_ID=\"9faf680d-a213-49ba-be30-1ff32c5edf60\")",
-      "Bash(# Check if the article is promoted to front page curl -s \"\"https://kevinalthaus.com/jsonapi/node/article/3493ba8e-0ce2-457e-9550-e37b419d62cb\"\")"
+      "Bash(# Check if the article is promoted to front page curl -s \"\"https://kevinalthaus.com/jsonapi/node/article/3493ba8e-0ce2-457e-9550-e37b419d62cb\"\")",
+      "Bash(pnpm --filter @workstation/chat type-check:*)",
+      "Bash(npx playwright test:*)"
     ]
   }
 }

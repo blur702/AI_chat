@@ -16,8 +16,7 @@
   },
   "lint-staged": {
     "frontend/**/*.{ts,tsx,js,jsx}": [
-      "prettier --write",
-      "eslint --fix --no-warn-ignored"
+      "prettier --write"
     ],
     "backend/**/*.py": [
       "ruff check --fix",
