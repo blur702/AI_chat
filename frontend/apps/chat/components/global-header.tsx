@@ -31,7 +31,6 @@ import {
 import { useProjectId } from "@/app/hooks/use-project-id";
 import { useNotes } from "@/components/notes/notes-provider";
 import { useIssuesPanel } from "@/components/issues/issues-provider";
-import { t } from "@/lib/i18n";
 
 interface NavItem {
   href: string;
@@ -68,6 +67,7 @@ export function GlobalHeader() {
   const { isMobile } = useBreakpoint();
   const { toggleNotes } = useNotes();
   const { toggleIssues } = useIssuesPanel();
+  const searchParams = useSearchParams();
 
   // Don't show header on login page or when not authenticated
   if (!isAuthenticated || pathname === "/login") return null;
@@ -79,8 +79,6 @@ export function GlobalHeader() {
     }
     return item.href;
   };
-
-  const searchParams = useSearchParams();
 
   const isActive = (item: NavItem) => {
     // For hrefs with query params (e.g. "/settings?tab=admin-system"),
@@ -193,13 +191,13 @@ export function GlobalHeader() {
                 size="icon"
                 className="h-7 w-7"
                 onClick={toggleIssues}
-                aria-label="Issues (Ctrl+Shift+I)"
+                aria-label="Bugs (Ctrl+Shift+I)"
               >
                 <Bug className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>Issues (Ctrl+Shift+I)</p>
+              <p>Bugs (Ctrl+Shift+I)</p>
             </TooltipContent>
           </Tooltip>
           <ThemeToggle />

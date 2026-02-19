@@ -241,7 +241,9 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     setError(null);
     setDrushOutput(null);
     setContentTypes([]);
+    setContentTypesLoading(false);
     setNodes([]);
+    setNodesLoading(false);
     setSelectedBundle(null);
     setModules([]);
     setModulesLoading(false);

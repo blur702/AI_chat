@@ -232,10 +232,10 @@ export function OffloadPreferences({
 
           {autoUnloadIdle && (
             <div className="space-y-2 pl-4">
-              <label htmlFor="idleTimeout" className="text-sm font-medium flex items-center gap-1">
-                Idle timeout (minutes)
+              <span className="text-sm font-medium flex items-center gap-1">
+                <label htmlFor="idleTimeout">Idle timeout (minutes)</label>
                 <FieldHelp slug="resource-idle-timeout" tip="How long a model must be unused before it is automatically offloaded to CPU. Lower values free VRAM sooner; higher values keep models warm for faster reuse." />
-              </label>
+              </span>
               <Input
                 id="idleTimeout"
                 type="number"
@@ -254,10 +254,10 @@ export function OffloadPreferences({
           )}
 
           <div className="space-y-2">
-            <label htmlFor="vramThreshold" className="text-sm font-medium flex items-center gap-1">
-              VRAM warning threshold: {vramThreshold}%
+            <span className="text-sm font-medium flex items-center gap-1">
+              <label htmlFor="vramThreshold">VRAM warning threshold: {vramThreshold}%</label>
               <FieldHelp slug="resource-vram-threshold" tip="A warning is shown when GPU VRAM utilization exceeds this percentage. Set lower (70-80%) for early warnings; set higher (90-95%) to only alert on critical pressure." />
-            </label>
+            </span>
             <input
               id="vramThreshold"
               type="range"
@@ -278,10 +278,10 @@ export function OffloadPreferences({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="preemptionStrategy" className="text-sm font-medium flex items-center gap-1">
-              Preemption strategy
+            <span className="text-sm font-medium flex items-center gap-1">
+              <label htmlFor="preemptionStrategy">Preemption strategy</label>
               <FieldHelp slug="resource-preemption-strategy" tip="Determines which loaded model is offloaded first when VRAM needs to be freed. LRU evicts the least recently used; Priority evicts the lowest-priority; Largest VRAM First frees the most memory fastest." />
-            </label>
+            </span>
             <select
               id="preemptionStrategy"
               value={preemptionStrategy}

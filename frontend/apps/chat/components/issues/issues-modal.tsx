@@ -28,11 +28,13 @@ import {
   AlertTriangle,
   Save,
   XCircle,
+  Download,
 } from "lucide-react";
 import { FieldHelp } from "@/components/help/field-help";
 import { useIssuesPanel } from "./issues-provider";
 import { useIssues } from "@workstation/api/hooks/use-issues";
 import { useProjects } from "@workstation/api/hooks/use-projects";
+import { getClient } from "@workstation/api";
 import type { IssueResponse, IssueCreateRequest } from "@workstation/api/types";
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -80,6 +82,8 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [exportDone, setExportDone] = useState(false);
+  const exportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { issues, count, loading, error, createIssue, updateIssue, deleteIssue, startFix } =
     useIssues({
@@ -100,6 +104,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
     };
   }, []);
 
@@ -191,6 +196,28 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
     [createIssue],
   );
 
+  const handleExportBugs = useCallback(async () => {
+    try {
+      const pid = projectFilter === "all" ? undefined : projectFilter;
+      const { markdown } = await getClient().exportBugs(pid);
+      await navigator.clipboard.writeText(markdown);
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bugs.md";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportDone(true);
+      if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
+      exportTimeoutRef.current = setTimeout(() => setExportDone(false), 2000);
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") console.warn("Export bugs failed:", err);
+    }
+  }, [projectFilter]);
+
   const panelStyle: React.CSSProperties = position
     ? { left: position.x, top: position.y }
     : { right: 16, top: 56 };
@@ -221,8 +248,8 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
         >
           <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <Bug className="h-4 w-4" />
-            Issues
-            <FieldHelp slug="issues-overview" tip="Track project bugs with severity levels, fix branches, and PR links. Promote notes to issues and use start-fix to auto-create git branches." />
+            Bugs
+            <FieldHelp slug="issues-overview" tip="Track project bugs with severity levels, fix branches, and PR links. Promote notes to bugs and use start-fix to auto-create git branches." />
             {count > 0 && (
               <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                 {count}
@@ -230,6 +257,25 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
             )}
           </h2>
           <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleExportBugs}
+                  className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-label="Export bugs as markdown"
+                >
+                  {exportDone ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Export bugs — copies to clipboard and downloads .md</p>
+              </TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -262,7 +308,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
               type="button"
               onClick={closeIssues}
               className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-              aria-label="Close issues"
+              aria-label="Close bugs"
             >
               <X className="h-4 w-4" />
             </button>
@@ -272,7 +318,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
         {/* Help panel */}
         {showHelp && (
           <div className="border-b bg-muted/50 px-4 py-2.5 text-[11px] text-muted-foreground">
-            <p className="mb-1.5 font-medium text-foreground">How issues work:</p>
+            <p className="mb-1.5 font-medium text-foreground">How bugs work:</p>
             <ul className="list-inside list-disc space-y-0.5">
               <li>
                 <strong>Report</strong> bugs with a title, severity, and optional description
@@ -282,12 +328,12 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                 context to the AI chat
               </li>
               <li>
-                <strong>Resolve</strong> marks an issue as fixed — use after verifying the fix
+                <strong>Resolve</strong> marks a bug as fixed — use after verifying the fix
               </li>
               <li>
                 <strong>Edit</strong> any field inline by clicking the pencil icon
               </li>
-              <li>Notes can be promoted to issues from the Notes panel</li>
+              <li>Notes can be promoted to bugs from the Notes panel</li>
             </ul>
             <p className="mt-1.5 text-[10px] opacity-70">
               Keyboard: Ctrl+Shift+I to toggle this panel. Esc to close.
@@ -318,7 +364,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
               </select>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>Filter issues by project</p>
+              <p>Filter bugs by project</p>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
@@ -337,7 +383,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
               </select>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>Filter issues by workflow status</p>
+              <p>Filter bugs by workflow status</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -351,7 +397,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
           {!loading && issues.length === 0 && (
             <div className="py-8 text-center">
               <Bug className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-              <p className="text-xs text-muted-foreground">No issues found</p>
+              <p className="text-xs text-muted-foreground">No bugs found</p>
               <p className="mt-1 text-[10px] text-muted-foreground/70">
                 Click + above to report a bug, or promote a note from the Notes panel
               </p>
@@ -363,10 +409,13 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
                 <IssueEditCard
                   key={issue.id}
                   issue={issue}
-                  projects={projects}
                   onSave={async (data) => {
-                    await updateIssue(issue.id, data);
-                    setEditingId(null);
+                    try {
+                      await updateIssue(issue.id, data);
+                      setEditingId(null);
+                    } catch {
+                      // Error captured by useIssues hook
+                    }
                   }}
                   onCancel={() => setEditingId(null)}
                 />
@@ -719,7 +768,7 @@ function IssueCard({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Mark this issue as resolved after verifying the fix</p>
+              <p>Mark this bug as resolved after verifying the fix</p>
             </TooltipContent>
           </Tooltip>
         )}
@@ -731,7 +780,7 @@ function IssueCard({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Edit issue details</p>
+              <p>Edit bug details</p>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
@@ -746,7 +795,7 @@ function IssueCard({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Delete this issue permanently</p>
+              <p>Delete this bug permanently</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -761,12 +810,10 @@ function IssueCard({
 
 function IssueEditCard({
   issue,
-  projects,
   onSave,
   onCancel,
 }: {
   issue: IssueResponse;
-  projects: { id: string; name: string }[];
   onSave: (data: {
     title?: string;
     description?: string | null;
@@ -808,7 +855,7 @@ function IssueEditCard({
   return (
     <div className="rounded-lg border-2 border-primary/30 bg-card p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-medium text-muted-foreground">Editing issue</p>
+        <p className="text-[10px] font-medium text-muted-foreground">Editing bug</p>
         <button
           type="button"
           onClick={onCancel}

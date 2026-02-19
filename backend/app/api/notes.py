@@ -208,7 +208,11 @@ async def update_category(
         row.color = data["color"]
     if "sort_order" in data and data["sort_order"] is not None:
         row.sort_order = data["sort_order"]
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="A category with this name already exists")
     await db.refresh(row)
     return _category_to_response(row)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   LoadingButton,
   StatusMessage,
@@ -34,9 +34,17 @@ export function ChatModesTab({ preferences, updatePreferences, preferencesSaving
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [showDefault, setShowDefault] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const isMountedRef = useRef(true);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (preferences?.mode_prompt_overrides) {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (preferences?.mode_prompt_overrides && !initializedRef.current) {
+      initializedRef.current = true;
       setOverrides({ ...preferences.mode_prompt_overrides });
     }
   }, [preferences]);
@@ -69,6 +77,7 @@ export function ChatModesTab({ preferences, updatePreferences, preferencesSaving
     const result = await updatePreferences({
       mode_prompt_overrides: Object.keys(cleaned).length > 0 ? cleaned : undefined,
     });
+    if (!isMountedRef.current) return;
     if (result.success) {
       setMsg({ text: "Chat mode prompts saved", type: "success" });
     } else {

@@ -39,8 +39,8 @@ export default function StudioPage() {
       }
       const data = await res.json();
       if (isMountedRef.current) setProjects(data.projects || []);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Failed to fetch studio projects:", err);
     } finally {
       if (isMountedRef.current) setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function StudioPage() {
   };
 
   const formatDuration = (seconds: number | null) => {
-    if (!seconds) return "--:--";
+    if (seconds == null) return "--:--";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
