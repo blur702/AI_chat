@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Settings2,
 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 import type { OffloadPreference } from "@workstation/api/types";
 
 interface OffloadPreferencesProps {
@@ -184,7 +185,10 @@ export function OffloadPreferences({
       {/* Remember Toggle */}
       <div className="flex items-center justify-between rounded-lg border p-4">
         <div>
-          <p className="text-sm font-medium">Remember permanently</p>
+          <p className="text-sm font-medium flex items-center gap-1">
+            Remember permanently
+            <FieldHelp slug="resource-remember-preference" tip="When enabled, your offload preference is saved to your account and persists across sessions. When disabled, the preference resets after 1 hour." />
+          </p>
           <p className="text-xs text-muted-foreground">
             If disabled, preference expires after 1 hour (session-scoped).
           </p>
@@ -210,7 +214,10 @@ export function OffloadPreferences({
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Auto-unload idle resources</p>
+              <p className="text-sm font-medium flex items-center gap-1">
+                Auto-unload idle resources
+                <FieldHelp slug="resource-auto-unload-idle" tip="Automatically moves models from GPU VRAM to CPU RAM after a period of inactivity. Frees VRAM for other tasks without fully deleting the model from memory." />
+              </p>
               <p className="text-xs text-muted-foreground">
                 Automatically offload resources that have not been used recently.
               </p>
@@ -225,8 +232,9 @@ export function OffloadPreferences({
 
           {autoUnloadIdle && (
             <div className="space-y-2 pl-4">
-              <label htmlFor="idleTimeout" className="text-sm font-medium">
+              <label htmlFor="idleTimeout" className="text-sm font-medium flex items-center gap-1">
                 Idle timeout (minutes)
+                <FieldHelp slug="resource-idle-timeout" tip="How long a model must be unused before it is automatically offloaded to CPU. Lower values free VRAM sooner; higher values keep models warm for faster reuse." />
               </label>
               <Input
                 id="idleTimeout"
@@ -246,8 +254,9 @@ export function OffloadPreferences({
           )}
 
           <div className="space-y-2">
-            <label htmlFor="vramThreshold" className="text-sm font-medium">
+            <label htmlFor="vramThreshold" className="text-sm font-medium flex items-center gap-1">
               VRAM warning threshold: {vramThreshold}%
+              <FieldHelp slug="resource-vram-threshold" tip="A warning is shown when GPU VRAM utilization exceeds this percentage. Set lower (70-80%) for early warnings; set higher (90-95%) to only alert on critical pressure." />
             </label>
             <input
               id="vramThreshold"
@@ -269,8 +278,9 @@ export function OffloadPreferences({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="preemptionStrategy" className="text-sm font-medium">
+            <label htmlFor="preemptionStrategy" className="text-sm font-medium flex items-center gap-1">
               Preemption strategy
+              <FieldHelp slug="resource-preemption-strategy" tip="Determines which loaded model is offloaded first when VRAM needs to be freed. LRU evicts the least recently used; Priority evicts the lowest-priority; Largest VRAM First frees the most memory fastest." />
             </label>
             <select
               id="preemptionStrategy"

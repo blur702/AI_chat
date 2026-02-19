@@ -1,6 +1,7 @@
 """Issues CRUD and workflow endpoints."""
 
 import logging
+import shlex
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -208,13 +209,13 @@ async def start_fix(
         sandbox_mgr = kernel.get_service("sandbox_manager")
         if sandbox_mgr:
             try:
-                container = await sandbox_mgr.get_or_create_container(
-                    str(issue.project_id)
+                container_id = await sandbox_mgr.get_or_create_container(
+                    issue.project_id
                 )
-                if container:
+                if container_id:
                     await sandbox_mgr.exec_in_container(
-                        container.id,
-                        f"git checkout -b {branch_name}",
+                        container_id,
+                        f"git checkout -b {shlex.quote(branch_name)}",
                     )
             except Exception as e:
                 logger.warning("Failed to create fix branch in sandbox: %s", e)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -31,6 +31,20 @@ export function TimelinePanel() {
   } = useStudioStore();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    obs.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => obs.disconnect();
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -134,7 +148,7 @@ export function TimelinePanel() {
     <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
       <div className="flex h-full flex-col border-t bg-card">
         {/* Controls bar */}
-        <TimelineControls />
+        <TimelineControls containerWidth={containerWidth} />
 
         {/* Scrollable timeline area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-auto" onScroll={handleScroll}>

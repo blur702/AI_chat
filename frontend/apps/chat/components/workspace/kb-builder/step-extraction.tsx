@@ -57,10 +57,10 @@ export function StepExtraction({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           Text Extraction
-          <FieldHelp tip="How text is extracted from each file type" slug="kb-text-extraction" />
+          <FieldHelp tip="Each file type uses a specialized extraction method: PDFs use text-layer parsing, HTML is stripped of scripts and nav, and CSV is formatted as key-value records for better semantic matching." slug="kb-text-extraction" />
         </div>
         <div className="flex items-center gap-1">
-          <FieldHelp tip="Extract text from all uploaded files at once" slug="kb-text-extraction" />
+          <FieldHelp tip="Runs extraction on every uploaded file sequentially. Already-extracted files are skipped. Files marked as 'skip' in image processing settings are also skipped." slug="kb-text-extraction" />
           <Button size="sm" variant="outline" onClick={handleExtractAll} disabled={extracting}>
             {extracting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
             Extract All
@@ -73,7 +73,7 @@ export function StepExtraction({
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
             Image Files
-            <FieldHelp tip="Choose OCR or Vision model for image processing" slug="kb-ocr-explained" />
+            <FieldHelp tip="Images require special handling: OCR (Tesseract) reads visible text from screenshots and scans; Vision models (LLaVA) describe the full image content including diagrams, charts, and visual layout." slug="kb-ocr-explained" />
           </div>
           {imageFiles.map((f) => {
             const method = imageProcessing[f.file_id] ?? "ocr";
@@ -95,7 +95,7 @@ export function StepExtraction({
                     <option value="vision">Vision Model (LLaVA)</option>
                     <option value="skip">Skip</option>
                   </select>
-                  <FieldHelp tip="Choose how images are processed" slug="kb-vision-models" />
+                  <FieldHelp tip="Select the extraction method for this image. OCR is fast and best for text-heavy images; Vision is slower but captures diagrams, charts, and visual context. Skip excludes the file entirely." slug="kb-vision-models" />
                   <Button
                     size="sm"
                     variant="outline"

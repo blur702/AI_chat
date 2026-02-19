@@ -74,7 +74,7 @@ export function SecurityTab({ changePassword, passwordSaving }: SecurityTabProps
         <div className="space-y-2">
           <label htmlFor="currentPassword" className="text-sm font-medium flex items-center gap-1.5">
             Current Password
-            <FieldHelp slug="settings-password" tip="Choose a strong password" />
+            <FieldHelp slug="settings-password" tip="Your current password is required to verify your identity before making changes. This prevents unauthorized password changes if your session is compromised." />
           </label>
           <div className="relative">
             <Input
@@ -96,7 +96,10 @@ export function SecurityTab({ changePassword, passwordSaving }: SecurityTabProps
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="newPassword" className="text-sm font-medium">New Password</label>
+          <label htmlFor="newPassword" className="text-sm font-medium flex items-center gap-1.5">
+            New Password
+            <FieldHelp slug="settings-new-password" tip="Must be at least 8 characters and include uppercase, lowercase, a digit, and a special character. A strong password protects your account from brute-force attacks." />
+          </label>
           <div className="relative">
             <Input
               id="newPassword"
@@ -118,7 +121,10 @@ export function SecurityTab({ changePassword, passwordSaving }: SecurityTabProps
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm New Password</label>
+          <label htmlFor="confirmPassword" className="text-sm font-medium flex items-center gap-1.5">
+            Confirm New Password
+            <FieldHelp slug="settings-confirm-password" tip="Re-enter your new password exactly as typed above. This step prevents typos from locking you out of your account." />
+          </label>
           <Input
             id="confirmPassword"
             type="password"

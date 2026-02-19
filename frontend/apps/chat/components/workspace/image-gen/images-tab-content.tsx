@@ -145,7 +145,7 @@ export function ImagesTabContent({
           <div>
             <label className="text-xs font-medium flex items-center justify-between gap-2">
               <span className="flex items-center gap-1">
-                Denoise <FieldHelp slug="imagegen-denoise" tip="How much to change the input image (0=none, 1=full)" />
+                Denoise <FieldHelp slug="imagegen-denoise" tip="Controls how much the output deviates from the input image. 0.0 keeps the original nearly unchanged; 1.0 ignores the input entirely. Values around 0.5-0.7 work well for style transfer while preserving composition." />
               </span>
               <span>{denoise.toFixed(2)}</span>
             </label>
@@ -201,7 +201,7 @@ export function ImagesTabContent({
               <div>
                 <label className="text-xs font-medium flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1">
-                    Morph Strength <FieldHelp slug="imagegen-morph-strength" tip="Blending intensity between input and target" />
+                    Morph Strength <FieldHelp slug="imagegen-morph-strength" tip="Controls how strongly the target face features blend into the input image. Lower values produce subtle changes; higher values create a stronger morph toward the target." />
                   </span>
                   <span>{morphStrength.toFixed(2)}</span>
                 </label>

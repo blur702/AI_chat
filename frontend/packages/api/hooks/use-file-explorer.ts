@@ -52,6 +52,8 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
       if (!projectId) return;
       try {
         await getClient().createFile(projectId, path, content);
+        // Small delay for container I/O sync before refreshing
+        await new Promise((r) => setTimeout(r, 150));
         await refreshTree();
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to create file");
@@ -66,6 +68,8 @@ export function useFileExplorer(projectId: string | null): UseFileExplorerReturn
       if (!projectId) return;
       try {
         await getClient().createDirectory(projectId, path);
+        // Small delay for container I/O sync before refreshing
+        await new Promise((r) => setTimeout(r, 150));
         await refreshTree();
       } catch (err) {
         const msg = extractErrorMessage(err, "Failed to create directory");

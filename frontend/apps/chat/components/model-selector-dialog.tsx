@@ -34,6 +34,7 @@ import {
   Cloud,
   Wifi,
 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 import { useModelSwitcher, useWebSocket, useAuth } from "@workstation/api/hooks";
 
 interface ModelSelectorDialogProps {
@@ -325,6 +326,10 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
           </TabsList>
 
           <TabsContent value="installed" className="flex-1 min-h-0 mt-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+              <FieldHelp slug="model-selector-installed" tip="Models already downloaded to your local disk and ready to load into VRAM. Select one and click Apply to make it the active model for chat." />
+              <span>Locally installed models</span>
+            </div>
             <ScrollArea className="h-[380px]">
               {loading ? (
                 <div className="space-y-3 pr-4">
@@ -437,49 +442,55 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
                           <div className="flex items-center gap-1 shrink-0">
                             <TooltipProvider delayDuration={300}>
                               {running ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0"
-                                      disabled={isLoading}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        void unloadModel(model.name);
-                                      }}
-                                    >
-                                      {isLoading ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        <Unplug className="h-3.5 w-3.5" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Unload from VRAM</TooltipContent>
-                                </Tooltip>
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0"
+                                        disabled={isLoading}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void unloadModel(model.name);
+                                        }}
+                                      >
+                                        {isLoading ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Unplug className="h-3.5 w-3.5" />
+                                        )}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Removes the model from GPU VRAM and returns it to disk-only state. The model file is not deleted.</TooltipContent>
+                                  </Tooltip>
+                                  <FieldHelp slug="model-action-unload" tip="Removes the model from GPU VRAM to free memory. The model file stays on disk and can be reloaded at any time without re-downloading." />
+                                </>
                               ) : (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0"
-                                      disabled={isLoading}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        void loadModel(model.name);
-                                      }}
-                                    >
-                                      {isLoading ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        <Upload className="h-3.5 w-3.5" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Load into VRAM</TooltipContent>
-                                </Tooltip>
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0"
+                                        disabled={isLoading}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void loadModel(model.name);
+                                        }}
+                                      >
+                                        {isLoading ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Upload className="h-3.5 w-3.5" />
+                                        )}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Copies the model weights from disk into GPU VRAM, making it available for inference. Requires sufficient free VRAM.</TooltipContent>
+                                  </Tooltip>
+                                  <FieldHelp slug="model-action-load" tip="Loads the model from disk into GPU VRAM so it can respond to chat messages. Requires enough free VRAM — check the VRAM column before loading." />
+                                </>
                               )}
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -499,9 +510,10 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  {running ? "Unload first to delete" : "Delete model"}
+                                  {running ? "Unload first to delete" : "Permanently removes the model file from disk. You will need to re-download it to use it again."}
                                 </TooltipContent>
                               </Tooltip>
+                              <FieldHelp slug="model-action-delete" tip="Permanently deletes the model file from your local disk. This frees disk space but requires a full re-download to restore. Unload the model from VRAM first." />
                             </TooltipProvider>
                           </div>
                         </div>
@@ -514,6 +526,10 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
           </TabsContent>
 
           <TabsContent value="not-installed" className="flex-1 min-h-0 mt-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+              <FieldHelp slug="model-selector-not-installed" tip="Models available from the Ollama registry that are not yet on your disk. Click the download icon or a size badge to pull a model — this downloads it to local storage." />
+              <span>Available to download</span>
+            </div>
             <ScrollArea className="h-[380px]">
               {notInstalledModels.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
@@ -607,9 +623,10 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                {isPulling ? "Pulling..." : "Pull model"}
+                                {isPulling ? "Downloading..." : "Downloads this model from the Ollama registry to your local disk. Size varies by model — check available disk space first."}
                               </TooltipContent>
                             </Tooltip>
+                            <FieldHelp slug="model-action-pull" tip="Downloads the model from the Ollama registry to your local disk. Download size ranges from ~1 GB to 70+ GB depending on the model. Progress is shown at the top of the dialog." />
                           </TooltipProvider>
                         </div>
                       </div>
@@ -621,6 +638,10 @@ export function ModelSelectorDialog({ open, onOpenChange }: ModelSelectorDialogP
           </TabsContent>
 
           <TabsContent value="cloud" className="flex-1 min-h-0 mt-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+              <FieldHelp slug="model-selector-cloud" tip="Cloud-hosted models from providers like OpenAI, Anthropic, and Google. These require an internet connection and a valid API key configured in your backend settings." />
+              <span>Cloud-hosted models</span>
+            </div>
             <ScrollArea className="h-[380px]">
               <div className="space-y-2 pr-4">
                 {CLOUD_MODELS.map((model) => {

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ScrollArea } from "@workstation/ui";
 import { StickyNote, X, LayoutGrid, Download, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { FieldHelp } from "@/components/help/field-help";
 import { useNotes as useNotesContext } from "./notes-provider";
 import { useNotes as useNotesData } from "@workstation/api/hooks/use-notes";
 import { useProjects } from "@workstation/api/hooks/use-projects";
@@ -132,7 +133,9 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
       const a = document.createElement("a");
       a.href = url;
       a.download = "app-bugs.md";
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setExportDone(true);
       if (exportTimeoutRef.current) clearTimeout(exportTimeoutRef.current);
@@ -187,6 +190,7 @@ function NotesModalContent({ closeNotes }: { closeNotes: () => void }) {
           <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4" />
             Notes
+            <FieldHelp slug="notes-overview" tip="Quick-capture notes with categories, AI-generated titles, and markdown export. Pin important notes and promote bugs to trackable issues." />
           </h2>
           <div className="flex items-center gap-1">
             <button

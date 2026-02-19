@@ -514,8 +514,24 @@ export function IDELayout({ projectId }: IDELayoutProps) {
 
         <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
 
+        {/* Chat Panel (collapsible sidebar — left of editor) */}
+        {showChat && (
+          <>
+            <Panel id="chat-panel" defaultSize="25%" minSize="20%" maxSize="40%">
+              <PanelErrorBoundary panelName="Chat">
+                <ChatPanel
+                  {...chatPanelProps}
+                  toolResults={toolResultsForChat}
+                  onClose={() => setShowChat(false)}
+                />
+              </PanelErrorBoundary>
+            </Panel>
+            <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
+          </>
+        )}
+
         {/* Main Editor + Terminal */}
-        <Panel id="editor-main" defaultSize={showChat ? "55%" : "85%"} minSize="30%">
+        <Panel id="editor-main" defaultSize={showChat ? "60%" : "85%"} minSize="30%">
           <Group orientation="vertical" id="editor-vertical">
             {/* Editor Area */}
             <Panel id="editor-area" defaultSize="65%" minSize="30%">
@@ -548,22 +564,6 @@ export function IDELayout({ projectId }: IDELayoutProps) {
             </Panel>
           </Group>
         </Panel>
-
-        {/* Chat Panel (collapsible sidebar — stays inline) */}
-        {showChat && (
-          <>
-            <Separator className="w-1 bg-border transition-colors hover:bg-primary/50" />
-            <Panel id="chat-panel" defaultSize="30%" minSize="20%" maxSize="40%">
-              <PanelErrorBoundary panelName="Chat">
-                <ChatPanel
-                  {...chatPanelProps}
-                  toolResults={toolResultsForChat}
-                  onClose={() => setShowChat(false)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-          </>
-        )}
       </Group>
 
       {/* Sheet overlays */}

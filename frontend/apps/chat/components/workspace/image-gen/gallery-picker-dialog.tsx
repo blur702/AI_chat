@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@workstation/ui";
 import { ImageIcon, Loader2 } from "lucide-react";
 import type { ImageGenerationResponse } from "@workstation/api/types";
@@ -68,6 +69,9 @@ export function GalleryPickerDialog({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-sm">Pick from Gallery</DialogTitle>
+          <DialogDescription className="sr-only">
+            Select a previously generated image from the gallery
+          </DialogDescription>
         </DialogHeader>
         {completed.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">

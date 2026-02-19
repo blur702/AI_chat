@@ -49,7 +49,7 @@ export function ModelTabContent({
       {/* Model */}
       <div>
         <label htmlFor="model-select" className="flex items-center gap-1 text-xs font-medium">
-          Model <FieldHelp slug="imagegen-model" tip="Checkpoint model used for generation" />
+          Model <FieldHelp slug="imagegen-model" tip="The neural network determining visual style. For example, a realistic photo checkpoint vs. an anime model produce very different outputs from the same prompt." />
         </label>
         {models.length > 0 ? (
           <select
@@ -88,7 +88,7 @@ export function ModelTabContent({
         <div>
           <label htmlFor="sampler-select" className="flex items-center gap-1 text-xs font-medium">
             Sampler{" "}
-            <FieldHelp slug="imagegen-sampler" tip="Sampling algorithm (euler, dpmpp_2m, etc.)" />
+            <FieldHelp slug="imagegen-sampler" tip="The denoising algorithm. For example, euler is fast and reliable at 20-30 steps, dpmpp_2m gives higher quality at 15-25 steps. Start with euler if unsure." />
           </label>
           <select
             id="sampler-select"
@@ -108,7 +108,7 @@ export function ModelTabContent({
             Scheduler{" "}
             <FieldHelp
               slug="imagegen-scheduler"
-              tip="Noise schedule (normal, karras, exponential)"
+              tip="How noise is distributed across steps. For example, karras concentrates denoising in later steps for sharper results. Pair karras + dpmpp_2m for reliable quality."
             />
           </label>
           <select

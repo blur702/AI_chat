@@ -49,7 +49,7 @@ export function ControlNetSection({
         >
           <span className="flex items-center gap-1">
             ControlNet (Structure Guide){" "}
-            <FieldHelp slug="imagegen-controlnet" tip="Guide output with structure images" />
+            <FieldHelp slug="imagegen-controlnet" tip="Constrains output to match a guide image's structure. For example, upload a photo and use 'canny' to preserve its outlines while completely changing the style." />
           </span>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>
@@ -62,7 +62,7 @@ export function ControlNetSection({
           <div>
             <label htmlFor="controlnet-type-select" className="text-xs font-medium flex items-center gap-1">
               ControlNet Type{" "}
-              <FieldHelp slug="imagegen-controlnet-type" tip="Preprocessing method: canny (edges), depth, openpose (body), lineart, scribble, softedge" />
+              <FieldHelp slug="imagegen-controlnet-type" tip="Preprocessing method for the guide image. For example, 'canny' extracts edges for shape control, 'depth' preserves spatial layout, 'openpose' detects body positions." />
             </label>
             <select
               id="controlnet-type-select"
@@ -103,7 +103,7 @@ export function ControlNetSection({
             <label className="text-xs font-medium flex items-center justify-between gap-2">
               <span className="flex items-center gap-1">
                 Strength{" "}
-                <FieldHelp slug="imagegen-controlnet-strength" tip="How closely to follow the structure guide (0 = ignore, 2 = strict)" />
+                <FieldHelp slug="imagegen-controlnet-strength" tip="How closely output follows the guide. For example, 0.8 preserves structure while allowing creative fills, 1.5 strictly follows every edge. Start at 0.8-1.0." />
               </span>
               <span>{controlnetStrength.toFixed(2)}</span>
             </label>

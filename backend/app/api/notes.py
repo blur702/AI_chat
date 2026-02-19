@@ -267,7 +267,9 @@ async def create_note(
     )
     db.add(row)
     await db.commit()
-    await db.refresh(row)
+    # Re-fetch with relationships eagerly loaded (selectin on project/category)
+    result = await db.execute(select(Note).where(Note.id == row.id))
+    row = result.scalar_one()
     return _note_to_response(row)
 
 
@@ -370,12 +372,20 @@ async def update_note(
     if "category_id" in data:
         row.category_id = data["category_id"] if data["category_id"] else None
     if "status" in data and data["status"] in ("active", "completed", "archived"):
-        row.status = data["status"]
+        if data["status"] == "completed":
+            row.mark_complete()
+        elif data["status"] == "active":
+            row.status = "active"
+            row.completed_at = None
+        else:
+            row.archive()
     if "pinned" in data and data["pinned"] is not None:
         row.pinned = data["pinned"]
 
     await db.commit()
-    await db.refresh(row)
+    # Re-fetch with relationships eagerly loaded (selectin on project/category)
+    result2 = await db.execute(select(Note).where(Note.id == row.id))
+    row = result2.scalar_one()
     return _note_to_response(row)
 
 
@@ -419,7 +429,8 @@ async def complete_note(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
     row.mark_complete()
     await db.commit()
-    await db.refresh(row)
+    result2 = await db.execute(select(Note).where(Note.id == row.id))
+    row = result2.scalar_one()
     return _note_to_response(row)
 
 
@@ -442,7 +453,8 @@ async def archive_note(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
     row.archive()
     await db.commit()
-    await db.refresh(row)
+    result2 = await db.execute(select(Note).where(Note.id == row.id))
+    row = result2.scalar_one()
     return _note_to_response(row)
 
 
@@ -477,6 +489,9 @@ async def promote_to_issue(
             detail="Note is already linked to an issue",
         )
 
+    # Ensure system categories exist before querying
+    await _ensure_default_categories(user_id, db)
+
     # Auto-set Errors category if it exists
     errors_cat = await db.execute(
         select(NoteCategory).where(
@@ -501,7 +516,9 @@ async def promote_to_issue(
 
     note.issue_id = issue.id
     await db.commit()
-    await db.refresh(issue)
+    # Re-fetch with relationships eagerly loaded (selectin on project)
+    result2 = await db.execute(select(Issue).where(Issue.id == issue.id))
+    issue = result2.scalar_one()
 
     return IssueResponse(
         id=str(issue.id),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   cn,
   Button,
@@ -80,8 +80,39 @@ export function GlobalHeader() {
     return item.href;
   };
 
+  const searchParams = useSearchParams();
+
   const isActive = (item: NavItem) => {
-    if (item.matchPrefix) return pathname.startsWith(item.href);
+    // For hrefs with query params (e.g. "/settings?tab=admin-system"),
+    // compare both the path and the query parameter.
+    const qIdx = item.href.indexOf("?");
+    if (qIdx !== -1) {
+      const itemPath = item.href.slice(0, qIdx);
+      const itemParams = new URLSearchParams(item.href.slice(qIdx + 1));
+      if (pathname !== itemPath) return false;
+      for (const [key, value] of itemParams) {
+        if (searchParams.get(key) !== value) return false;
+      }
+      return true;
+    }
+    if (item.matchPrefix) {
+      if (!pathname.startsWith(item.href)) return false;
+      // Don't activate a prefix match when a more specific query-param
+      // nav item on the same path is active (e.g. Settings vs Admin).
+      const hasMoreSpecificMatch = NAV_ITEMS.some((other) => {
+        if (other === item) return false;
+        const oqIdx = other.href.indexOf("?");
+        if (oqIdx === -1) return false;
+        const otherPath = other.href.slice(0, oqIdx);
+        if (otherPath !== pathname) return false;
+        const otherParams = new URLSearchParams(other.href.slice(oqIdx + 1));
+        for (const [key, value] of otherParams) {
+          if (searchParams.get(key) !== value) return false;
+        }
+        return true;
+      });
+      return !hasMoreSpecificMatch;
+    }
     return pathname === item.href || pathname === resolveHref(item);
   };
 

@@ -92,7 +92,7 @@ export function StepChunking({
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           Presets
-          <FieldHelp tip="Choose a recommended preset or customize manually" slug="kb-chunking-overview" />
+          <FieldHelp tip="Pre-configured chunk size and overlap values optimized for common document types. Select a preset to auto-fill the sliders, or choose Custom to set values manually." slug="kb-chunking-overview" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {CHUNK_PRESETS.map((preset) => {
@@ -127,7 +127,7 @@ export function StepChunking({
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1">
               Chunk Size (tokens)
-              <FieldHelp tip="Target token count per chunk" slug="kb-chunk-size" />
+              <FieldHelp tip="The target number of tokens per chunk. Smaller chunks (100-200) give more precise retrieval; larger chunks (400-800) preserve more context per result. 300-500 is a good default for most documents." slug="kb-chunk-size" />
             </span>
             <span className="font-mono text-muted-foreground">{chunkSettings.chunk_size}</span>
           </div>
@@ -152,7 +152,7 @@ export function StepChunking({
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1">
               Overlap (tokens)
-              <FieldHelp tip="Tokens shared between consecutive chunks" slug="kb-chunk-overlap" />
+              <FieldHelp tip="Number of tokens duplicated between adjacent chunks to prevent information loss at boundaries. 10-15% of chunk size is typical. Zero overlap is fine for structured data like FAQs." slug="kb-chunk-overlap" />
             </span>
             <span className="font-mono text-muted-foreground">{chunkSettings.chunk_overlap}</span>
           </div>
@@ -178,7 +178,7 @@ export function StepChunking({
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium flex items-center gap-1">
             Live Preview
-            <FieldHelp tip="Preview how your text will be split" slug="kb-chunk-size" />
+            <FieldHelp tip="Runs the chunking algorithm on a sample document so you can inspect the output before committing to a full build. Helps verify that chunk boundaries fall at natural text breaks." slug="kb-chunk-size" />
           </span>
           <div className="flex items-center gap-2">
             {extractionEntries.length > 1 && (

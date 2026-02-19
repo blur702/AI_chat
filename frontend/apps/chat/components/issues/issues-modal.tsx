@@ -29,6 +29,7 @@ import {
   Save,
   XCircle,
 } from "lucide-react";
+import { FieldHelp } from "@/components/help/field-help";
 import { useIssuesPanel } from "./issues-provider";
 import { useIssues } from "@workstation/api/hooks/use-issues";
 import { useProjects } from "@workstation/api/hooks/use-projects";
@@ -221,6 +222,7 @@ function IssuesModalContent({ closeIssues }: { closeIssues: () => void }) {
           <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold">
             <Bug className="h-4 w-4" />
             Issues
+            <FieldHelp slug="issues-overview" tip="Track project bugs with severity levels, fix branches, and PR links. Promote notes to issues and use start-fix to auto-create git branches." />
             {count > 0 && (
               <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                 {count}

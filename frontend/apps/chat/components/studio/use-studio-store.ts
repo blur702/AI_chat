@@ -121,6 +121,7 @@ interface StudioState {
   // Actions — Zoom
   setPixelsPerSecond: (pps: number) => void;
   setScrollLeft: (px: number) => void;
+  fitToWindow: (containerWidth: number) => void;
 
   // Actions — Media
   setMediaAssets: (assets: MediaAsset[]) => void;
@@ -294,6 +295,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   // Zoom
   setPixelsPerSecond: (pps) => set({ pixelsPerSecond: Math.max(10, Math.min(500, pps)) }),
   setScrollLeft: (px) => set({ scrollLeft: Math.max(0, px) }),
+  fitToWindow: (containerWidth) => {
+    const { timeline } = get();
+    let maxTime = 10; // minimum 10s
+    for (const track of timeline.tracks) {
+      for (const clip of track.clips) {
+        maxTime = Math.max(maxTime, clip.start_time + clip.duration);
+      }
+    }
+    // Add small padding (5%)
+    const pps = Math.max(10, Math.min(500, (containerWidth * 0.95) / maxTime));
+    set({ pixelsPerSecond: pps, scrollLeft: 0 });
+  },
 
   // Media
   setMediaAssets: (assets) => set({ mediaAssets: assets }),

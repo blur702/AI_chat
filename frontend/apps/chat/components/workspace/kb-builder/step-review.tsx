@@ -163,7 +163,7 @@ export function StepReview({
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Info className="h-4 w-4 text-blue-500" />
                 Build Estimates
-                <FieldHelp tip="Estimated resources for this build" slug="kb-indexing-pipeline" />
+                <FieldHelp tip="Approximate chunk count, build time, and storage based on extracted text length and your chunking settings. Actual values may vary slightly due to token boundary alignment." slug="kb-indexing-pipeline" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex items-center gap-2 text-xs">
@@ -217,7 +217,7 @@ export function StepReview({
       <div className="rounded-lg border p-4 space-y-3">
         <div className="text-sm font-medium flex items-center gap-1">
           Build Summary
-          <FieldHelp tip="Summary of your build configuration" slug="kb-indexing-pipeline" />
+          <FieldHelp tip="A final review of all settings before starting the build. Double-check file count, chunk parameters, and embedding model selection before proceeding." slug="kb-indexing-pipeline" />
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="text-muted-foreground">Files</div>
@@ -235,7 +235,7 @@ export function StepReview({
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           Scope
-          <FieldHelp tip="Choose where this KB is accessible" slug="kb-scope-project-vs-global" />
+          <FieldHelp tip="Project scope limits search to this project's chat sessions. Global scope makes the knowledge base available across all projects, useful for shared reference material." slug="kb-scope-project-vs-global" />
         </div>
         <div className="flex gap-2">
           <button
@@ -328,7 +328,7 @@ export function StepReview({
       <div className="flex justify-between pt-2">
         <Button variant="outline" onClick={onBack} disabled={building}>Back</Button>
         <div className="flex items-center gap-1">
-          <FieldHelp tip="Start the indexing pipeline" slug="kb-indexing-pipeline" />
+          <FieldHelp tip="Kicks off the full pipeline: extract text, split into chunks, generate embeddings, and store vectors in pgvector. Progress is shown in real time above." slug="kb-indexing-pipeline" />
           <Button onClick={onStartBuild} disabled={building || files.length === 0}>
             {building ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Building...</>

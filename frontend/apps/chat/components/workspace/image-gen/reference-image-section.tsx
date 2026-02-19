@@ -47,7 +47,7 @@ export function ReferenceImageSection({
         >
           <span className="flex items-center gap-1">
             Reference Image (Style Transfer){" "}
-            <FieldHelp slug="imagegen-reference-image" tip="IPAdapter style transfer from reference" />
+            <FieldHelp slug="imagegen-reference-image" tip="The output adopts the reference's color palette and composition. For example, uploading a Van Gogh painting transfers its swirling brushstroke style to your prompt." />
           </span>
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>
@@ -84,7 +84,7 @@ export function ReferenceImageSection({
             <label className="text-xs font-medium flex items-center justify-between gap-2">
               <span className="flex items-center gap-1">
                 Style Weight{" "}
-                <FieldHelp slug="imagegen-reference-weight" tip="How strongly the reference style influences the output (0-150%)" />
+                <FieldHelp slug="imagegen-reference-weight" tip="How strongly the reference style influences output. For example, 50% blends equally with your prompt, while 100%+ makes the reference dominate over text guidance." />
               </span>
               <span>{(referenceWeight * 100).toFixed(0)}%</span>
             </label>
@@ -103,7 +103,7 @@ export function ReferenceImageSection({
             <label className="text-xs font-medium flex items-center justify-between gap-2">
               <span className="flex items-center gap-1">
                 Variation/Noise{" "}
-                <FieldHelp slug="imagegen-reference-noise" tip="Add variation to style transfer (0 = exact match, 100% = high variation)" />
+                <FieldHelp slug="imagegen-reference-noise" tip="How loosely the model interprets the reference. For example, 0% faithfully reproduces the style, 30-60% produces creative variations while keeping the overall aesthetic." />
               </span>
               <span>{(referenceNoise * 100).toFixed(0)}%</span>
             </label>

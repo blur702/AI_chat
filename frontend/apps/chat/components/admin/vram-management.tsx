@@ -10,6 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  closestCenter,
 } from "@dnd-kit/core";
 import { useVramManagement, useAuth } from "@workstation/api/hooks";
 import type {
@@ -82,7 +83,7 @@ function DraggableLocalModel({
   onLoad: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
     id: model.name,
     data: { type: "local", model },
   });
@@ -104,6 +105,7 @@ function DraggableLocalModel({
       )}
     >
       <button
+        ref={setActivatorNodeRef}
         className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
         {...listeners}
         {...attributes}
@@ -160,7 +162,7 @@ function DraggableRunningModel({
   onOffload: (name: string) => void;
   actionLoading: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
     id: model.name,
     data: { type: "running", model },
   });
@@ -181,6 +183,7 @@ function DraggableRunningModel({
       )}
     >
       <button
+        ref={setActivatorNodeRef}
         className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
         {...listeners}
         {...attributes}
@@ -466,11 +469,11 @@ export function VramManagement() {
       const { active, over } = event;
 
       if (active.data.current?.type === "local" && over?.id && String(over.id).startsWith("gpu-")) {
-        loadModel(String(active.id));
+        void loadModel(String(active.id));
       }
 
       if (active.data.current?.type === "running" && over?.id === "ram") {
-        offloadToRam(String(active.id), userId ?? undefined);
+        void offloadToRam(String(active.id), userId ?? undefined);
       }
 
       setActiveId(null);
@@ -545,7 +548,7 @@ export function VramManagement() {
         </div>
       )}
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Left column: GPUs + RAM */}
           <div className="space-y-4 lg:col-span-2">

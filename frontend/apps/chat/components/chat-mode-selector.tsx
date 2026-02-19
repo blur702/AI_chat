@@ -44,7 +44,7 @@ export function ChatModeSelector({
                   disabled={disabled}
                   onClick={() => onModeChange(mode.key)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors min-w-0 max-w-[120px] overflow-hidden",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
@@ -54,8 +54,8 @@ export function ChatModeSelector({
                   aria-pressed={isActive}
                   aria-label={`${mode.label} mode: ${mode.description}`}
                 >
-                  {Icon && <Icon className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">{mode.label}</span>
+                  {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="hidden sm:inline truncate">{mode.label}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-48">

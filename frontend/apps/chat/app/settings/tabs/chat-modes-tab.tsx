@@ -13,6 +13,7 @@ import {
 import { CHAT_MODES } from "@workstation/api/hooks";
 import { Bot, Code, Map as MapIcon, HelpCircle, MessageCircle, ChevronDown, RotateCcw, Eye, EyeOff } from "lucide-react";
 import { MODE_PROMPT_DEFAULTS } from "@/lib/mode-prompt-defaults";
+import { FieldHelp } from "@/components/help/field-help";
 import type { UserPreferences } from "@workstation/api/types";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -78,7 +79,10 @@ export function ChatModesTab({ preferences, updatePreferences, preferencesSaving
   return (
     <div className="space-y-6 pt-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Chat Modes</h2>
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-1.5">
+          Chat Modes
+          <FieldHelp slug="settings-chat-modes" tip="Each chat mode applies a different system prompt modifier that shapes how the AI responds. Choose the mode that best fits your task." />
+        </h2>
         <p className="text-sm text-muted-foreground mb-6">
           Customize the system prompt modifier for each chat mode. Leave empty to use the built-in default.
         </p>
@@ -118,6 +122,10 @@ export function ChatModesTab({ preferences, updatePreferences, preferencesSaving
                   </p>
                 ) : null}
 
+                <label className="text-xs font-medium flex items-center gap-1">
+                  Prompt Modifier
+                  <FieldHelp slug="settings-chat-mode-prompt-override" tip="This text is prepended to the base system prompt when this mode is active. Leave empty to use the built-in default for this mode." />
+                </label>
                 <Textarea
                   value={overrides[mode.key] ?? ""}
                   onChange={(e) => handleChange(mode.key, e.target.value)}

@@ -61,7 +61,7 @@ export function ProfileTab({ user, updateProfile, profileSaving }: ProfileTabPro
           <div className="space-y-2">
             <label htmlFor="firstName" className="text-sm font-medium flex items-center gap-1.5">
               First Name
-              <FieldHelp slug="settings-first-name" tip="Your given name for personalization" />
+              <FieldHelp slug="settings-first-name" tip="Shown in chat threads, audit logs, and collaboration views. For example, 'Kevin' appears next to your messages and activity entries." />
             </label>
             <Input
               id="firstName"
@@ -73,7 +73,7 @@ export function ProfileTab({ user, updateProfile, profileSaving }: ProfileTabPro
           <div className="space-y-2">
             <label htmlFor="lastName" className="text-sm font-medium flex items-center gap-1.5">
               Last Name
-              <FieldHelp slug="settings-last-name" tip="Your family or surname" />
+              <FieldHelp slug="settings-last-name" tip="Paired with first name in user lists, notifications, and admin views. Use your team-recognized surname for easier support requests." />
             </label>
             <Input
               id="lastName"
@@ -87,7 +87,7 @@ export function ProfileTab({ user, updateProfile, profileSaving }: ProfileTabPro
         <div className="space-y-2">
           <label htmlFor="screenName" className="text-sm font-medium flex items-center gap-1.5">
             Display Name
-            <FieldHelp slug="settings-display-name" tip="The name shown to others" />
+            <FieldHelp slug="settings-display-name" tip="Appears in chat threads and activity feeds instead of your username. For example, 'KA' or 'Kevin A' — does not change your login identity." />
           </label>
           <Input
             id="screenName"
@@ -100,7 +100,7 @@ export function ProfileTab({ user, updateProfile, profileSaving }: ProfileTabPro
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium flex items-center gap-1.5">
             Email
-            <FieldHelp slug="settings-email" tip="Used for login and recovery" />
+            <FieldHelp slug="settings-email" tip="Used for login, password recovery, and task alerts like generation completion. Use an inbox you actively monitor to avoid missing failure notices." />
           </label>
           <Input
             id="email"

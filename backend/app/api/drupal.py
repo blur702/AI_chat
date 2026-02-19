@@ -80,7 +80,6 @@ ALLOWED_DRUSH_COMMANDS = frozenset({
     "status", "st",
     "core:status", "core-status",
     "config:get", "config-get", "cget",
-    "config:set", "config-set", "cset",
     "config:export", "config-export", "cex",
     "config:import", "config-import", "cim",
     "cache:rebuild", "cache-rebuild", "cr",
@@ -1426,6 +1425,8 @@ async def create_content_type(
                 )
                 body_config_file = f"field.field.node.{body.machine_name}.body.yml"
                 body_b64 = base64.b64encode(body_field_yaml.encode()).decode()
+                # Remove the already-imported node type YAML to avoid re-import conflict
+                await ssh.execute(f"rm -f {shlex.quote(f'{tmp_dir}/{config_filename}')}", timeout=10)
                 write_body_cmd = f"echo {shlex.quote(body_b64)} | base64 -d > {shlex.quote(f'{tmp_dir}/{body_config_file}')}"
                 await ssh.execute(write_body_cmd, timeout=10)
                 body_import = await ssh.execute(import_cmd, timeout=60)

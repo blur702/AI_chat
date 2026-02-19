@@ -50,7 +50,7 @@ export function PromptTabContent({
       <div>
         <label className="text-xs font-medium flex items-center gap-1 mb-1.5">
           Workflow{" "}
-          <FieldHelp slug="imagegen-workflow" tip="Generation mode: text-to-image, img2img, inpaint, face-morph" />
+          <FieldHelp slug="imagegen-workflow" tip="Selects the generation pipeline. Text-to-Image creates from a prompt alone; Img2Img transforms an existing image; Inpaint edits masked regions; Face Morph blends facial features between two images." />
         </label>
         <Tabs value={workflowType} onValueChange={(value) => onWorkflowChange(value as WorkflowType)}>
           <TabsList className="grid grid-cols-4 w-full">
@@ -72,7 +72,7 @@ export function PromptTabContent({
       {/* Prompt */}
       <div>
         <label htmlFor="prompt-input" className="text-xs font-medium flex items-center gap-1">
-          Prompt <FieldHelp slug="imagegen-prompt" tip="Describe the image you want" />
+          Prompt <FieldHelp slug="imagegen-prompt" tip="Describe the image you want to generate. Be specific about subject, style, lighting, and composition. Comma-separated tags (e.g. 'cinematic lighting, 8k, detailed') often improve results." />
         </label>
         <textarea
           id="prompt-input"
@@ -93,7 +93,7 @@ export function PromptTabContent({
       {/* Negative prompt */}
       <div>
         <label htmlFor="negative-prompt-input" className="text-xs font-medium flex items-center gap-1">
-          Negative Prompt <FieldHelp slug="imagegen-negative-prompt" tip="What to avoid in the image" />
+          Negative Prompt <FieldHelp slug="imagegen-negative-prompt" tip="Lists elements the model should avoid. Common entries include 'blurry, low quality, watermark, deformed hands'. The model reduces the probability of these concepts during generation." />
         </label>
         <textarea
           id="negative-prompt-input"
@@ -117,7 +117,7 @@ export function PromptTabContent({
             >
               <span className="flex items-center gap-1">
                 Project Image Context{" "}
-                <FieldHelp slug="imagegen-project-system-context" tip="Project-wide instructions used for image generation in this project" />
+                <FieldHelp slug="imagegen-project-system-context" tip="Persistent project-level instructions that are automatically prepended to every image generation prompt in this project. Use this for consistent style rules, quality settings, or brand guidelines." />
               </span>
               <ChevronDown className="h-3.5 w-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
             </button>

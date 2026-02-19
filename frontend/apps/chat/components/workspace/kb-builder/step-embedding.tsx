@@ -52,10 +52,10 @@ export function StepEmbedding({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           Embedding Model
-          <FieldHelp tip="Choose which model generates vector embeddings" slug="kb-embedding-models" />
+          <FieldHelp tip="The embedding model converts each text chunk into a numeric vector for semantic search. nomic-embed-text (1024d) is recommended for most use cases; larger models may capture finer distinctions." slug="kb-embedding-models" />
         </div>
         <div className="flex items-center gap-1">
-          <FieldHelp tip="Reload available models from Ollama" slug="kb-embedding-models" />
+          <FieldHelp tip="Re-queries the Ollama API for available embedding models. Use this after pulling a new embedding model to see it appear in the list." slug="kb-embedding-models" />
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onLoadModels} disabled={loadingModels}>
             <RefreshCw className={`h-3 w-3 mr-1 ${loadingModels ? "animate-spin" : ""}`} />
             Refresh
@@ -102,7 +102,7 @@ export function StepEmbedding({
                   </div>
                 </button>
                 {model.embedding_length && (
-                  <FieldHelp tip="Number of dimensions in the output vector" slug="kb-embedding-dimensions" className="mt-3 inline-flex text-muted-foreground hover:text-foreground transition-colors" />
+                  <FieldHelp tip="The number of dimensions in the output vector. More dimensions (768, 1024) can capture finer semantic distinctions but use more storage. This value is fixed per model." slug="kb-embedding-dimensions" className="mt-3 inline-flex text-muted-foreground hover:text-foreground transition-colors" />
                 )}
               </div>
             );

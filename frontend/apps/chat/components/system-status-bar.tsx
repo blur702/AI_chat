@@ -77,15 +77,15 @@ export function SystemStatusBar() {
         </div>
         <button
           onClick={() => setModelDialogOpen(true)}
-          className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-muted transition-colors"
-          aria-label={`Open model selector, current model: ${activeModel ? activeModel.split(":")[0] : "No model"}`}
+          className="flex items-center gap-1.5 rounded px-2 py-0.5 hover:bg-muted active:bg-muted/80 transition-colors border border-transparent hover:border-border"
+          aria-label={`Open model selector, current model: ${activeModel || "No model"}`}
         >
           <Bot className="h-3.5 w-3.5 text-muted-foreground" />
           <span className={cn(
-            "text-muted-foreground truncate max-w-[120px]",
+            "text-muted-foreground truncate max-w-[160px]",
             isMobile ? "text-[10px]" : "text-xs"
           )}>
-            {activeModel ? activeModel.split(":")[0] : "No model"}
+            {activeModel || "No model"}
           </span>
         </button>
       </div>

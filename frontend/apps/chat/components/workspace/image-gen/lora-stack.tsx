@@ -25,7 +25,7 @@ export function LoraStack({
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium flex items-center gap-1">LoRA Stack <FieldHelp slug="imagegen-lora" tip="Add style/subject LoRA models" /></p>
+        <p className="text-xs font-medium flex items-center gap-1">LoRA Stack <FieldHelp slug="imagegen-lora" tip="Add-on models for specific styles or subjects. For example, a 'watercolor' LoRA at strength 0.7 shifts output toward that style. Stack multiple and tune strengths." /></p>
         <Button type="button" size="sm" variant="ghost" className="h-6 text-[11px]" onClick={onAdd}>
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add LoRA

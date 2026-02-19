@@ -52,7 +52,7 @@ export function NotificationsTab({ preferences, updatePreferences, preferencesSa
           checked={emailNotifications}
           onCheckedChange={setEmailNotifications}
         >
-          <FieldHelp slug="settings-email-notifications" tip="Email alerts for events" />
+          <FieldHelp slug="settings-email-notifications" tip="Sends emails for events like generation completion or project changes when you are away. Keep enabled for high-priority alerts even if you mute other channels." />
         </SettingsToggle>
 
         <SettingsToggle
@@ -61,7 +61,7 @@ export function NotificationsTab({ preferences, updatePreferences, preferencesSa
           checked={inAppNotifications}
           onCheckedChange={setInAppNotifications}
         >
-          <FieldHelp slug="settings-inapp-notifications" tip="In-app alerts and badges" />
+          <FieldHelp slug="settings-inapp-notifications" tip="Shows toast notifications for running jobs and tool prompts while you work. For example, alerts you when a long image generation batch finishes." />
         </SettingsToggle>
       </div>
 

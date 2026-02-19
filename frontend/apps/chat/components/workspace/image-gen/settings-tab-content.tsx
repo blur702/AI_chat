@@ -59,7 +59,7 @@ export function SettingsTabContent({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium flex items-center gap-1">
-              Width <FieldHelp slug="imagegen-width" tip="Image width in pixels" />
+              Width <FieldHelp slug="imagegen-width" tip="Sets the horizontal resolution of the generated image in pixels. Larger values produce more detail but require more VRAM and significantly longer generation time." />
             </label>
             <Input
               type="number"
@@ -73,7 +73,7 @@ export function SettingsTabContent({
           </div>
           <div>
             <label className="text-xs font-medium flex items-center gap-1">
-              Height <FieldHelp slug="imagegen-height" tip="Image height in pixels" />
+              Height <FieldHelp slug="imagegen-height" tip="Sets the vertical resolution of the generated image in pixels. Pair with Width to control the aspect ratio — e.g. 512x768 for portrait, 768x512 for landscape." />
             </label>
             <Input
               type="number"
@@ -92,7 +92,7 @@ export function SettingsTabContent({
       <div>
         <label className="text-xs font-medium flex items-center justify-between gap-2">
           <span className="flex items-center gap-1">
-            Steps <FieldHelp slug="imagegen-steps" tip="More steps usually improve quality but take longer." />
+            Steps <FieldHelp slug="imagegen-steps" tip="Controls how many denoising iterations the model runs. 20-30 steps is a good balance; values above 50 rarely improve quality but always increase generation time." />
           </span>
           <span>{steps}</span>
         </label>
@@ -111,7 +111,7 @@ export function SettingsTabContent({
       <div>
         <label className="text-xs font-medium flex items-center justify-between gap-2">
           <span className="flex items-center gap-1">
-            CFG Scale <FieldHelp slug="imagegen-cfg-scale" tip="Controls how strongly generation follows your prompt." />
+            CFG Scale <FieldHelp slug="imagegen-cfg-scale" tip="Classifier-Free Guidance scale. Higher values (7-12) make the model follow your prompt more strictly; lower values (1-5) allow more creative freedom. Values above 15 often cause over-saturation." />
           </span>
           <span>{cfgScale.toFixed(1)}</span>
         </label>
@@ -131,7 +131,7 @@ export function SettingsTabContent({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium flex items-center gap-1">
-            Batch Size <FieldHelp slug="imagegen-batch-size" tip="Generate multiple images at once" />
+            Batch Size <FieldHelp slug="imagegen-batch-size" tip="Generates this many images in a single pass, useful for exploring variations. Each additional image multiplies VRAM usage and generation time proportionally." />
           </label>
           <Input
             type="number"
@@ -145,7 +145,7 @@ export function SettingsTabContent({
         </div>
         <div>
           <label className="text-xs font-medium flex items-center gap-1">
-            Seed <FieldHelp slug="imagegen-seed" tip="Fixed seed for reproducibility. Empty = random." />
+            Seed <FieldHelp slug="imagegen-seed" tip="A fixed seed produces identical images given the same prompt and settings, useful for iterating on a composition. Leave empty for a random seed each generation." />
           </label>
           <Input
             value={seed}

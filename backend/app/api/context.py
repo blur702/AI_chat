@@ -69,7 +69,11 @@ async def get_user_preferences(
             detail="You can only access your own preferences",
         )
 
-    prefs = await cm.get_user_preferences(user_id)
+    try:
+        prefs = await cm.get_user_preferences(user_id)
+    except Exception:
+        logger.warning("Failed to load preferences for user %s, returning defaults", user_id)
+        prefs = {}
     return UserPreferencesResponse(**prefs)
 
 

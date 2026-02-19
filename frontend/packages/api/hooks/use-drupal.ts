@@ -193,6 +193,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   const [scaffoldingTheme, setScaffoldingTheme] = useState(false);
 
   const fetchSite = useCallback(async () => {
+    if (!projectId) return;
     try {
       setSiteLoading(true);
       setError(null);
@@ -206,6 +207,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   }, [projectId]);
 
   const fetchSyncStatus = useCallback(async () => {
+    if (!projectId) return;
     try {
       setSyncLoading(true);
       const data = await getClient().getDrupalSyncStatus(projectId);
@@ -430,6 +432,7 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   // Staging methods
 
   const fetchStagingStatus = useCallback(async () => {
+    if (!projectId) return;
     try {
       setStagingLoading(true);
       const data = await getClient().getDrupalStagingStatus(projectId);

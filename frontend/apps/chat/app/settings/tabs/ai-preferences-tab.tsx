@@ -66,7 +66,7 @@ export function AiPreferencesTab({
         <div className="space-y-2">
           <label htmlFor="defaultModel" className="text-sm font-medium flex items-center gap-1.5">
             Default Model
-            <FieldHelp slug="settings-default-model" tip="AI model for new conversations" />
+            <FieldHelp slug="settings-default-model" tip="The model used for all new conversations. For example, llama3:8b for fast general chat, or a 70B model for deeper reasoning. Override per-chat as needed." />
           </label>
           <select
             id="defaultModel"
@@ -90,7 +90,7 @@ export function AiPreferencesTab({
         <div className="space-y-2">
           <label htmlFor="temperature" className="text-sm font-medium flex items-center gap-1.5">
             Temperature: {defaultTemperature.toFixed(2)}
-            <FieldHelp slug="settings-default-temperature" tip="Controls response randomness" />
+            <FieldHelp slug="settings-default-temperature" tip="Use 0.1-0.3 for code and precise tasks, 0.6-0.8 for brainstorming and creative writing. For example, 0.1 gives consistent code reviews while 0.8 yields diverse story ideas." />
           </label>
           <input
             id="temperature"
@@ -111,7 +111,7 @@ export function AiPreferencesTab({
         <div className="space-y-2">
           <label htmlFor="numCtx" className="text-sm font-medium flex items-center gap-1.5">
             Context Window: {defaultNumCtx >= 1024 ? `${Math.round(defaultNumCtx / 1024)}K` : defaultNumCtx.toLocaleString()} tokens
-            <FieldHelp slug="settings-default-num-ctx" tip="How much chat history the model can use" />
+            <FieldHelp slug="settings-default-num-ctx" tip="How many tokens of conversation history the model can see. For example, 4096 for quick chats or 32K+ for long planning sessions. Higher values use more VRAM." />
           </label>
           <input
             id="numCtx"
@@ -135,7 +135,7 @@ export function AiPreferencesTab({
         <div className="space-y-2">
           <label htmlFor="systemPrompt" className="text-sm font-medium flex items-center gap-1.5">
             Custom System Prompt
-            <FieldHelp slug="settings-system-prompt" tip="Guide the AI's behavior" />
+            <FieldHelp slug="settings-system-prompt" tip="Hidden instructions sent at the start of every new chat. For example, 'You are a senior engineer. Always suggest test cases.' shapes all responses toward engineering rigor." />
           </label>
           <textarea
             id="systemPrompt"

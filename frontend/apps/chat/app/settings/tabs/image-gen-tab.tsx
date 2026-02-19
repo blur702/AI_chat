@@ -88,7 +88,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
         <div className="space-y-2">
           <label htmlFor="imggenWorkflow" className="text-sm font-medium flex items-center gap-1.5">
             Default Workflow
-            <FieldHelp slug="imagegen-workflow" tip="Image generation workflow type" />
+            <FieldHelp slug="imagegen-workflow" tip="Choose how inputs are processed. For example, text-to-image for new concepts, image-to-image to restyle a photo, or inpainting to fix just the background." />
           </label>
           <select
             id="imggenWorkflow"
@@ -107,7 +107,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
           <div className="space-y-2">
             <label htmlFor="imggenWidth" className="text-sm font-medium flex items-center gap-1.5">
               Default Width
-              <FieldHelp slug="imagegen-width" tip="Width in pixels" />
+              <FieldHelp slug="imagegen-width" tip="Horizontal resolution in pixels. For example, 512 for SD 1.5 iteration, 1024 for SDXL. Doubling width roughly quadruples VRAM usage and render time." />
             </label>
             <Input
               id="imggenWidth"
@@ -125,7 +125,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
           <div className="space-y-2">
             <label htmlFor="imggenHeight" className="text-sm font-medium flex items-center gap-1.5">
               Default Height
-              <FieldHelp slug="imagegen-height" tip="Height in pixels" />
+              <FieldHelp slug="imagegen-height" tip="Vertical resolution in pixels. For example, 768x512 for landscape banners, 512x768 for mobile stories. Match target platform ratios early to minimize reframing." />
             </label>
             <Input
               id="imggenHeight"
@@ -146,7 +146,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
           <div className="space-y-2">
             <label htmlFor="imggenSteps" className="text-sm font-medium flex items-center gap-1.5">
               Default Steps: {imggenSteps}
-              <FieldHelp slug="imagegen-steps" tip="More steps = better quality" />
+              <FieldHelp slug="imagegen-steps" tip="More steps refine detail but with diminishing returns. For example, euler works well at 20-30 steps, dpmpp_2m at 15-25. Use 20 for iteration, 30-40 for finals." />
             </label>
             <input
               id="imggenSteps"
@@ -166,7 +166,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
           <div className="space-y-2">
             <label htmlFor="imggenCfgScale" className="text-sm font-medium flex items-center gap-1.5">
               CFG Scale: {imggenCfgScale.toFixed(1)}
-              <FieldHelp slug="imagegen-cfg-scale" tip="Prompt adherence strength" />
+              <FieldHelp slug="imagegen-cfg-scale" tip="Prompt adherence strength. For example, CFG 7 is a solid default for photorealism, CFG 4-5 for looser stylized art. Values above 15 can cause artifacts." />
             </label>
             <input
               id="imggenCfgScale"
@@ -204,7 +204,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
         <div className="space-y-2">
           <label htmlFor="imggenSystemPrompt" className="text-sm font-medium flex items-center gap-1.5">
             Image System Context
-            <FieldHelp slug="imagegen-system-prompt" tip="Global style/rules applied before each image prompt" />
+            <FieldHelp slug="imagegen-system-prompt" tip="Prepended to every image prompt globally. For example, 'cinematic lighting, film grain, 8k detail' ensures all generations share a consistent visual baseline." />
           </label>
           <textarea
             id="imggenSystemPrompt"
@@ -223,7 +223,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
         <div className="space-y-2">
           <label htmlFor="imggenNegativePrompt" className="text-sm font-medium flex items-center gap-1.5">
             Default Negative Prompt
-            <FieldHelp slug="imagegen-negative-prompt" tip="What to avoid in images" />
+            <FieldHelp slug="imagegen-negative-prompt" tip="What the model should avoid. For example, 'blurry, watermark, deformed hands, extra fingers' suppresses common artifacts. Keep a reusable baseline." />
           </label>
           <textarea
             id="imggenNegativePrompt"
@@ -246,7 +246,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
               onCheckedChange={setImggenCompletionNotif}
               className="p-3"
             >
-              <FieldHelp slug="imagegen-completion-notif" tip="Get notified when done" />
+              <FieldHelp slug="imagegen-completion-notif" tip="In-app toast alert when generation finishes. For example, a batch of 8 images at 40 steps may take minutes — this lets you work elsewhere meanwhile." />
             </SettingsToggle>
 
             <SettingsToggle
@@ -256,7 +256,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
               onCheckedChange={setImggenDesktopNotif}
               className="p-3"
             >
-              <FieldHelp slug="imagegen-desktop-notif" tip="Browser desktop alerts" />
+              <FieldHelp slug="imagegen-desktop-notif" tip="Native OS popup even when the browser tab is minimized. For example, you will see a system notification while working in your code editor during a long render." />
             </SettingsToggle>
 
             <SettingsToggle
@@ -266,7 +266,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
               onCheckedChange={setImggenSoundNotif}
               className="p-3"
             >
-              <FieldHelp slug="settings-notification-sound" tip="Sound when generation completes" />
+              <FieldHelp slug="settings-notification-sound" tip="Plays an audio cue when generation completes. For example, the 'chime' sound is subtle for frequent use while 'bell' is louder for infrequent batches." />
             </SettingsToggle>
 
             {imggenSoundNotif && (
@@ -296,7 +296,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
             <div className="space-y-2">
               <label htmlFor="imggenAutoDelete" className="text-sm font-medium flex items-center gap-1.5">
                 Auto-delete after (days)
-                <FieldHelp slug="imagegen-auto-delete-days" tip="Auto-remove old images" />
+                <FieldHelp slug="imagegen-auto-delete-days" tip="Permanently removes images older than this many days. For example, 7 keeps only the past week. Star or export your best results before the cleanup window." />
               </label>
               <Input
                 id="imggenAutoDelete"
@@ -312,7 +312,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
             <div className="space-y-2">
               <label htmlFor="imggenMaxGen" className="text-sm font-medium flex items-center gap-1.5">
                 Max stored generations
-                <FieldHelp slug="imagegen-max-generations" tip="Limit retained generated images" />
+                <FieldHelp slug="imagegen-max-generations" tip="Oldest images are removed when this cap is reached. For example, setting 500 keeps your most recent 500 outputs. Combine with auto-delete for two-layer cleanup." />
               </label>
               <Input
                 id="imggenMaxGen"
@@ -333,7 +333,7 @@ export function ImageGenTab({ preferences, updatePreferences, preferencesSaving 
           <div className="space-y-2">
             <label htmlFor="comfyuiUrl" className="text-sm font-medium flex items-center gap-1.5">
               ComfyUI Base URL
-              <FieldHelp slug="imagegen-comfyui-base-url" tip="Override ComfyUI endpoint" />
+              <FieldHelp slug="imagegen-comfyui-base-url" tip="Override for custom ComfyUI endpoints. For example, 'http://192.168.1.50:8188' to use a remote GPU server. Leave blank for the Docker default." />
             </label>
             <Input
               id="comfyuiUrl"

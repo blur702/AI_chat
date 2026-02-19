@@ -6,6 +6,7 @@ import {
   Plus,
   ZoomIn,
   ZoomOut,
+  Maximize2,
   Film,
   Music,
   Type,
@@ -14,8 +15,12 @@ import {
 } from "lucide-react";
 import { useStudioStore } from "../use-studio-store";
 
-export function TimelineControls() {
-  const { pixelsPerSecond, setPixelsPerSecond, addTrack, timeline } = useStudioStore();
+interface TimelineControlsProps {
+  containerWidth?: number;
+}
+
+export function TimelineControls({ containerWidth }: TimelineControlsProps) {
+  const { pixelsPerSecond, setPixelsPerSecond, addTrack, timeline, fitToWindow } = useStudioStore();
 
   const zoomIn = useCallback(() => {
     setPixelsPerSecond(pixelsPerSecond * 1.3);
@@ -91,6 +96,18 @@ export function TimelineControls() {
       </span>
 
       <div className="mx-1 h-4 w-px bg-border" />
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-1.5 text-[10px]"
+        onClick={() => containerWidth && fitToWindow(containerWidth)}
+        title="Fit timeline to window"
+        disabled={!containerWidth}
+      >
+        <Maximize2 className="mr-0.5 h-3 w-3" />
+        Fit
+      </Button>
 
       <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={zoomOut} title="Zoom out">
         <ZoomOut className="h-3 w-3" />
