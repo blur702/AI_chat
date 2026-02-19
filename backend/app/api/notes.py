@@ -171,7 +171,11 @@ async def create_category(
         sort_order=body.sort_order,
     )
     db.add(row)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Category with this name already exists")
     await db.refresh(row)
     return _category_to_response(row)
 

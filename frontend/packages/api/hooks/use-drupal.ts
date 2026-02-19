@@ -142,6 +142,11 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   const modulesFilterRef = useRef<string | undefined>(undefined);
   const themesFilterRef = useRef<string | undefined>(undefined);
 
+  // Stale-request guards for fetch functions
+  const siteRequestIdRef = useRef(0);
+  const syncRequestIdRef = useRef(0);
+  const stagingRequestIdRef = useRef(0);
+
   const [site, setSite] = useState<DrupalSiteInfo | null>(null);
   const [siteLoading, setSiteLoading] = useState(true);
   const [config, setConfig] = useState<DrupalSiteConfig | null>(null);
@@ -194,28 +199,33 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchSite = useCallback(async () => {
     if (!projectId) return;
+    const id = ++siteRequestIdRef.current;
     try {
       setSiteLoading(true);
       setError(null);
       const data = await getClient().getDrupalSite(projectId);
+      if (id !== siteRequestIdRef.current) return;
       setSite(data);
     } catch {
+      if (id !== siteRequestIdRef.current) return;
       setSite(null);
     } finally {
-      setSiteLoading(false);
+      if (id === siteRequestIdRef.current) setSiteLoading(false);
     }
   }, [projectId]);
 
   const fetchSyncStatus = useCallback(async () => {
     if (!projectId) return;
+    const id = ++syncRequestIdRef.current;
     try {
       setSyncLoading(true);
       const data = await getClient().getDrupalSyncStatus(projectId);
+      if (id !== syncRequestIdRef.current) return;
       setSyncStatus(data);
     } catch {
       // ignore
     } finally {
-      setSyncLoading(false);
+      if (id === syncRequestIdRef.current) setSyncLoading(false);
     }
   }, [projectId]);
 
@@ -433,14 +443,16 @@ export function useDrupal(projectId: string): UseDrupalReturn {
 
   const fetchStagingStatus = useCallback(async () => {
     if (!projectId) return;
+    const id = ++stagingRequestIdRef.current;
     try {
       setStagingLoading(true);
       const data = await getClient().getDrupalStagingStatus(projectId);
+      if (id !== stagingRequestIdRef.current) return;
       setStagingStatus(data);
     } catch {
       // ignore — staging may not be configured
     } finally {
-      setStagingLoading(false);
+      if (id === stagingRequestIdRef.current) setStagingLoading(false);
     }
   }, [projectId]);
 

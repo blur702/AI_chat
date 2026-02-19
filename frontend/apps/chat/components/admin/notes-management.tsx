@@ -13,8 +13,10 @@ export function NotesManagement() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const fetchNotes = useCallback(async () => {
+    const id = ++requestIdRef.current;
     setLoading(true);
     try {
       setError(null);
@@ -22,14 +24,14 @@ export function NotesManagement() {
         status: statusFilter === "all" ? undefined : statusFilter,
         limit: 200,
       });
-      if (cancelledRef.current) return;
+      if (cancelledRef.current || id !== requestIdRef.current) return;
       setNotes(res.notes);
       setTotal(res.count);
     } catch (err) {
-      if (cancelledRef.current) return;
+      if (cancelledRef.current || id !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load notes");
     } finally {
-      if (!cancelledRef.current) setLoading(false);
+      if (!cancelledRef.current && id === requestIdRef.current) setLoading(false);
     }
   }, [statusFilter]);
 

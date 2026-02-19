@@ -103,7 +103,7 @@ export function useVramManagement(): UseVramManagementReturn {
         setLocalError(null);
         const result = await getClient().submitOffloadDecision({
           resource_id: resourceId,
-          user_id: userId ?? "",
+          user_id: userId,
           decision: "offload",
           remember: false,
         });

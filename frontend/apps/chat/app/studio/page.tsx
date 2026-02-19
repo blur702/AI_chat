@@ -76,7 +76,7 @@ export default function StudioPage() {
     } catch (err) {
       console.error("Create project error:", err);
     } finally {
-      setCreating(false);
+      if (isMountedRef.current) setCreating(false);
     }
   };
 

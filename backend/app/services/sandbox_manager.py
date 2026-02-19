@@ -5,7 +5,7 @@ Thin facade that delegates to focused helper modules in app.services.sandbox/.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import docker
@@ -294,6 +294,7 @@ class SandboxManager(BaseKernelService):
                 "exposed_port": exposed_port,
             }
         except Exception:
+            logger.exception("Failed to get container info for project %s", project_id)
             return None
 
     async def exec_in_container(self, container_id: str, command: str) -> str:
@@ -316,19 +317,19 @@ class SandboxManager(BaseKernelService):
         container = await asyncio.to_thread(
             self._client.containers.get, container_id
         )
-        # Docker put_archive expects a tar stream. Wrap our .tar.gz in a
-        # tar that contains a single entry, or just pipe the raw tarball.
-        with open(local_tar_path, "rb") as f:
-            data = f.read()
 
-        # put_archive expects a plain tar; if the file is gzip-compressed,
-        # decompress first then re-wrap it.
-        buf = io.BytesIO()
-        with tarfile_mod.open(fileobj=io.BytesIO(data), mode="r:gz") as src:
-            with tarfile_mod.open(fileobj=buf, mode="w") as dst:
-                for member in src.getmembers():
-                    dst.addfile(member, src.extractfile(member) if member.isreg() else None)
-        buf.seek(0)
+        def _repack_tar(path: str) -> io.BytesIO:
+            with open(path, "rb") as f:
+                data = f.read()
+            buf = io.BytesIO()
+            with tarfile_mod.open(fileobj=io.BytesIO(data), mode="r:gz") as src:
+                with tarfile_mod.open(fileobj=buf, mode="w") as dst:
+                    for member in src.getmembers():
+                        dst.addfile(member, src.extractfile(member) if member.isreg() else None)
+            buf.seek(0)
+            return buf
+
+        buf = await asyncio.to_thread(_repack_tar, local_tar_path)
         await asyncio.to_thread(container.put_archive, dest_dir, buf)
 
     async def download_archive(
@@ -341,9 +342,13 @@ class SandboxManager(BaseKernelService):
         bits, _stat = await asyncio.to_thread(
             container.get_archive, container_path
         )
-        with open(local_dest, "wb") as f:
-            for chunk in bits:
-                f.write(chunk)
+
+        def _write_chunks(chunks: Any, dest: str) -> None:
+            with open(dest, "wb") as f:
+                for chunk in chunks:
+                    f.write(chunk)
+
+        await asyncio.to_thread(_write_chunks, bits, local_dest)
 
     async def exec_in_sidecar(
         self,
@@ -362,14 +367,18 @@ class SandboxManager(BaseKernelService):
             import io
             import tarfile as tarfile_mod
 
-            with open(stdin_file, "rb") as f:
-                data = f.read()
-            buf = io.BytesIO()
-            with tarfile_mod.open(fileobj=buf, mode="w") as tar:
-                info = tarfile_mod.TarInfo(name="stdin_data")
-                info.size = len(data)
-                tar.addfile(info, io.BytesIO(data))
-            buf.seek(0)
+            def _build_stdin_tar(path: str) -> io.BytesIO:
+                with open(path, "rb") as f:
+                    data = f.read()
+                buf = io.BytesIO()
+                with tarfile_mod.open(fileobj=buf, mode="w") as tar:
+                    info = tarfile_mod.TarInfo(name="stdin_data")
+                    info.size = len(data)
+                    tar.addfile(info, io.BytesIO(data))
+                buf.seek(0)
+                return buf
+
+            buf = await asyncio.to_thread(_build_stdin_tar, stdin_file)
             await asyncio.to_thread(container.put_archive, "/tmp", buf)
             command = f"cat /tmp/stdin_data | {command}"
 
@@ -415,9 +424,13 @@ class SandboxManager(BaseKernelService):
             stream=True,
             demux=False,
         )
-        with open(output_file, "wb") as f:
-            for chunk in output:
-                f.write(chunk)
+
+        def _write_stream(chunks: Any, dest: str) -> None:
+            with open(dest, "wb") as f:
+                for chunk in chunks:
+                    f.write(chunk)
+
+        await asyncio.to_thread(_write_stream, output, output_file)
 
     # -- Internal helpers -----------------------------------------------------
 
