@@ -534,7 +534,7 @@ export function IDELayout({ projectId }: IDELayoutProps) {
         )}
 
         {/* Main Editor + Terminal */}
-        <Panel id="editor-main" order={1} defaultSize={showChat ? 60 : 85} minSize={30}>
+        <Panel id="editor-main" defaultSize={showChat ? 60 : 85} minSize={30}>
           <Group orientation="vertical" id="editor-vertical">
             {/* Editor Area */}
             <Panel id="editor-area" defaultSize={65} minSize={30}>

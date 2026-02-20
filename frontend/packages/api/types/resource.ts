@@ -54,7 +54,7 @@ export interface PreemptionCheckResponse {
 
 export interface OffloadDecisionRequest {
   resource_id: string;
-  user_id: string;
+  user_id?: string;
   decision: OffloadDecision;
   remember: boolean;
 }
