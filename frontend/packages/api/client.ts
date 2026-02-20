@@ -242,6 +242,11 @@ export class WorkstationClient {
     this.token = token;
   }
 
+  /** Return the current token (null when unauthenticated). */
+  getToken(): string | null {
+    return this.token;
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {},
@@ -1816,8 +1821,8 @@ export class WorkstationClient {
     });
   }
 
-  /** Fetch the connected Drupal site info (URL, version, etc.) for a project. */
-  async getDrupalSite(projectId: string): Promise<DrupalSiteInfo> {
+  /** Fetch the connected Drupal site info (URL, version, etc.) for a project, or null if none. */
+  async getDrupalSite(projectId: string): Promise<DrupalSiteInfo | null> {
     return this.request(`/api/drupal/${encodeURIComponent(projectId)}/site`);
   }
 

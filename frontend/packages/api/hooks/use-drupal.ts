@@ -230,8 +230,8 @@ export function useDrupal(projectId: string): UseDrupalReturn {
   }, [projectId]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([fetchSite(), fetchSyncStatus()]);
-  }, [fetchSite, fetchSyncStatus]);
+    await fetchSite();
+  }, [fetchSite]);
 
   // Reset state and re-fetch when projectId changes
   useEffect(() => {
@@ -311,13 +311,14 @@ export function useDrupal(projectId: string): UseDrupalReturn {
     }
   }, [projectId]);
 
-  // Auto-fetch config when site is connected
+  // Auto-fetch config and sync status when site is connected
   const siteConnected = !!site;
   useEffect(() => {
     if (siteConnected) {
       fetchConfig();
+      fetchSyncStatus();
     }
-  }, [siteConnected, fetchConfig]);
+  }, [siteConnected, fetchConfig, fetchSyncStatus]);
 
   const runDrush = useCallback(
     async (command: string) => {

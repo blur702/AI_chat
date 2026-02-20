@@ -303,17 +303,20 @@ async def connect_site(
     )
 
 
-@router.get("/{project_id}/site", response_model=DrupalSiteResponse)
+@router.get("/{project_id}/site", response_model=DrupalSiteResponse | None)
 async def get_site(
     project_id: UUID,
     payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Get the connected Drupal site info for a project."""
+    """Get the connected Drupal site info for a project, or null if none."""
     user_id = get_user_id(payload)
     await validate_project_access(project_id, user_id, db)
 
-    site = await _get_drupal_site(project_id, db)
+    result = await db.execute(select(DrupalSite).where(DrupalSite.project_id == project_id))
+    site = result.scalar_one_or_none()
+    if site is None:
+        return None
     return DrupalSiteResponse(
         id=str(site.id),
         project_id=str(site.project_id),
