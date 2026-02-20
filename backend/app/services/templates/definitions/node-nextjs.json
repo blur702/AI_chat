@@ -1,0 +1,27 @@
+{
+  "id": "node-nextjs",
+  "name": "Next.js",
+  "description": "Next.js 14 application with App Router, TypeScript, and Tailwind CSS.",
+  "category": "node",
+  "docker_image": "node:20-slim",
+  "scaffold_files": {
+    "package.json": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev -H 0.0.0.0\",\n    \"build\": \"next build\",\n    \"start\": \"next start\"\n  },\n  \"dependencies\": {\n    \"next\": \"^14.2.0\",\n    \"react\": \"^18.3.0\",\n    \"react-dom\": \"^18.3.0\"\n  },\n  \"devDependencies\": {\n    \"@types/node\": \"^20.14.0\",\n    \"@types/react\": \"^18.3.0\",\n    \"@types/react-dom\": \"^18.3.0\",\n    \"autoprefixer\": \"^10.4.0\",\n    \"postcss\": \"^8.4.0\",\n    \"tailwindcss\": \"^3.4.0\",\n    \"typescript\": \"^5.4.0\"\n  }\n}\n",
+    "tsconfig.json": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2017\",\n    \"lib\": [\"dom\", \"dom.iterable\", \"esnext\"],\n    \"allowJs\": true,\n    \"skipLibCheck\": true,\n    \"strict\": true,\n    \"noEmit\": true,\n    \"esModuleInterop\": true,\n    \"module\": \"esnext\",\n    \"moduleResolution\": \"bundler\",\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"jsx\": \"preserve\",\n    \"incremental\": true,\n    \"plugins\": [{ \"name\": \"next\" }],\n    \"paths\": { \"@/*\": [\"./src/*\"] }\n  },\n  \"include\": [\"next-env.d.ts\", \"**/*.ts\", \"**/*.tsx\", \".next/types/**/*.ts\"],\n  \"exclude\": [\"node_modules\"]\n}\n",
+    "next.config.js": "/** @type {import('next').NextConfig} */\nconst nextConfig = {}\nmodule.exports = nextConfig\n",
+    "tailwind.config.ts": "import type { Config } from 'tailwindcss'\n\nconst config: Config = {\n  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}', './app/**/*.{js,ts,jsx,tsx,mdx}'],\n  theme: { extend: {} },\n  plugins: [],\n}\nexport default config\n",
+    "postcss.config.js": "module.exports = {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n}\n",
+    "src/app/layout.tsx": "import type { Metadata } from 'next'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: 'Next.js App',\n  description: 'Created with AI Workstation',\n}\n\nexport default function RootLayout({\n  children,\n}: {\n  children: React.ReactNode\n}) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  )\n}\n",
+    "src/app/page.tsx": "export default function Home() {\n  return (\n    <main className=\"flex min-h-screen flex-col items-center justify-center p-24\">\n      <h1 className=\"text-4xl font-bold\">Hello from Next.js</h1>\n    </main>\n  )\n}\n",
+    "src/app/globals.css": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n",
+    ".gitignore": "node_modules/\n.next/\nout/\n.env\n"
+  },
+  "setup_commands": [
+    "npm install"
+  ],
+  "exposed_ports": [3000],
+  "environment": {},
+  "sidecar_services": [],
+  "memory_limit": "1g",
+  "cpu_quota": 75000,
+  "selected_technologies": ["node", "react", "typescript", "tailwind"]
+}

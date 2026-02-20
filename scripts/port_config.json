@@ -1,0 +1,13 @@
+{
+  "auto_kill": false,
+  "require_confirmation": true,
+  "excluded_processes": [
+    "System",
+    "svchost.exe",
+    "systemd",
+    "init",
+    "launchd"
+  ],
+  "timeout_seconds": 10,
+  "retry_attempts": 3
+}

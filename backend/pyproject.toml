@@ -1,0 +1,61 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "S",    # flake8-bandit (security)
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+    "PTH",  # flake8-use-pathlib
+    "PERF", # perflint (performance)
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "S101",    # assert used (needed in tests)
+    "S105",    # hardcoded password (false positives on env var defaults)
+    "S106",    # hardcoded password
+    "RET504",  # unnecessary assignment before return
+    "PTH123",  # open() — pathlib not always appropriate
+    "SIM108",  # ternary operator — readability preference
+    "RUF012",  # mutable class variable — SQLAlchemy models use this pattern
+    "B008",    # function call in default arg — FastAPI Depends()/Query() pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+"../tests/backend/**" = ["S"]
+# drupal.py uses many try/except/pass for SSH cleanup, os.unlink for temp files, /tmp paths
+"app/api/drupal.py" = ["SIM105", "S110", "PTH108", "PTH119", "S108"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["../tests/backend", "tests"]
+pythonpath = ["."]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/tests/*", "*/alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

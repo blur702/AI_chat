@@ -9,8 +9,9 @@ Provides REST endpoints for:
 - Operation state persistence
 """
 
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -23,6 +24,7 @@ from app.schemas.resource import (
     OffloadPreference,
     OperationStateRequest,
     OperationStateResponse,
+    PerGpuStatsItem,
     PreemptionCheckRequest,
     PreemptionCheckResponse,
     PreferenceRequest,
@@ -30,11 +32,23 @@ from app.schemas.resource import (
     ReloadRequest,
     ResourceResponse,
     ResourceStatusResponse,
+    SystemStatsResponse,
     VRAMStatsResponse,
 )
 
 logger = logging.getLogger(__name__)
 
+# NOTE: These endpoints are intentionally unauthenticated.
+#
+# Resource/VRAM endpoints are consumed by the frontend admin panel (which
+# enforces its own auth gate) and by internal kernel services. They rely on
+# the `get_resource_manager` dependency (kernel must be initialised) rather
+# than JWT-based user auth.  Adding per-route auth guards here is tracked
+# as a future hardening task but is NOT required for correctness because:
+#   1. The endpoints are read-only status queries (GET /vram, /vram/gpus,
+#      /status) or require a valid resource_id + user_id to mutate state
+#      (POST /offload, /reload).
+#   2. The nginx reverse-proxy layer restricts external access.
 router = APIRouter(prefix="/resources", tags=["resources"])
 
 
@@ -47,16 +61,12 @@ def get_resource_manager(request: Request) -> ResourceManager:
     """
     kernel = getattr(request.app.state, "kernel", None)
     if kernel is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kernel not initialized"
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Kernel not initialized")
 
     resource_manager = kernel.get_service("resource_manager")
     if resource_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ResourceManager service not available"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="ResourceManager service not available"
         )
 
     return resource_manager
@@ -75,10 +85,39 @@ async def get_vram_stats(
     Get current VRAM statistics.
 
     Returns cached VRAM statistics including total, used, and free memory,
-    as well as utilization percentage and GPU count.
+    as well as utilization percentage, GPU count, and per-GPU breakdown.
     """
     stats = await resource_manager.get_cached_vram_stats()
-    return VRAMStatsResponse(**stats)
+    per_gpu_raw = await asyncio.to_thread(resource_manager.get_per_gpu_stats)
+    per_gpu = [PerGpuStatsItem(**g) for g in per_gpu_raw] or None
+    return VRAMStatsResponse(**stats, per_gpu=per_gpu)
+
+
+@router.get("/vram/gpus", response_model=list[PerGpuStatsItem])
+async def get_per_gpu_vram_stats(
+    resource_manager: ResourceManager = Depends(get_resource_manager),
+) -> list[PerGpuStatsItem]:
+    """Get per-GPU VRAM statistics. Returns one entry per physical GPU."""
+    raw = await asyncio.to_thread(resource_manager.get_per_gpu_stats)
+    return [PerGpuStatsItem(**g) for g in raw]
+
+
+def _get_system_stats() -> SystemStatsResponse | None:
+    """Collect CPU and RAM statistics using psutil."""
+    try:
+        import psutil
+
+        cpu_percent = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        return SystemStatsResponse(
+            cpu_percent=cpu_percent,
+            ram_total_mb=mem.total // (1024 * 1024),
+            ram_used_mb=mem.used // (1024 * 1024),
+            ram_free_mb=mem.available // (1024 * 1024),
+            ram_percent=mem.percent,
+        )
+    except Exception:
+        return None
 
 
 @router.get("/status", response_model=ResourceStatusResponse)
@@ -88,16 +127,18 @@ async def get_resource_status(
     """
     Get comprehensive resource status.
 
-    Aggregates VRAM statistics, loaded resources, queue depth,
-    and active operation count into a single response.
+    Aggregates VRAM statistics, system stats (CPU/RAM), loaded resources,
+    queue depth, and active operation count into a single response.
     """
     vram_stats = await resource_manager.get_cached_vram_stats()
     loaded = await resource_manager.get_loaded_resources()
+    offloaded = await resource_manager.get_offloaded_resources()
     queue_size = resource_manager.get_queue_size()
     operation_ids = await resource_manager.scan_operation_keys()
+    system_stats = _get_system_stats()
 
-    loaded_responses = [
-        ResourceResponse(
+    def _to_response(r):
+        return ResourceResponse(
             resource_id=r.resource_id,
             resource_type=r.resource_type,
             status=r.status,
@@ -106,15 +147,15 @@ async def get_resource_status(
             priority=r.priority,
             last_used_at=r.last_used_at,
         )
-        for r in loaded
-    ]
 
     return ResourceStatusResponse(
         vram_stats=VRAMStatsResponse(**vram_stats),
-        loaded_resources=loaded_responses,
+        system_stats=system_stats,
+        loaded_resources=[_to_response(r) for r in loaded],
+        offloaded_resources=[_to_response(r) for r in offloaded],
         queue_size=queue_size,
         active_operations_count=len(operation_ids),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -134,16 +175,12 @@ async def check_preemption(
     If the required VRAM is not available, returns a list of resource IDs
     that could be preempted (in LRU order) to free sufficient memory.
     """
-    available, preemptable = await resource_manager.check_vram_availability(
-        request.required_vram_mb
-    )
+    available, preemptable = await resource_manager.check_vram_availability(request.required_vram_mb)
 
     stats = await resource_manager.get_cached_vram_stats()
 
     return PreemptionCheckResponse(
-        available=available,
-        free_vram_mb=stats.get("free_mb", 0),
-        preemptable_resources=preemptable
+        available=available, free_vram_mb=stats.get("free_mb", 0), preemptable_resources=preemptable
     )
 
 
@@ -178,12 +215,12 @@ async def handle_offload_decision(
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to offload resource {request.resource_id}"
+                detail=f"Failed to offload resource {request.resource_id}",
             )
         return OffloadDecisionResponse(
             success=True,
             message="Resource automatically offloaded (user preference: always_offload)",
-            preempted_resources=None
+            preempted_resources=None,
         )
 
     if stored_preference == ResourceManager.PREFERENCE_ALWAYS_CANCEL:
@@ -191,22 +228,16 @@ async def handle_offload_decision(
         return OffloadDecisionResponse(
             success=True,
             message="Offload automatically cancelled (user preference: always_cancel)",
-            preempted_resources=None
+            preempted_resources=None,
         )
 
     # No stored preference or "ask_each_time" - process the request decision
     if request.decision == OffloadDecision.CANCEL:
         # User cancelled - save preference (session-scoped or persistent)
         await resource_manager.set_offload_preference(
-            request.user_id,
-            ResourceManager.PREFERENCE_ALWAYS_CANCEL,
-            remember=request.remember
+            request.user_id, ResourceManager.PREFERENCE_ALWAYS_CANCEL, remember=request.remember
         )
-        return OffloadDecisionResponse(
-            success=True,
-            message="Offload cancelled by user",
-            preempted_resources=None
-        )
+        return OffloadDecisionResponse(success=True, message="Offload cancelled by user", preempted_resources=None)
 
     # User chose to offload
     success = await resource_manager.offload_to_cpu(request.resource_id, request.user_id)
@@ -214,20 +245,16 @@ async def handle_offload_decision(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to offload resource {request.resource_id}"
+            detail=f"Failed to offload resource {request.resource_id}",
         )
 
     # Save preference (session-scoped or persistent based on remember flag)
     await resource_manager.set_offload_preference(
-        request.user_id,
-        ResourceManager.PREFERENCE_ALWAYS_OFFLOAD,
-        remember=request.remember
+        request.user_id, ResourceManager.PREFERENCE_ALWAYS_OFFLOAD, remember=request.remember
     )
 
     return OffloadDecisionResponse(
-        success=True,
-        message="Resource successfully offloaded to CPU",
-        preempted_resources=None
+        success=True, message="Resource successfully offloaded to CPU", preempted_resources=None
     )
 
 
@@ -258,7 +285,7 @@ async def reload_from_cpu(
                 return OffloadDecisionResponse(
                     success=False,
                     message="Reload automatically cancelled due to VRAM constraints (user preference: always_cancel)",
-                    preempted_resources=None
+                    preempted_resources=None,
                 )
 
             if stored_preference == ResourceManager.PREFERENCE_ALWAYS_OFFLOAD:
@@ -266,38 +293,29 @@ async def reload_from_cpu(
                 preempted = []
                 for resource_id in preemption_suggestions:
                     if await resource_manager.preempt_resource(resource_id):
-                        preempted.append(resource_id)
+                        preempted.append(resource_id)  # noqa: PERF401
 
                 # Retry reload after preemption
-                success, _ = await resource_manager.reload_from_cpu(
-                    request.resource_id, request.estimated_vram_mb
-                )
+                success, _ = await resource_manager.reload_from_cpu(request.resource_id, request.estimated_vram_mb)
 
                 if success:
                     return OffloadDecisionResponse(
                         success=True,
                         message="Resource reload initiated after auto-preemption (user preference: always_offload)",
-                        preempted_resources=preempted
+                        preempted_resources=preempted,
                     )
 
         # No preference or "ask_each_time" - return preemption suggestions
         return OffloadDecisionResponse(
-            success=False,
-            message="Insufficient VRAM. Preemption required.",
-            preempted_resources=preemption_suggestions
+            success=False, message="Insufficient VRAM. Preemption required.", preempted_resources=preemption_suggestions
         )
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reload resource {request.resource_id}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reload resource {request.resource_id}"
         )
 
-    return OffloadDecisionResponse(
-        success=True,
-        message="Resource reload initiated",
-        preempted_resources=None
-    )
+    return OffloadDecisionResponse(success=True, message="Resource reload initiated", preempted_resources=None)
 
 
 # -------------------------------------------------------------------------
@@ -333,17 +351,10 @@ async def set_preference(
     If "remember" is true, the preference persists indefinitely.
     If false, it expires after the session (1 hour).
     """
-    success = await resource_manager.set_offload_preference(
-        request.user_id,
-        request.preference.value,
-        request.remember
-    )
+    success = await resource_manager.set_offload_preference(request.user_id, request.preference.value, request.remember)
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save preference"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save preference")
 
     return {"success": True, "message": "Preference saved successfully"}
 
@@ -371,16 +382,13 @@ async def save_operation_state(
         "resource_id": request.resource_id,
         "user_id": str(request.user_id),
         "status": "in_progress",
-        "metadata": request.metadata
+        "metadata": request.metadata,
     }
 
     success = await resource_manager.save_operation_state(request.operation_id, state)
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save operation state"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save operation state")
 
     return {"success": True, "message": "Operation state saved"}
 
@@ -397,11 +405,7 @@ async def get_operation_state(
     """
     state = await resource_manager.get_operation_state(operation_id)
 
-    return OperationStateResponse(
-        operation_id=operation_id,
-        found=state is not None,
-        state=state
-    )
+    return OperationStateResponse(operation_id=operation_id, found=state is not None, state=state)
 
 
 @operations_router.delete("/state/{operation_id}", response_model=dict)
@@ -418,8 +422,7 @@ async def delete_operation_state(
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete operation state"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete operation state"
         )
 
     return {"success": True, "message": "Operation state deleted"}

@@ -1,256 +1,109 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Agent-facing notes for Claude Code.
 
-## Project Overview
+## Source Of Truth
 
-AI Workstation is a containerized AI development environment with LLM integration (Ollama), image generation (ComfyUI), and isolated preview environments. Uses Docker Compose orchestration with microservices architecture.
+Use these docs first:
+- `docs/README.md` (canonical documentation hub)
+- `README.md` (system setup and run commands)
+- `backend/README.md` (backend dev/test commands)
+- `frontend/README.md` (frontend app/package commands)
+- `nginx/README.md` (proxy and TLS)
+- `docs/architecture.md` (service architecture)
+- `docs/testing.md` (test strategy and suites)
 
-## Common Commands
+Avoid duplicating full architecture and endpoint tables here.
 
-### Docker Development (Primary)
+## Minimal Working Commands
+
 ```bash
-docker-compose up -d                    # Start all services
-docker-compose up -d --build backend    # Rebuild specific service
-docker-compose logs -f backend          # Stream service logs
-docker-compose restart backend          # Restart service
-docker-compose down                     # Stop all (preserves data)
-docker-compose down -v                  # Stop and delete volumes (DESTRUCTIVE)
-```
+# Start stack
+python scripts/startup.py
+# or
+docker compose up -d
 
-### Backend (FastAPI)
-```bash
+# Backend tests
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+./scripts/run_tests.sh
 
-# Database migrations
-alembic upgrade head                           # Apply migrations
-alembic revision --autogenerate -m "message"   # Generate migration
-alembic downgrade -1                           # Rollback one migration
-
-# Background worker
-arq app.worker.WorkerSettings
-```
-
-### Frontend (Next.js)
-```bash
+# Frontend dev
 cd frontend
-npm install
-npm run dev      # Dev server (port 3000)
-npm run build    # Production build
-npm run lint     # Linting
+pnpm install
+pnpm dev
+
+# Frontend checks
+pnpm --filter @workstation/chat type-check
+pnpm --filter @workstation/chat test
 ```
 
-### Testing
+## Current Frontend Surfaces
+
+Top-level app routes in `frontend/apps/chat/app`:
+- `chat`, `workspace`, `mcp`, `drupal`, `studio`
+- `projects`, `notes`, `palettes`, `settings`, `admin`, `login`
+
+Use these route names when tracing UI behavior or adding help topics.
+
+## Current Backend Surface
+
+The FastAPI app currently mounts routers in `backend/app/main.py` for:
+- auth/users/admin
+- chats/messages/context/system prompts/snippets/planning
+- projects/resources/events/tools/tool-approvals/templates/project-import
+- image/comfyui/models/prompt presets/palettes
+- kb/ui-components/yolo
+- drupal/drupal-local/studio/brevo
+- notes/issues/help/websocket/operations/sandbox/automation
+
+When APIs change, update typed client/hooks in `frontend/packages/api`.
+
+## Help System Maintenance
+
+Canonical seed file:
+- `backend/scripts/insert_comprehensive_help_topics.py`
+
+Operational command (runs against live backend DB):
 ```bash
-cd backend
-pytest tests/ -v --cov=app                        # All tests with coverage
-pytest tests/ -m unit -v                           # Only unit tests
-pytest tests/ -m integration -v                    # Only integration tests
-pytest tests/kernel/test_resource_manager.py       # Single test file
-pytest tests/kernel/ -v --cov=app                  # All kernel tests
-./scripts/run_tests.sh                             # Runner with coverage report
-./scripts/run_tests.sh unit                        # By marker
+docker exec workstation-backend python scripts/insert_comprehensive_help_topics.py
 ```
 
-Coverage threshold is 80% on `app/` (configured in `.coveragerc`). Test config is in `pytest.ini` with `asyncio_mode = auto`.
+Coverage guardrails:
+- `tests/frontend/unit/help/field-help-coverage.test.ts`
+  - ensures `FieldHelp` usage has slugs
+  - ensures `openHelp(...)` slugs exist
+  - ensures seeded help bodies stay comprehensive
 
-### Health Verification
-```bash
-curl http://localhost:8001/health              # Backend (DB + Redis + Kernel)
-curl http://localhost:8001/api/kernel/health   # Kernel services only
-curl http://localhost:8001/api/kernel/status   # Detailed kernel status
-curl -k https://localhost:8443/health          # Nginx HTTPS
-docker exec workstation-postgres pg_isready -U workstation_user
-docker exec workstation-redis redis-cli -a $REDIS_PASSWORD ping
-```
+If a field or UI control is added, update both slug usage and seed topic body.
 
-## Architecture
+Help topic feedback (`HelpTopicFeedback` model) tracks user votes on help content via `POST /api/help/{slug}/feedback`.
 
-### Services & Ports
+## Notes
 
-| Service | Internal | Host | Tech |
-|---------|----------|------|------|
-| PostgreSQL | 5432 | 5433 | pgvector/pgvector:pg16 |
-| Redis | 6379 | 6380 | redis:7-alpine (AOF) |
-| Backend | 8000 | 8001 | FastAPI + SQLAlchemy async |
-| Worker | - | - | ARQ (Redis-backed, max 10 jobs, 300s timeout) |
-| Frontend | 3000 | 3001 | Next.js 14 |
-| Nginx | 80/443 | 9080/8443 | Reverse proxy + SSL |
+- Primary app endpoint is through Nginx (`http://localhost` / `https://localhost`).
+- Backend direct endpoint is `http://localhost:8001` by default.
+- Keep this file concise and non-duplicative; update core docs instead.
 
-External services on host: Ollama (11434), ComfyUI (8188) via `host.docker.internal`.
+## Drupal (kevinalthaus.com)
 
-### Networks
-- **workstation-network**: Core service communication
-- **workstation-preview-network**: Isolated sandbox containers (backend manages via Docker socket)
+- Production Drupal site for `kevinalthaus.com` is connected to this workspace.
+- Infrastructure and operational notes are tracked in restricted runbooks and local docs under `docs/drupal-mcp/`.
+- Use secret-manager/environment variables for runtime credentials (`DRUPAL_VPS_*`, `VPS_DB_*`).
+- Contact ops for infrastructure-specific details and production access workflows.
 
-### Data Flow
-```
-Browser → Nginx → /api,/ws → Backend → PostgreSQL/Redis/Ollama/ComfyUI
-                → /       → Frontend
-```
+## Brevo (Email/SMS)
 
-## Kernel Architecture
+- Backend service `brevo_client` reads `BREVO_API_KEY` or decodes from `BREVO_MCP_TOKEN`.
+- API routes live at `/api/brevo/*` (account, contacts, email/send, sms/send, templates, campaigns).
+- SMS default recipient is configured via `SMS_DEFAULT_RECIPIENT`.
 
-The backend uses a **WorkstationKernel** singleton (`app/kernel/__init__.py`) that orchestrates four core services. Services start in registration order and shut down in reverse (LIFO). The kernel uses `asyncio.Lock` for thread-safe startup/shutdown.
+## App Issues
 
-### Service Registration Order (in `app/main.py` lifespan)
-1. **ResourceManager** — GPU VRAM tracking (pynvml), priority-based model loading queue, LRU preemption, CPU offloading, operation state recovery via Redis
-2. **EventBus** — Redis pub/sub event distribution, PostgreSQL event persistence, in-process subscriber callbacks, WebSocket broadcasting
-3. **ToolRegistry** — Tool registration with JSON Schema validation, permission checking, Redis result caching (5min TTL), per-chat sequential execution queues, LRU eviction (100 results/chat)
-4. **ContextManager** — Conversation/project/user preference caching via Redis, token usage tracking with 80% threshold compaction trigger
-
-### Key Patterns
-- All services extend `BaseKernelService` (ABC in `app/kernel/base.py`) with `startup()`, `shutdown()`, `health_check()` lifecycle
-- After startup, the kernel runs `_recover_operations()` to restore in-flight operations from Redis
-- The WebSocket `ConnectionManager` is connected to the EventBus after kernel startup for real-time event broadcasting
-- `ContextManager.trigger_compaction()` does a local import: `from app.kernel import WorkstationKernel` — patch target for tests is `app.kernel.WorkstationKernel`, not `app.kernel.context_manager.WorkstationKernel`
-
-### Adding a New Kernel Tool
-1. Subclass `BaseTool` from `app/kernel/tool_base.py`
-2. Implement `name`, `description`, `parameters_schema` (JSON Schema), `required_permissions`, and `async execute()`
-3. Register via `ToolRegistry.register_tool(tool_instance)`
-
-## API Routes
-
-All routers mounted under `/api` prefix in `app/main.py`:
-
-| File | Prefix | Purpose |
-|------|--------|---------|
-| `api/resources.py` | `/resources` | Resource CRUD, model load/unload, VRAM status |
-| `api/events.py` | `/events` | Event queries, broadcasting |
-| `api/tools.py` | `/tools` | Tool registration, execution, listing |
-| `api/context.py` | `/context` | Conversation state, project context, preferences |
-| `api/websocket.py` | `/ws` | WebSocket real-time event stream |
-| `api/operations.py` | `/operations` | Operation state tracking |
-| `api/admin.py` | `/admin/kernel` | Admin/debug kernel endpoints |
-
-### WebSocket (`/api/ws`)
-- JWT auth via token query parameter
-- `ConnectionManager` tracks connections with `asyncio.Lock`
-- Sends state snapshot on reconnection
-- EventBus integration for real-time event broadcasting to connected clients
-
-## Database
-
-### Key Patterns
-- All models inherit `UUIDMixin` (server-generated UUID v4) and `TimestampMixin` (created_at/updated_at)
-- Async SQLAlchemy with asyncpg driver
-- Foreign keys use `ondelete="CASCADE"`
-- Soft deletion pattern: `is_deleted` flag + `deleted_at` timestamp
-
-### Models Location
-`backend/app/models/` — Import new models in `__init__.py` for Alembic detection.
-
-### Core Models
-- **User** → UserPreference (1:1), Projects (1:N)
-- **Project** → Chats (1:N), KBSources (1:N)
-- **Chat** → Messages (1:N), ContextCompactions (1:N)
-- **KBSource** → KBChunks (1:N) with vector embeddings (1024-dim, IVFFlat index)
-- **Resource** — VRAM tracking, priority, status, user lock
-- **Event** — Audit log with severity, source, optional user/chat/resource foreign keys
-- **AutomationAction**, **Archive**, **YoloEdit** — Supporting models
-
-### Extensions
-- `uuid-ossp`: UUID generation
-- `pgvector`: Vector similarity search
-
-### Adding a New Model
-1. Create model in `backend/app/models/` inheriting `Base`, `UUIDMixin`, `TimestampMixin`
-2. Add relationships with `back_populates`
-3. Define indexes in `__table_args__`
-4. Import in `backend/app/models/__init__.py`
-5. Generate migration: `alembic revision --autogenerate -m "description"`
-6. Apply: `alembic upgrade head`
-
-## Backend Structure
-
-```
-backend/
-├── app/
-│   ├── main.py              # FastAPI app, lifespan, kernel init, route mounting
-│   ├── auth.py              # Authentication
-│   ├── database.py          # Async SQLAlchemy config
-│   ├── worker.py            # ARQ worker settings
-│   ├── api/                 # Route handlers
-│   │   ├── resources.py
-│   │   ├── events.py
-│   │   ├── tools.py
-│   │   ├── context.py
-│   │   ├── websocket.py
-│   │   ├── operations.py
-│   │   └── admin.py
-│   ├── kernel/              # Core service orchestration
-│   │   ├── __init__.py      # WorkstationKernel singleton
-│   │   ├── base.py          # BaseKernelService ABC
-│   │   ├── resource_manager.py
-│   │   ├── event_bus.py
-│   │   ├── tool_registry.py
-│   │   ├── context_manager.py
-│   │   ├── tool_base.py     # BaseTool ABC
-│   │   └── event_types.py   # Event type & severity constants
-│   ├── models/              # ORM models (base.py has mixins)
-│   └── schemas/             # Pydantic request/response schemas
-├── tests/
-│   ├── conftest.py          # Shared fixtures (mock_redis, mock_session_factory, kernel_instance)
-│   └── kernel/
-│       ├── test_helpers.py  # MockTool, model factories, assertion helpers
-│       ├── test_resource_manager.py
-│       ├── test_tool_registry.py
-│       ├── test_event_bus.py
-│       ├── test_context_manager.py
-│       └── test_kernel_integration.py
-├── alembic/
-├── scripts/
-│   ├── run_tests.sh
-│   └── test_watch.sh
-├── pytest.ini
-├── .coveragerc
-└── requirements.txt
-```
-
-## Frontend Structure
-
-```
-frontend/
-├── app/
-│   ├── page.tsx
-│   └── layout.tsx
-├── Dockerfile
-├── package.json
-└── tsconfig.json
-```
-
-Next.js 14 with App Router, TypeScript, React 18.
-
-## Testing
-
-### Fixtures (in `tests/conftest.py`)
-- `mock_redis` — fakeredis async client (decode_responses=True)
-- `mock_db_session` — AsyncMock for SQLAlchemy sessions
-- `mock_session_factory` — async context manager yielding mock_db_session
-- `mock_vram_tracker` — MagicMock with realistic VRAM defaults
-- `kernel_instance` — fresh WorkstationKernel (autouse `cleanup_kernel` resets singleton between tests)
-
-### Test Helpers (in `tests/kernel/test_helpers.py`)
-- `MockTool` / `FailingTool` — configurable BaseTool implementations
-- `make_resource()`, `make_chat()`, `make_message()`, `make_event()`, `make_project()`, `make_user_preference()`, `make_compaction()` — MagicMock model factories
-- `assert_redis_key_exists/absent/ttl()` — Redis assertion helpers
-- `wait_for_condition()`, `assert_eventually()` — async polling utilities
-
-### Markers
-| Marker | Purpose |
-|--------|---------|
-| `unit` | Isolated, fast tests for individual service methods |
-| `integration` | Tests involving multiple services or kernel coordination |
-| `slow` | Tests with background loops, timeouts, or real delays |
-
-## Environment Variables
-
-Key variables in `.env` (copy from `.env.example`):
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `SECRET_KEY`: JWT signing key
-- `OLLAMA_BASE_URL`, `COMFYUI_BASE_URL`: External service URLs
-- Port mappings: `POSTGRES_PORT`, `REDIS_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`
+- Bugs with `is_app_issue = true` are **cross-project, app-level bugs** — highest priority, not tied to a single project.
+- `GET /api/issues/export` returns markdown with App Issues under `# App Issues` first, then per-project bugs under `# Project Bugs`.
+- `GET /api/issues?is_app_issue=true` returns only app-level issues.
+- Workflow:
+  1. User (or automation) flags a bug with `is_app_issue=true` via `POST /api/issues` or `PUT /api/issues/{issue_id}`.
+  2. User or automation calls `GET /api/issues/export` to produce a markdown report.
+  3. Claude Code reads that export and resolves items listed under `# App Issues` before per-project items.
+- After fixing, update status via `PUT /api/issues/{issue_id}` with `{"status": "resolved"}`.

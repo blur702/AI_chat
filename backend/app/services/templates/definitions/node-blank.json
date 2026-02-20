@@ -1,0 +1,21 @@
+{
+  "id": "node-blank",
+  "name": "Node.js Blank",
+  "description": "Empty Node.js 20 LTS environment with npm ready to use.",
+  "category": "node",
+  "docker_image": "node:20-slim",
+  "scaffold_files": {
+    "index.js": "\"use strict\";\n\nconsole.log(\"Hello, World!\");\n",
+    "package.json": "{\n  \"name\": \"my-project\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node index.js\"\n  }\n}\n",
+    ".gitignore": "node_modules/\ndist/\n.env\n"
+  },
+  "setup_commands": [
+    "npm install"
+  ],
+  "exposed_ports": [],
+  "environment": {},
+  "sidecar_services": [],
+  "memory_limit": "512m",
+  "cpu_quota": 50000,
+  "selected_technologies": ["node"]
+}

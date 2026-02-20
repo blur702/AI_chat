@@ -2,7 +2,7 @@
 # =====================================
 
 # Web Framework
-fastapi>=0.109.0
+fastapi>=0.109.0,<0.113.0
 uvicorn[standard]>=0.27.0
 
 # Database
@@ -17,15 +17,18 @@ arq>=0.25.0
 
 # HTTP Client
 httpx>=0.26.0
+playwright>=1.50.0
 
 # Validation & Settings
-pydantic>=2.5.0
+pydantic>=2.5.0,<2.10.0
 pydantic-settings>=2.1.0
 jsonschema>=4.20.0
 
 # Authentication
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<4.1.0
+email-validator>=2.1.0
 
 # Docker SDK
 docker>=7.0.0
@@ -33,9 +36,35 @@ docker>=7.0.0
 # GPU Monitoring
 nvidia-ml-py>=12.535.0
 
+# System Monitoring
+psutil>=5.9.0
+
+# Document Processing & Text Chunking
+pypdf>=4.0.0
+langchain-text-splitters>=0.3.0
+tiktoken>=0.7.0
+python-magic>=0.4.27
+
+# Image/Document Processing
+pytesseract>=0.3.10
+beautifulsoup4>=4.12.0
+Pillow>=10.0.0
+
+# Desktop control (optional, for computer use tools)
+pyautogui>=0.9.54
+mss>=9.0.0
+
+# SSH (VPS operations for Drupal staging)
+asyncssh>=2.14.0
+
+# Video/FFmpeg
+ffmpeg-python>=0.2.0
+openai-whisper>=20231117
+
 # Utilities
 python-multipart>=0.0.6
 python-dotenv>=1.0.0
+aiofiles>=24.0.0
 
 # Testing
 pytest>=8.0.0
@@ -43,3 +72,4 @@ pytest-asyncio>=0.23.0
 pytest-mock>=3.12.0
 pytest-cov>=4.1.0
 fakeredis>=2.21.0
+hypothesis>=6.100.0

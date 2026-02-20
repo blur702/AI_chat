@@ -1,0 +1,25 @@
+{
+  "id": "node-react-vite",
+  "name": "React + Vite",
+  "description": "React 18 application with Vite, TypeScript, and hot module replacement.",
+  "category": "node",
+  "docker_image": "node:20-slim",
+  "scaffold_files": {
+    "package.json": "{\n  \"name\": \"react-vite-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite --host 0.0.0.0\",\n    \"build\": \"tsc && vite build\",\n    \"preview\": \"vite preview --host 0.0.0.0\"\n  },\n  \"dependencies\": {\n    \"react\": \"^18.3.0\",\n    \"react-dom\": \"^18.3.0\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"^18.3.0\",\n    \"@types/react-dom\": \"^18.3.0\",\n    \"@vitejs/plugin-react\": \"^4.3.0\",\n    \"typescript\": \"^5.4.0\",\n    \"vite\": \"^5.4.0\"\n  }\n}\n",
+    "vite.config.ts": "import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\n\nexport default defineConfig({\n  plugins: [react()],\n  server: { host: '0.0.0.0', port: 5173 },\n})\n",
+    "tsconfig.json": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"module\": \"ESNext\",\n    \"lib\": [\"ES2020\", \"DOM\", \"DOM.Iterable\"],\n    \"jsx\": \"react-jsx\",\n    \"strict\": true,\n    \"moduleResolution\": \"bundler\",\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true\n  },\n  \"include\": [\"src\"]\n}\n",
+    "index.html": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>React App</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>\n",
+    "src/main.tsx": "import React from 'react'\nimport ReactDOM from 'react-dom/client'\nimport App from './App'\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n)\n",
+    "src/App.tsx": "export default function App() {\n  return (\n    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>\n      <h1>Hello from React + Vite</h1>\n    </div>\n  )\n}\n",
+    ".gitignore": "node_modules/\ndist/\n.env\n"
+  },
+  "setup_commands": [
+    "npm install"
+  ],
+  "exposed_ports": [5173],
+  "environment": {},
+  "sidecar_services": [],
+  "memory_limit": "768m",
+  "cpu_quota": 75000,
+  "selected_technologies": ["node", "react", "typescript"]
+}

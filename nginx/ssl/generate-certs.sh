@@ -1,70 +1,90 @@
 #!/bin/bash
 # =============================================================================
-# SSL Certificate Generation Script for Development
+# SSL Certificate Generation Script
 # =============================================================================
-# This script generates self-signed SSL certificates for local development.
-# The certificates are NOT suitable for production use.
+# Generates self-signed certificates for local development AND creates
+# placeholder certificates at the Let's Encrypt path so nginx can start
+# before running init-letsencrypt.sh.
 #
 # Usage:
 #   cd nginx/ssl && ./generate-certs.sh
 #
-# Generated files:
-#   - nginx-selfsigned.crt  (SSL certificate)
-#   - nginx-selfsigned.key  (Private key)
-#
-# Note: Browsers will display a security warning for self-signed certificates.
-# This is expected behavior in development environments.
+# After this, run init-letsencrypt.sh to obtain a real Let's Encrypt
+# certificate for ssdd.kevinalthaus.com.
 # =============================================================================
 
 set -e
 
-CERT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CERT_FILE="${CERT_DIR}/nginx-selfsigned.crt"
-KEY_FILE="${CERT_DIR}/nginx-selfsigned.key"
-
-# Certificate validity in days
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CERT_FILE="${SCRIPT_DIR}/nginx-selfsigned.crt"
+KEY_FILE="${SCRIPT_DIR}/nginx-selfsigned.key"
+DOMAIN="ssdd.kevinalthaus.com"
+LE_DIR="${SCRIPT_DIR}/../certbot/conf/live/${DOMAIN}"
+CERTBOT_WWW="${SCRIPT_DIR}/../certbot/www"
 VALIDITY_DAYS=365
 
-# Check if OpenSSL is installed
 if ! command -v openssl &> /dev/null; then
-    echo "Error: OpenSSL is not installed. Please install OpenSSL and try again."
+    echo "Error: OpenSSL is not installed."
     exit 1
 fi
 
-# Check if certificates already exist
+# --- Self-signed certificate for localhost ---
 if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
-    echo "SSL certificates already exist:"
-    echo "  - $CERT_FILE"
-    echo "  - $KEY_FILE"
-    read -p "Do you want to regenerate them? (y/N): " -n 1 -r
+    echo "Self-signed certs already exist. Regenerate? (y/N): "
+    read -p "" -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Keeping existing certificates."
-        exit 0
+        echo "Keeping existing self-signed certificates."
+    else
+        REGEN_SELFSIGNED=1
     fi
+else
+    REGEN_SELFSIGNED=1
 fi
 
-echo "Generating self-signed SSL certificate..."
+if [ "${REGEN_SELFSIGNED}" = "1" ]; then
+    echo "Generating self-signed certificate for localhost..."
+    openssl req -x509 -nodes -days ${VALIDITY_DAYS} -newkey rsa:2048 \
+        -keyout "$KEY_FILE" \
+        -out "$CERT_FILE" \
+        -subj "/C=US/ST=Local/L=Local/O=Development/OU=AI Workstation/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1,IP:::1"
 
-# Generate self-signed certificate with SAN (Subject Alternative Names)
-openssl req -x509 -nodes -days ${VALIDITY_DAYS} -newkey rsa:2048 \
-    -keyout "$KEY_FILE" \
-    -out "$CERT_FILE" \
-    -subj "/C=US/ST=Local/L=Local/O=Development/OU=AI Workstation/CN=localhost" \
-    -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1,IP:::1"
+    chmod 644 "$CERT_FILE"
+    chmod 600 "$KEY_FILE"
 
-# Set appropriate permissions
-chmod 644 "$CERT_FILE"
-chmod 600 "$KEY_FILE"
+    echo "  Certificate: $CERT_FILE"
+    echo "  Private Key: $KEY_FILE"
+    openssl x509 -in "$CERT_FILE" -noout -subject -dates
+    echo ""
+fi
 
-echo ""
-echo "SSL certificates generated successfully!"
-echo "  Certificate: $CERT_FILE"
-echo "  Private Key: $KEY_FILE"
-echo "  Valid for: ${VALIDITY_DAYS} days"
-echo ""
-echo "Certificate details:"
-openssl x509 -in "$CERT_FILE" -noout -subject -dates
-echo ""
-echo "You can now start the services with: docker-compose up -d"
-echo "Access via HTTPS: https://localhost:8443"
+# --- Placeholder certificate for Let's Encrypt path ---
+# Nginx references this path for the ssdd.kevinalthaus.com server block.
+# This dummy cert allows nginx to start before certbot obtains a real one.
+if [ ! -f "${LE_DIR}/fullchain.pem" ]; then
+    echo "Creating placeholder certificate for ${DOMAIN}..."
+    mkdir -p "$LE_DIR"
+
+    openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+        -keyout "${LE_DIR}/privkey.pem" \
+        -out "${LE_DIR}/fullchain.pem" \
+        -subj "/CN=${DOMAIN}"
+
+    chmod 644 "${LE_DIR}/fullchain.pem"
+    chmod 600 "${LE_DIR}/privkey.pem"
+
+    echo "  Placeholder cert created at: ${LE_DIR}/"
+    echo ""
+else
+    echo "Let's Encrypt cert path already populated — skipping placeholder."
+    echo ""
+fi
+
+# --- Create ACME challenge webroot ---
+mkdir -p "$CERTBOT_WWW"
+
+echo "Done! Next steps:"
+echo "  1. docker-compose up -d"
+echo "  2. Ensure DNS for ${DOMAIN} points to this machine"
+echo "  3. Run: ./nginx/ssl/init-letsencrypt.sh"

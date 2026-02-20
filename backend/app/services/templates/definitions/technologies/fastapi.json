@@ -1,0 +1,21 @@
+{
+  "id": "fastapi",
+  "name": "FastAPI",
+  "description": "FastAPI web framework with uvicorn and async support",
+  "category": "backend",
+  "dependencies": ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "pydantic>=2.6.0"],
+  "install_commands": [
+    "/workspace/.venv/bin/pip install -r /workspace/requirements.txt"
+  ],
+  "scaffold_files": {
+    "requirements.txt": "fastapi>=0.110.0\nuvicorn[standard]>=0.29.0\npydantic>=2.6.0\n",
+    "app/__init__.py": "",
+    "app/main.py": "\"\"\"FastAPI application.\"\"\"\n\nfrom fastapi import FastAPI\n\napp = FastAPI(title=\"My API\")\n\n\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Hello from FastAPI\"}\n\n\n@app.get(\"/health\")\nasync def health():\n    return {\"status\": \"ok\"}\n"
+  },
+  "environment": {},
+  "sidecar_services": [],
+  "requires_technologies": ["python"],
+  "conflicts_with": ["flask"],
+  "docker_image": null,
+  "exposed_ports": [8000]
+}

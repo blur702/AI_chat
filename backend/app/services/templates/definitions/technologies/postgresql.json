@@ -1,0 +1,32 @@
+{
+  "id": "postgresql",
+  "name": "PostgreSQL",
+  "description": "PostgreSQL 16 relational database with sidecar container",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {
+    ".env.example": "DB_USER=<REPLACE_ME_DB_USER>\nDB_PASSWORD=<REPLACE_ME_DB_PASSWORD>\nDB_NAME=<REPLACE_ME_DB_NAME>\n# Override these values for non-development deployments.\n"
+  },
+  "environment": {
+    "DATABASE_URL": "postgresql://<REPLACE_ME_DB_USER>:<REPLACE_ME_DB_PASSWORD>@postgres-db:5432/<REPLACE_ME_DB_NAME>"
+  },
+  "sidecar_services": [
+    {
+      "name": "postgres-db",
+      "image": "postgres:16-alpine",
+      "environment": {
+        "POSTGRES_USER": "<REPLACE_ME_DB_USER>",
+        "POSTGRES_PASSWORD": "<REPLACE_ME_DB_PASSWORD>",
+        "POSTGRES_DB": "<REPLACE_ME_DB_NAME>"
+      },
+      "exposed_ports": [5432],
+      "volumes": {},
+      "memory_limit": "512m"
+    }
+  ],
+  "requires_technologies": [],
+  "conflicts_with": ["mysql", "mariadb"],
+  "docker_image": null,
+  "exposed_ports": []
+}

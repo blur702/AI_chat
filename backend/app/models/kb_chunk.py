@@ -38,10 +38,10 @@ class KBChunk(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    project_id: Mapped[UUID] = mapped_column(
+    project_id: Mapped[Optional[UUID]] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     content: Mapped[str] = mapped_column(

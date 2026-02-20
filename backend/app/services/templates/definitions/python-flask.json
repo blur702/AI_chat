@@ -1,0 +1,30 @@
+{
+  "id": "python-flask",
+  "name": "Python Flask",
+  "description": "Flask web application with Jinja2 templates and development server.",
+  "category": "python",
+  "docker_image": "python:3.12-slim",
+  "scaffold_files": {
+    "app.py": "\"\"\"Flask application.\"\"\"\n\nfrom flask import Flask, jsonify\n\napp = Flask(__name__)\n\n\n@app.route(\"/\")\ndef index():\n    return jsonify(message=\"Hello from Flask\")\n\n\n@app.route(\"/health\")\ndef health():\n    return jsonify(status=\"ok\")\n\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", port=5000, debug=True)\n",
+    "requirements.txt": "flask>=3.0.0\n",
+    "templates/.gitkeep": "",
+    "static/.gitkeep": "",
+    ".gitignore": "__pycache__/\n*.pyc\n.venv/\n*.egg-info/\ndist/\n"
+  },
+  "setup_commands": [
+    "python -m venv /workspace/.venv",
+    "/workspace/.venv/bin/pip install --upgrade pip",
+    "/workspace/.venv/bin/pip install -r /workspace/requirements.txt"
+  ],
+  "exposed_ports": [5000],
+  "environment": {
+    "VIRTUAL_ENV": "/workspace/.venv",
+    "PATH": "/workspace/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "FLASK_APP": "app.py",
+    "FLASK_DEBUG": "1"
+  },
+  "sidecar_services": [],
+  "memory_limit": "512m",
+  "cpu_quota": 50000,
+  "selected_technologies": ["python", "flask"]
+}

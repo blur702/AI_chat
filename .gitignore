@@ -1,4 +1,4 @@
-# =============================================================================
+1# =============================================================================
 # AI Workstation .gitignore
 # =============================================================================
 
@@ -16,8 +16,10 @@ docker-compose.local.yml
 # -----------------------------------------------------------------------------
 data/
 .data/
+.model_downloads/
 postgres_data/
 redis_data/
+.ollama/
 
 # -----------------------------------------------------------------------------
 # IDE and Editor
@@ -85,6 +87,9 @@ node_modules/
 .next/
 out/
 
+# TypeScript incremental build
+*.tsbuildinfo
+
 # -----------------------------------------------------------------------------
 # Testing and Coverage
 # -----------------------------------------------------------------------------
@@ -96,6 +101,8 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+tests/e2e/playwright-report/
+tests/e2e/test-results/
 
 # -----------------------------------------------------------------------------
 # Secrets and Credentials
@@ -107,3 +114,13 @@ coverage.xml
 secrets/
 credentials/
 nul
+.claude/settings.local.json
+.mcp.json
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.playwright-mcp/

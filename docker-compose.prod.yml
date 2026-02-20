@@ -1,0 +1,22 @@
+services:
+  backend:
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in production}
+      MASTER_USERNAMES: ${MASTER_USERNAMES:?MASTER_USERNAMES is required in production}
+      MASTER_PASSWORD: ${MASTER_PASSWORD:?MASTER_PASSWORD is required in production}
+    volumes:
+      - image_outputs:/data/comfyui_outputs
+
+  worker:
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in production}
+    volumes:
+      - image_outputs:/data/comfyui_outputs
+
+  chat:
+    environment:
+      NODE_ENV: production

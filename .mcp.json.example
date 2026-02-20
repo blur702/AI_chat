@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "brevo": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.brevo.com/v1/brevo/mcp/YOUR_BASE64_ENCODED_API_KEY_HERE"]
+    }
+  }
+}

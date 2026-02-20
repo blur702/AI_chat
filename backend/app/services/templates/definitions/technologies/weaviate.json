@@ -1,0 +1,39 @@
+{
+  "id": "weaviate",
+  "name": "Weaviate",
+  "description": "Weaviate vector database for AI-native search and retrieval",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {},
+  "environment": {
+    "WEAVIATE_URL": "http://weaviate-db:8080",
+    "WEAVIATE_API_KEY": "${WEAVIATE_API_KEY:-devkey}"
+  },
+  "sidecar_services": [
+    {
+      "name": "weaviate-db",
+      "image": "semitechnologies/weaviate:1.35.7",
+      "environment": {
+        "AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED": "false",
+        "AUTHENTICATION_APIKEY_ENABLED": "true",
+        "AUTHENTICATION_APIKEY_ALLOWED_KEYS": "${WEAVIATE_API_KEY:-devkey}",
+        "AUTHENTICATION_APIKEY_USERS": "admin@example.com",
+        "AUTHORIZATION_ADMINLIST_ENABLED": "true",
+        "AUTHORIZATION_ADMINLIST_USERS": "admin@example.com",
+        "PERSISTENCE_DATA_PATH": "/var/lib/weaviate",
+        "DEFAULT_VECTORIZER_MODULE": "none",
+        "CLUSTER_HOSTNAME": "node1"
+      },
+      "exposed_ports": [8080],
+      "volumes": {
+        "weaviate-data": "/var/lib/weaviate"
+      },
+      "memory_limit": "1g"
+    }
+  ],
+  "requires_technologies": [],
+  "conflicts_with": [],
+  "docker_image": null,
+  "exposed_ports": []
+}

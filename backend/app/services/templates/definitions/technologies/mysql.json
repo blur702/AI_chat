@@ -1,0 +1,29 @@
+{
+  "id": "mysql",
+  "name": "MySQL",
+  "description": "MySQL 8.0 relational database with sidecar container",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {},
+  "environment": {
+    "DATABASE_URL": "mysql://root:${MYSQL_ROOT_PASSWORD}@mysql-db:3306/${MYSQL_DATABASE}"
+  },
+  "sidecar_services": [
+    {
+      "name": "mysql-db",
+      "image": "mysql:8.0",
+      "environment": {
+        "MYSQL_ROOT_PASSWORD": "${MYSQL_ROOT_PASSWORD:-changeme}",
+        "MYSQL_DATABASE": "${MYSQL_DATABASE:-appdb}"
+      },
+      "exposed_ports": [3306],
+      "volumes": {},
+      "memory_limit": "512m"
+    }
+  ],
+  "requires_technologies": [],
+  "conflicts_with": ["mariadb", "postgresql", "pgvector"],
+  "docker_image": null,
+  "exposed_ports": []
+}

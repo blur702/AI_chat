@@ -6,7 +6,7 @@ This document describes the WebSocket authentication, state recovery, and reconn
 
 ```
 ws://localhost:8001/api/ws/events?token={jwt_token}
-wss://localhost:8443/api/ws/events?token={jwt_token}  # Production (HTTPS)
+wss://localhost/api/ws/events?token={jwt_token}  # Via nginx TLS
 ```
 
 ## Authentication Flow

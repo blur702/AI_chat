@@ -1,0 +1,25 @@
+{
+  "id": "python-blank",
+  "name": "Python Blank",
+  "description": "Empty Python 3.12 environment with pip and venv ready to use.",
+  "category": "python",
+  "docker_image": "python:3.12-slim",
+  "scaffold_files": {
+    "main.py": "\"\"\"Main entry point.\"\"\"\n\n\ndef main() -> None:\n    print(\"Hello, World!\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+    "requirements.txt": "# Add your dependencies here\n",
+    ".gitignore": "__pycache__/\n*.pyc\n.venv/\n*.egg-info/\ndist/\n"
+  },
+  "setup_commands": [
+    "python -m venv /workspace/.venv",
+    "/workspace/.venv/bin/pip install --upgrade pip"
+  ],
+  "exposed_ports": [],
+  "environment": {
+    "VIRTUAL_ENV": "/workspace/.venv",
+    "PATH": "/workspace/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+  },
+  "sidecar_services": [],
+  "memory_limit": "512m",
+  "cpu_quota": 50000,
+  "selected_technologies": ["python"]
+}

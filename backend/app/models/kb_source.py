@@ -7,7 +7,7 @@ into the knowledge base for a project.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, Index, Integer, String
@@ -32,10 +32,10 @@ class KBSource(UUIDMixin, TimestampMixin, Base):
 
     __tablename__ = "kb_sources"
 
-    project_id: Mapped[UUID] = mapped_column(
+    project_id: Mapped[Optional[UUID]] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     source_type: Mapped[str] = mapped_column(

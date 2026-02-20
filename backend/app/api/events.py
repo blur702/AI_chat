@@ -13,8 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user_payload
 from app.database import get_db_session as get_db
 from app.kernel.event_bus import EventBus
+from app.utils.cache import cached_response
 from app.models.event import Event
 from app.schemas.event import (
     EventBroadcastResponse,
@@ -214,13 +216,16 @@ async def create_event(
 
 
 @router.get("/types/list", response_model=List[str])
+@cached_response(ttl=300, key_prefix="rc")
 async def list_event_types(
+    payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db),
 ):
     """
     List all distinct event types that have been recorded.
 
     Useful for discovering available event types for filtering.
+    Cached for 5 minutes.
     """
     result = await db.execute(
         select(Event.event_type).distinct().order_by(Event.event_type)
@@ -230,13 +235,16 @@ async def list_event_types(
 
 
 @router.get("/stats/summary")
+@cached_response(ttl=60, key_prefix="rc")
 async def get_event_stats(
+    payload: dict = Depends(get_current_user_payload),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get summary statistics about events.
 
     Returns counts by event type and severity level.
+    Cached for 60 seconds.
     """
     # Count by event type
     type_query = select(

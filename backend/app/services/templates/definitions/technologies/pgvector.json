@@ -1,0 +1,30 @@
+{
+  "id": "pgvector",
+  "name": "PGVector",
+  "description": "PostgreSQL with pgvector extension for vector similarity search",
+  "category": "database",
+  "dependencies": [],
+  "install_commands": [],
+  "scaffold_files": {},
+  "environment": {
+    "DATABASE_URL": "postgresql://postgres:postgres@pgvector-db:5432/appdb"
+  },
+  "sidecar_services": [
+    {
+      "name": "pgvector-db",
+      "image": "pgvector/pgvector:pg16",
+      "environment": {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "postgres",
+        "POSTGRES_DB": "appdb"
+      },
+      "exposed_ports": [5432],
+      "volumes": {},
+      "memory_limit": "512m"
+    }
+  ],
+  "requires_technologies": [],
+  "conflicts_with": ["postgresql", "mysql", "mariadb"],
+  "docker_image": null,
+  "exposed_ports": []
+}

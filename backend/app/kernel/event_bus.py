@@ -7,6 +7,7 @@ WebSocket broadcasting to connected clients.
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -145,7 +146,7 @@ class EventBus(BaseKernelService):
         if self._pubsub:
             try:
                 await self._pubsub.punsubscribe(CHANNEL_ALL)
-                await self._pubsub.close()
+                await self._pubsub.aclose()
             except Exception as e:
                 logger.warning(f"Error closing pub/sub: {e}")
             self._pubsub = None
@@ -424,7 +425,7 @@ class EventBus(BaseKernelService):
         # Execute callbacks
         for callback in callbacks:
             try:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(event_type, event_data, metadata)
                 else:
                     callback(event_type, event_data, metadata)

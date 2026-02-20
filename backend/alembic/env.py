@@ -11,7 +11,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
@@ -19,18 +19,6 @@ from alembic import context
 from app.database import Base
 
 # Import all models here for autogenerate to detect them
-from app.models.user import User
-from app.models.user_preference import UserPreference
-from app.models.project import Project
-from app.models.chat import Chat
-from app.models.message import Message
-from app.models.resource import Resource
-from app.models.context_compaction import ContextCompaction
-from app.models.kb_source import KBSource
-from app.models.kb_chunk import KBChunk
-from app.models.automation_action import AutomationAction
-from app.models.yolo_edit import YoloEdit
-from app.models.archive import Archive
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -51,10 +39,7 @@ def get_database_url() -> str:
 
     Converts postgresql:// to postgresql+asyncpg:// for async driver support.
     """
-    url = os.getenv(
-        "DATABASE_URL",
-        "postgresql://workstation_user:change_me_in_production@postgres:5432/workstation"
-    )
+    url = os.getenv("DATABASE_URL", "postgresql://workstation_user:change_me_in_production@postgres:5432/workstation")
     # Convert to async driver URL if needed
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)

@@ -121,7 +121,7 @@ class ToolRegistry(BaseKernelService):
         )
 
         if self._redis:
-            await self._redis.close()
+            await self._redis.aclose()
             self._redis = None
 
         logger.info("ToolRegistry service shutdown complete")
@@ -191,6 +191,10 @@ class ToolRegistry(BaseKernelService):
         """Return a registered tool by name, or None."""
         return self._tools.get(name)
 
+    def get_redis_client(self) -> Optional[redis.Redis]:
+        """Return the Redis client, or None if unavailable."""
+        return self._redis
+
     def list_tools(self) -> list[Dict[str, Any]]:
         """
         Return metadata for all registered tools.
@@ -205,6 +209,24 @@ class ToolRegistry(BaseKernelService):
                 "description": tool.description,
                 "parameters_schema": tool.parameters_schema,
                 "required_permissions": sorted(tool.required_permissions),
+            }
+            for tool in self._tools.values()
+        ]
+
+    def get_tools_openai_format(self) -> List[Dict[str, Any]]:
+        """
+        Return registered tools as OpenAI-compatible tool definitions.
+
+        This format is accepted by Ollama's ``tools`` parameter.
+        """
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters_schema,
+                },
             }
             for tool in self._tools.values()
         ]
